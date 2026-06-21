@@ -18,6 +18,12 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
+  // States for adding a new supplier
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
   prices.forEach(sp => {
@@ -151,6 +157,28 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
     }
   };
 
+  const handleAddSupplier = async (e) => {
+    e.preventDefault();
+    if (!newSupplierName) return;
+    
+    setIsSavingSupplier(true);
+    try {
+      await db.saveSupplier({
+        name: newSupplierName,
+        contact_phone: newSupplierPhone
+      });
+      // Reset values
+      setNewSupplierName('');
+      setNewSupplierPhone('');
+      setIsAddSupplierOpen(false);
+      onRefresh();
+    } catch (err) {
+      alert("Error adding supplier: " + err.message);
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Panel */}
@@ -168,6 +196,13 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
           >
             <Plus className="w-4 h-4" />
             Add Product
+          </button>
+          <button
+            onClick={() => setIsAddSupplierOpen(true)}
+            className="glass-button-secondary py-2 px-4 flex items-center gap-2 text-xs font-bold"
+          >
+            <Plus className="w-4 h-4" />
+            Add Supplier
           </button>
           <div className="flex items-center gap-2 text-xs text-dark-400 bg-dark-950/60 px-3.5 py-2 rounded-xl border border-dark-800">
             <Info className="w-4 h-4 text-primary-400 flex-shrink-0" />
@@ -456,6 +491,63 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                 className="glass-button-primary"
               >
                 {isSavingProduct ? 'Adding...' : 'Add Product'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add Supplier Modal */}
+      {isAddSupplierOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <form 
+            onSubmit={handleAddSupplier}
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 text-left"
+          >
+            <div className="p-6 border-b border-dark-800">
+              <h3 className="font-bold text-lg text-white">Add New Supplier</h3>
+              <p className="text-xs text-dark-400 mt-1">Create a new supplier profile in the system.</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Supplier Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="E.g. Keo Pich Trading"
+                  value={newSupplierName}
+                  onChange={(e) => setNewSupplierName(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Contact Phone</label>
+                <input 
+                  type="text" 
+                  placeholder="E.g. 012 345 678"
+                  value={newSupplierPhone}
+                  onChange={(e) => setNewSupplierPhone(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
+              <button 
+                type="button" 
+                onClick={() => setIsAddSupplierOpen(false)} 
+                className="glass-button-secondary"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={isSavingSupplier}
+                className="glass-button-primary"
+              >
+                {isSavingSupplier ? 'Adding...' : 'Add Supplier'}
               </button>
             </div>
           </form>
