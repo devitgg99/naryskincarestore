@@ -4,13 +4,43 @@ import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
 export default function InvoiceBuilder({ customers, products, suppliers, prices, onRefresh }) {
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [deliveryFee, setDeliveryFee] = useState('1.50');
-  const [lineItems, setLineItems] = useState([
-    { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false }
-  ]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
+    return localStorage.getItem('wsp_draft_customer') || '';
+  });
+  const [deliveryFee, setDeliveryFee] = useState(() => {
+    return localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
+  });
+  const [lineItems, setLineItems] = useState(() => {
+    const saved = localStorage.getItem('wsp_draft_line_items');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return [
+      { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false }
+    ];
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState(null); // Saved order details for print receipt preview modal
+
+  // Auto-save draft inputs to localStorage to prevent data loss on tab changes
+  useEffect(() => {
+    localStorage.setItem('wsp_draft_customer', selectedCustomerId);
+  }, [selectedCustomerId]);
+
+  useEffect(() => {
+    localStorage.setItem('wsp_draft_delivery_fee', deliveryFee);
+  }, [deliveryFee]);
+
+  useEffect(() => {
+    const cleanItems = lineItems.map(item => ({
+      ...item,
+      isDropdownOpen: false
+    }));
+    localStorage.setItem('wsp_draft_line_items', JSON.stringify(cleanItems));
+  }, [lineItems]);
   
   // Group prices by product_id
   const productSupplierPrices = {};
@@ -157,7 +187,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
 
-      // Clear form
+      // Clear form and drafts
+      localStorage.removeItem('wsp_draft_customer');
+      localStorage.removeItem('wsp_draft_delivery_fee');
+      localStorage.removeItem('wsp_draft_line_items');
+
+      setSelectedCustomerId('');
       setLineItems([{ 
         id: Date.now().toString(), 
         product_id: '', 
