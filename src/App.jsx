@@ -7,10 +7,11 @@ import InvoiceBuilder from './modules/InvoiceBuilder';
 import SalesLog from './modules/SalesLog';
 import StockTracker from './modules/StockTracker';
 import { db, getSupabaseConfig } from './services/db';
-import { RefreshCw, LayoutDashboard, Database, HelpCircle, Package, TrendingUp, AlertTriangle } from 'lucide-react';
+import { RefreshCw, LayoutDashboard, Database, HelpCircle, Package, TrendingUp, AlertTriangle, Menu } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('pricing');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -153,6 +154,14 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-dark-950 font-sans">
+      {/* Sidebar Backdrop Overlay on Mobile */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden"
+        />
+      )}
+
       {/* Sidebar Navigation */}
       <Sidebar 
         activeTab={activeTab} 
@@ -161,17 +170,28 @@ export default function App() {
         onRefresh={loadData}
         theme={theme}
         toggleTheme={toggleTheme}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header Bar */}
         <header className="h-16 border-b border-dark-800/80 bg-dark-950/20 backdrop-blur-md flex items-center justify-between px-8 flex-shrink-0 no-print">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-primary-400" />
-            <span className="text-sm font-bold text-white uppercase tracking-wider">
-              {activeTab} Dashboard
-            </span>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-1.5 rounded-lg hover:bg-dark-900 text-dark-400 hover:text-white md:hidden transition-all active:scale-95 cursor-pointer"
+              title="Open Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="w-5 h-5 text-primary-400" />
+              <span className="text-sm font-bold text-white uppercase tracking-wider">
+                {activeTab} Dashboard
+              </span>
+            </div>
           </div>
 
           {/* Quick Info Badges */}

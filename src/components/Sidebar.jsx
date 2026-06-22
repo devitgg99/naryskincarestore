@@ -9,11 +9,12 @@ import {
   RefreshCw,
   Info,
   Sun,
-  Moon
+  Moon,
+  X
 } from 'lucide-react';
 import { getSupabaseConfig, db } from '../services/db';
 
-export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRefresh, theme, toggleTheme }) {
+export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRefresh, theme, toggleTheme, isOpen, onClose }) {
   const config = getSupabaseConfig();
   const isSupabase = config.active && config.url && config.key;
 
@@ -33,7 +34,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
   };
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-dark-800 bg-dark-950/60 backdrop-blur-xl flex flex-col h-screen no-print">
+    <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-dark-800 bg-dark-950/95 backdrop-blur-xl flex flex-col h-screen transition-transform duration-300 md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} no-print`}>
       {/* Title */}
       <div className="p-6 flex items-center justify-between border-b border-dark-800/80">
         <div className="flex items-center gap-3">
@@ -45,13 +46,22 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             <p className="text-[10px] font-semibold text-primary-400 tracking-widest uppercase">Portal System</p>
           </div>
         </div>
-        <button
-          onClick={toggleTheme}
-          className="p-1.5 rounded-lg hover:bg-dark-900 text-dark-400 hover:text-white border border-transparent hover:border-dark-800 transition-all active:scale-95 cursor-pointer"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-400" />}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg hover:bg-dark-900 text-dark-400 hover:text-white border border-transparent hover:border-dark-800 transition-all active:scale-95 cursor-pointer"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-400" />}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-dark-900 text-dark-400 hover:text-white md:hidden transition-all active:scale-95 cursor-pointer"
+            title="Close Menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Nav List */}
@@ -62,7 +72,10 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                if (onClose) onClose();
+              }}
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${
                 isActive
                   ? 'bg-primary-500/10 text-primary-400 border-l-4 border-primary-500 shadow-md shadow-primary-500/5'
