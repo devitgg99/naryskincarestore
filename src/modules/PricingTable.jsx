@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Edit2, TrendingUp, Info, ShoppingCart, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2 } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function PricingTable({ products, suppliers, prices, onRefresh }) {
@@ -118,16 +118,42 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
 
     setIsSaving(true);
     try {
-      await db.updateSupplierPrice({
-        ...editingCell.priceObj,
-        price: editPrice ? Number(editPrice) : 0,
-        stock_qty: Number(editStock),
-        stock_unit: editUnit
-      });
+      const priceVal = editPrice ? Number(editPrice) : 0;
+      const stockVal = Number(editStock);
+
+      if (priceVal === 0 && stockVal === 0) {
+        if (editingCell.priceObj.id) {
+          await db.deleteSupplierPrice(editingCell.product.id, editingCell.supplier.id);
+        }
+      } else {
+        await db.updateSupplierPrice({
+          ...editingCell.priceObj,
+          price: priceVal,
+          stock_qty: stockVal,
+          stock_unit: editUnit
+        });
+      }
       onRefresh();
       setEditingCell(null);
     } catch (err) {
       alert("Error saving price: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteOffer = async () => {
+    if (!editingCell) return;
+    const confirmed = window.confirm(`Are you sure you want to delete this product offer from supplier "${editingCell.supplier.name}"?`);
+    if (!confirmed) return;
+
+    setIsSaving(true);
+    try {
+      await db.deleteSupplierPrice(editingCell.product.id, editingCell.supplier.id);
+      onRefresh();
+      setEditingCell(null);
+    } catch (err) {
+      alert("Error deleting offer: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -178,6 +204,19 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
       setIsSavingSupplier(false);
     }
   };
+
+  const handleDeleteSupplier = async (supplier) => {
+    const confirmed = window.confirm(`Are you sure you want to delete supplier "${supplier.name}"? This will remove all their prices and inventory records.`);
+    if (!confirmed) return;
+
+    try {
+      await db.deleteSupplier(supplier.id);
+      onRefresh();
+    } catch (err) {
+      alert("Error deleting supplier: " + err.message);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -250,8 +289,18 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                   // Hide columns if single supplier filter is active (except selected)
                   if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
                   return (
-                    <th key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-dark-800/40">
-                      {supplier.name}
+                    <th key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-dark-800/40 relative group">
+                      <span className="inline-block">{supplier.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSupplier(supplier);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200 cursor-pointer"
+                        title={`Delete ${supplier.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </th>
                   );
                 })}
@@ -297,7 +346,7 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                               : ''
                           }`}
                         >
-                          {priceObj && priceObj.price > 0 ? (
+                          {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
                             <div className="space-y-1 relative">
                               {/* Price */}
                               <div className="font-semibold flex items-center justify-center gap-1.5">
@@ -311,12 +360,19 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                                 )}
                               </div>
                               {/* Stock */}
-                              <div className={`text-[11px] font-medium ${
-                                priceObj.stock_qty <= 2 
-                                  ? 'text-rose-400 font-bold bg-rose-500/10 px-1 py-0.5 rounded inline-block' 
-                                  : 'text-dark-400'
-                              }`}>
-                                Stock: {priceObj.stock_qty} {priceObj.stock_unit}
+                              <div className="space-y-0.5">
+                                <div className={`text-[11px] font-medium ${
+                                  priceObj.stock_qty <= 2 
+                                    ? 'text-rose-400 font-bold bg-rose-500/10 px-1 py-0.5 rounded inline-block' 
+                                    : 'text-dark-400'
+                                }`}>
+                                  Stock: {priceObj.stock_qty} {priceObj.stock_unit}
+                                </div>
+                                {priceObj.updated_at && (
+                                  <div className="text-[10px] text-dark-500 font-medium group-hover/cell:text-dark-400 transition-colors">
+                                    Updated: {new Date(priceObj.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                  </div>
+                                )}
                               </div>
                               
                               <Edit2 className="w-3.5 h-3.5 absolute right-0 top-0 opacity-0 group-hover/cell:opacity-60 transition-opacity text-primary-400" />
@@ -405,21 +461,35 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
-              <button 
-                type="button" 
-                onClick={() => setEditingCell(null)} 
-                className="glass-button-secondary"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={isSaving}
-                className="glass-button-primary"
-              >
-                Save Changes
-              </button>
+            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 w-full">
+              {editingCell.priceObj.id ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteOffer}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 border border-red-500/20 cursor-pointer"
+                >
+                  Delete Offer
+                </button>
+              ) : (
+                <div></div>
+              )}
+              <div className="flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingCell(null)} 
+                  className="glass-button-secondary"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="glass-button-primary"
+                >
+                  Save Price
+                </button>
+              </div>
             </div>
           </form>
         </div>

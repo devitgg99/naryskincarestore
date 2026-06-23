@@ -164,23 +164,44 @@ export const db = {
 
   updateSupplierPrice: async (priceObj) => {
     const client = getClient();
+    const updatedPriceObj = {
+      ...priceObj,
+      updated_at: new Date().toISOString()
+    };
     if (client) {
-      const { data, error } = await client.from('supplier_prices').upsert(priceObj).select();
+      const { data, error } = await client.from('supplier_prices').upsert(updatedPriceObj).select();
       if (!error) return data[0];
       throw error;
     }
     const prices = getLocal('wsp_supplier_prices', initialSupplierPrices);
     const idx = prices.findIndex(sp => sp.product_id === priceObj.product_id && sp.supplier_id === priceObj.supplier_id);
     if (idx !== -1) {
-      prices[idx] = { ...prices[idx], ...priceObj, updated_at: new Date().toISOString() };
+      prices[idx] = { ...prices[idx], ...updatedPriceObj };
       setLocal('wsp_supplier_prices', prices);
       return prices[idx];
     } else {
-      const newPrice = { ...priceObj, id: 'sp_' + Date.now().toString(), updated_at: new Date().toISOString() };
+      const newPrice = { ...updatedPriceObj, id: 'sp_' + Date.now().toString() };
       prices.push(newPrice);
       setLocal('wsp_supplier_prices', prices);
       return newPrice;
     }
+  },
+
+  deleteSupplierPrice: async (productId, supplierId) => {
+    const client = getClient();
+    if (client) {
+      const { error } = await client
+        .from('supplier_prices')
+        .delete()
+        .eq('product_id', productId)
+        .eq('supplier_id', supplierId);
+      if (error) throw error;
+      return true;
+    }
+    const prices = getLocal('wsp_supplier_prices', initialSupplierPrices);
+    const updated = prices.filter(sp => !(sp.product_id === productId && sp.supplier_id === supplierId));
+    setLocal('wsp_supplier_prices', updated);
+    return true;
   },
 
   // Customers
@@ -228,6 +249,25 @@ export const db = {
     const customers = getLocal('wsp_customers', initialCustomers);
     const updated = customers.filter(c => c.id !== id);
     setLocal('wsp_customers', updated);
+    return true;
+  },
+
+  deleteSupplier: async (id) => {
+    const client = getClient();
+    if (client) {
+      const { error } = await client.from('suppliers').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    }
+    const suppliers = getLocal('wsp_suppliers', initialSuppliers);
+    const updated = suppliers.filter(s => s.id !== id);
+    setLocal('wsp_suppliers', updated);
+    
+    // Also clean up local supplier prices to mirror cascade behavior
+    const prices = getLocal('wsp_supplier_prices', initialSupplierPrices);
+    const updatedPrices = prices.filter(sp => sp.supplier_id !== id);
+    setLocal('wsp_supplier_prices', updatedPrices);
+    
     return true;
   },
 

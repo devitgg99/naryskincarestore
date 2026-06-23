@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Printer, Check, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X } from 'lucide-react';
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
@@ -16,14 +16,27 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
+      } catch {
+        // Ignored
+      }
     }
+
     return [
       { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false }
     ];
   });
   const [isSaving, setIsSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState(null); // Saved order details for print receipt preview modal
+
+  // POS Quick Add States
+  const [quickSearchQuery, setQuickSearchQuery] = useState('');
+  const [isQuickDropdownOpen, setIsQuickDropdownOpen] = useState(false);
+  const quickInputRef = useRef(null);
+
+  // Batch Add Catalog Modal States
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchSearchQuery, setBatchSearchQuery] = useState('');
+  const [batchQuantities, setBatchQuantities] = useState({}); // { product_id: quantity }
 
   // Auto-save draft inputs to localStorage to prevent data loss on tab changes
   useEffect(() => {
@@ -42,13 +55,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     localStorage.setItem('wsp_draft_line_items', JSON.stringify(cleanItems));
   }, [lineItems]);
   
-  // Group prices by product_id
+  // Group prices by product_id (only including active offers with non-zero price or stock)
   const productSupplierPrices = {};
   prices.forEach(sp => {
-    if (!productSupplierPrices[sp.product_id]) {
-      productSupplierPrices[sp.product_id] = [];
+    if (sp.price > 0 || sp.stock_qty > 0) {
+      if (!productSupplierPrices[sp.product_id]) {
+        productSupplierPrices[sp.product_id] = [];
+      }
+      productSupplierPrices[sp.product_id].push(sp);
     }
-    productSupplierPrices[sp.product_id].push(sp);
   });
 
   const getFilteredProducts = (query) => {
@@ -136,6 +151,60 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       isDropdownOpen: false
     }]);
   };
+
+  const addProductToInvoice = (productId, qtyToAdd = 1) => {
+    setLineItems(prevItems => {
+      // 1. Check if the product is already in the invoice
+      const existingIdx = prevItems.findIndex(item => item.product_id === productId);
+      
+      if (existingIdx > -1) {
+        // Increment quantity of existing item
+        const updated = [...prevItems];
+        const item = { ...updated[existingIdx] };
+        item.quantity = Number(item.quantity) + Number(qtyToAdd);
+        item.subtotal = Number(item.unit_price) * item.quantity;
+        updated[existingIdx] = item;
+        return updated;
+      } else {
+        // Create new item
+        const sps = productSupplierPrices[productId] || [];
+        const cheapest = sps.length > 0 ? [...sps].sort((a, b) => a.price - b.price)[0] : null;
+        const highest = sps.length > 0 ? [...sps].sort((a, b) => b.price - a.price)[0] : null;
+        const prod = products.find(p => p.id === productId);
+
+        const supplier_id = cheapest ? cheapest.supplier_id : '';
+        const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
+        const unit_price = cheapest && highest
+          ? Math.round((highest.price + 0.20) * 100) / 100
+          : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0);
+        const maxStock = cheapest ? cheapest.stock_qty : 0;
+        const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
+
+        
+        const newItem = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          product_id: productId,
+          supplier_id,
+          supplier_price,
+          unit_price,
+          quantity: qtyToAdd,
+          subtotal: Number(unit_price) * qtyToAdd,
+          maxStock,
+          stockUnit,
+          searchQuery: '',
+          isDropdownOpen: false
+        };
+        
+        // If the first item in the list is empty (no product selected yet), replace it
+        if (prevItems.length === 1 && !prevItems[0].product_id) {
+          return [newItem];
+        }
+        
+        return [...prevItems, newItem];
+      }
+    });
+  };
+
 
   // Calculations
   const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -273,17 +342,124 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
             {/* Line Items Grid */}
             <div className="glass-panel p-6 rounded-2xl border border-dark-800 space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-2">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
-                <button
-                  type="button"
-                  onClick={addLineItem}
-                  className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Product
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentQties = {};
+                      lineItems.forEach(item => {
+                        if (item.product_id) {
+                          currentQties[item.product_id] = (currentQties[item.product_id] || 0) + item.quantity;
+                        }
+                      });
+                      setBatchQuantities(currentQties);
+                      setBatchSearchQuery('');
+                      setIsBatchModalOpen(true);
+                    }}
+                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs border-primary-500/10 hover:border-primary-500/30"
+                  >
+                    <Grid className="w-3.5 h-3.5 text-primary-400" />
+                    Batch Add Catalog
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addLineItem}
+                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Product
+                  </button>
+                </div>
               </div>
+
+              {/* POS-Style Quick Search & Add Bar */}
+              <div className="relative z-30">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
+                  <input
+                    ref={quickInputRef}
+                    type="text"
+                    placeholder="⚡ POS Quick Search & Add Product (Search name & select to instantly add)..."
+                    value={quickSearchQuery}
+                    onChange={(e) => {
+                      setQuickSearchQuery(e.target.value);
+                      setIsQuickDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsQuickDropdownOpen(true)}
+                    onBlur={() => {
+                      setTimeout(() => setIsQuickDropdownOpen(false), 200);
+                    }}
+                    className="w-full pl-11 pr-10 glass-input text-xs sm:text-sm font-medium border-primary-500/20 focus:border-primary-500/50 shadow-inner"
+                  />
+                  {quickSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickSearchQuery('');
+                        setIsQuickDropdownOpen(false);
+                      }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-dark-400 hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {isQuickDropdownOpen && quickSearchQuery && (
+                  <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin animate-in slide-in-from-top-2 duration-150">
+                    {getFilteredProducts(quickSearchQuery).map(p => {
+                      const sps = productSupplierPrices[p.id] || [];
+                      const cheapestPrice = sps.length > 0 
+                        ? Math.min(...sps.map(sp => sp.price)) 
+                        : p.base_price;
+                      const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
+                      const existingQty = lineItems
+                        .filter(item => item.product_id === p.id)
+                        .reduce((sum, item) => sum + Number(item.quantity), 0);
+
+                      return (
+                        <div
+                          key={p.id}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            addProductToInvoice(p.id, 1);
+                            setQuickSearchQuery('');
+                            setIsQuickDropdownOpen(false);
+                            quickInputRef.current?.focus();
+                          }}
+                          className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors flex justify-between items-center gap-4"
+                        >
+                          <div>
+                            <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
+                            <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <div className="text-right text-[10px] text-dark-400">
+                              <span className="block font-medium text-white">${cheapestPrice.toFixed(2)}</span>
+                              <span>Stock: {totalStock}</span>
+                            </div>
+                            {existingQty > 0 ? (
+                              <span className="text-[10px] bg-primary-500/20 text-primary-400 font-semibold px-2 py-0.5 rounded border border-primary-500/30">
+                                {existingQty} added
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-dark-950 text-dark-400 font-medium px-2 py-0.5 rounded border border-dark-800 hover:text-white">
+                                Add +
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {getFilteredProducts(quickSearchQuery).length === 0 && (
+                      <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
 
               <div className="space-y-3">
                 {lineItems.map((item, idx) => {
@@ -737,6 +913,243 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           </div>
         </div>
       )}
+      {/* Batch Add Catalog Modal */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center no-print">
+          <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
+              <div>
+                <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">
+                  <Grid className="w-5 h-5 text-primary-400" />
+                  Batch Add Products from Catalog
+                </h3>
+                <p className="text-xs text-dark-400 mt-1">
+                  Adjust quantities for multiple products and apply them to the invoice in one batch.
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsBatchModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-dark-805 text-dark-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Search Bar */}
+            <div className="p-4 border-b border-dark-850 bg-dark-900/40">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
+                <input
+                  type="text"
+                  placeholder="Search catalog by product name (English or Khmer)..."
+                  value={batchSearchQuery}
+                  onChange={(e) => setBatchSearchQuery(e.target.value)}
+                  className="w-full pl-11 pr-4 glass-input text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Modal Product Grid */}
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin bg-dark-950/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getFilteredProducts(batchSearchQuery).map(p => {
+                  const sps = productSupplierPrices[p.id] || [];
+                  const cheapestPrice = sps.length > 0 
+                    ? Math.min(...sps.map(sp => sp.price)) 
+                    : p.base_price;
+                  const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
+                  const qty = batchQuantities[p.id] || 0;
+
+                  const handleQtyChange = (val) => {
+                    const parsed = parseInt(val, 10);
+                    const newQty = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+                    setBatchQuantities(prev => ({
+                      ...prev,
+                      [p.id]: newQty
+                    }));
+                  };
+
+                  const increment = () => {
+                    setBatchQuantities(prev => ({
+                      ...prev,
+                      [p.id]: (prev[p.id] || 0) + 1
+                    }));
+                  };
+
+                  const decrement = () => {
+                    setBatchQuantities(prev => {
+                      const current = prev[p.id] || 0;
+                      if (current <= 0) return prev;
+                      return {
+                        ...prev,
+                        [p.id]: current - 1
+                      };
+                    });
+                  };
+
+                  return (
+                    <div 
+                      key={p.id} 
+                      className={`p-4 rounded-xl border transition-all ${
+                        qty > 0 
+                          ? 'border-primary-500/40 bg-primary-500/5 shadow-md shadow-primary-500/2' 
+                          : 'border-dark-850 bg-dark-900/20 hover:border-dark-800'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-2 h-12">
+                        <div className="text-left">
+                          <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-1">{p.name_kh}</h4>
+                          <p className="text-[10px] text-dark-400 mt-0.5 line-clamp-1">{p.name_en}</p>
+                        </div>
+                        <span className="text-xs font-bold text-primary-400 shrink-0">
+                          ${cheapestPrice.toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-dark-850/60">
+                        <div className="text-[10px] text-dark-500 text-left">
+                          <span className="block">Cost: ${cheapestPrice.toFixed(2)}</span>
+                          <span className={`${totalStock <= 2 ? 'text-rose-400' : 'text-dark-400'}`}>
+                            Stock: {totalStock}
+                          </span>
+                        </div>
+
+                        {/* Qty Selector */}
+                        <div className="flex items-center gap-1 bg-dark-950/80 rounded-lg p-0.5 border border-dark-800">
+                          <button
+                            type="button"
+                            onClick={decrement}
+                            className="p-1.5 rounded text-dark-400 hover:text-white hover:bg-dark-800 active:scale-90 transition-all cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={qty || ''}
+                            placeholder="0"
+                            onChange={(e) => handleQtyChange(e.target.value)}
+                            className="w-10 text-center bg-transparent border-0 outline-none text-xs font-bold text-white p-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={increment}
+                            className="p-1.5 rounded text-dark-400 hover:text-white hover:bg-dark-800 active:scale-90 transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {getFilteredProducts(batchSearchQuery).length === 0 && (
+                  <div className="col-span-full py-12 text-center text-dark-500 italic text-sm">
+                    No products found matching your search.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-dark-800 flex flex-col sm:flex-row justify-between items-center gap-3 bg-dark-950/40">
+              <div className="text-xs text-dark-400 text-center sm:text-left">
+                Selected: <strong className="text-white">{Object.values(batchQuantities).filter(q => q > 0).length}</strong> products
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="w-full sm:w-auto glass-button-secondary py-2 px-4 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itemsToApply = Object.entries(batchQuantities)
+                      .map(([id, q]) => ({ productId: id, qty: q }));
+
+                    setLineItems(prevItems => {
+                      let updated = [];
+                      
+                      itemsToApply.forEach(({ productId, qty }) => {
+                        if (qty <= 0) return;
+                        
+                        const existingItem = prevItems.find(item => item.product_id === productId);
+                        if (existingItem) {
+                          updated.push({
+                            ...existingItem,
+                            quantity: qty,
+                            subtotal: Number(existingItem.unit_price) * qty
+                          });
+                        } else {
+                          const sps = productSupplierPrices[productId] || [];
+                          const cheapest = sps.length > 0 ? [...sps].sort((a, b) => a.price - b.price)[0] : null;
+                          const highest = sps.length > 0 ? [...sps].sort((a, b) => b.price - a.price)[0] : null;
+                          const prod = products.find(p => p.id === productId);
+
+                          const supplier_id = cheapest ? cheapest.supplier_id : '';
+                          const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
+                          const unit_price = cheapest && highest
+                            ? Math.round((highest.price + 0.20) * 100) / 100
+                            : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0);
+                          const maxStock = cheapest ? cheapest.stock_qty : 0;
+                          const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
+
+
+                          updated.push({
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                            product_id: productId,
+                            supplier_id,
+                            supplier_price,
+                            unit_price,
+                            quantity: qty,
+                            subtotal: Number(unit_price) * qty,
+                            maxStock,
+                            stockUnit,
+                            searchQuery: '',
+                            isDropdownOpen: false
+                          });
+                        }
+                      });
+
+                      if (updated.length === 0) {
+                        updated.push({
+                          id: Date.now().toString(),
+                          product_id: '',
+                          supplier_id: '',
+                          supplier_price: 0,
+                          unit_price: 0,
+                          quantity: 1,
+                          subtotal: 0,
+                          maxStock: 0,
+                          stockUnit: 'pcs',
+                          searchQuery: '',
+                          isDropdownOpen: false
+                        });
+                      }
+
+                      return updated;
+                    });
+
+                    setIsBatchModalOpen(false);
+                  }}
+                  className="w-full sm:w-auto glass-button-primary py-2 px-4 cursor-pointer"
+                >
+                  Apply to Invoice
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

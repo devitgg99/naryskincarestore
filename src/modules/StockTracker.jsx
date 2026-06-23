@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Package, AlertTriangle, ArrowUpDown, ChevronDown, Check, Save, Layers, ListFilter, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Package, AlertTriangle, Check, Layers, ListFilter, Search } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function StockTracker({ products, suppliers, prices, onRefresh }) {
@@ -8,6 +8,7 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
   const [editingPriceId, setEditingPriceId] = useState(null); // id of sp record being edited
   const [editQty, setEditQty] = useState('');
   const [editUnit, setEditUnit] = useState('pcs');
+  const [editPrice, setEditPrice] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -87,6 +88,7 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
     setEditingPriceId(sp.id);
     setEditQty(sp.stock_qty.toString());
     setEditUnit(sp.stock_unit || 'pcs');
+    setEditPrice(sp.price > 0 ? sp.price.toString() : '');
   };
 
   const saveInlineEdit = async (sp) => {
@@ -94,6 +96,7 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
     try {
       await db.updateSupplierPrice({
         ...sp,
+        price: editPrice ? Number(editPrice) : sp.price,
         stock_qty: Number(editQty),
         stock_unit: editUnit
       });
@@ -282,6 +285,7 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
                                   value={editQty}
                                   onChange={(e) => setEditQty(e.target.value)}
                                   className="w-16 glass-input py-1 px-2 text-xs text-center"
+                                  placeholder="Qty"
                                 />
                                 <select
                                   value={editUnit}
@@ -292,6 +296,18 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
                                   <option value="lo">lo</option>
                                   <option value="cs">cs</option>
                                 </select>
+                              </div>
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 text-xs">$</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  value={editPrice}
+                                  onChange={(e) => setEditPrice(e.target.value)}
+                                  className="w-full pl-6 pr-2 py-1 glass-input text-xs"
+                                  placeholder="Supplier Price"
+                                />
                               </div>
                               <div className="flex gap-2">
                                 <button
@@ -310,13 +326,20 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
                               </div>
                             </div>
                           ) : (
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-semibold text-dark-300">
-                                Stock: <strong className="text-white">{sp.stock_qty}</strong> {sp.stock_unit}
-                              </span>
+                            <div className="flex justify-between items-center gap-2">
+                              <div className="text-left space-y-0.5">
+                                <span className="text-xs font-semibold text-dark-300 block">
+                                  Stock: <strong className="text-white">{sp.stock_qty}</strong> {sp.stock_unit}
+                                </span>
+                                {sp.updated_at && (
+                                  <span className="text-[10px] text-dark-500 block">
+                                    Updated: {new Date(sp.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                )}
+                              </div>
                               <button
                                 onClick={() => startEditing(sp)}
-                                className="text-xs font-bold text-primary-400 hover:text-primary-300 underline"
+                                className="text-xs font-bold text-primary-400 hover:text-primary-300 underline self-center"
                               >
                                 Edit
                               </button>
@@ -394,8 +417,22 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
                                 <div className="font-bold text-white">{prod.name_kh}</div>
                                 <div className="text-[10px] text-dark-400">{prod.name_en}</div>
                               </td>
-                              <td className="py-3 text-center text-emerald-400 font-bold">
-                                ${sp.price.toFixed(2)}
+                              <td className="py-3 text-center">
+                                {isEditing ? (
+                                  <div className="relative w-20 mx-auto">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-dark-500 text-xs">$</span>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      value={editPrice}
+                                      onChange={(e) => setEditPrice(e.target.value)}
+                                      className="w-full pl-5 pr-1 py-1 glass-input text-xs text-center font-bold text-emerald-400"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-emerald-400 font-bold">${sp.price.toFixed(2)}</span>
+                                )}
                               </td>
                               <td className="py-3 text-center text-dark-400">
                                 ${getProductSellingPrice(sp.product_id).toFixed(2)}
@@ -422,11 +459,18 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
                                     </select>
                                   </div>
                                 ) : (
-                                  <span className={`font-bold px-2 py-0.5 rounded ${
-                                    isLow ? 'text-rose-400 bg-rose-500/10 font-black' : 'text-white'
-                                  }`}>
-                                    {sp.stock_qty} {sp.stock_unit}
-                                  </span>
+                                  <div className="space-y-0.5">
+                                    <span className={`font-bold px-2 py-0.5 rounded ${
+                                      isLow ? 'text-rose-400 bg-rose-500/10 font-black' : 'text-white'
+                                    }`}>
+                                      {sp.stock_qty} {sp.stock_unit}
+                                    </span>
+                                    {sp.updated_at && (
+                                      <span className="block text-[10px] text-dark-500 font-medium">
+                                        {new Date(sp.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
