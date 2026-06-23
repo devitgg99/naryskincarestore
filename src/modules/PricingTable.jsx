@@ -24,6 +24,12 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
   const [newSupplierPhone, setNewSupplierPhone] = useState('');
   const [isSavingSupplier, setIsSavingSupplier] = useState(false);
 
+  // States for editing an existing product
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editProductNameKh, setEditProductNameKh] = useState('');
+  const [editProductNameEn, setEditProductNameEn] = useState('');
+  const [editProductBasePrice, setEditProductBasePrice] = useState('');
+
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
   prices.forEach(sp => {
@@ -154,6 +160,55 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
       setEditingCell(null);
     } catch (err) {
       alert("Error deleting offer: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleProductClick = (product) => {
+    setEditingProduct(product);
+    setEditProductNameKh(product.name_kh);
+    setEditProductNameEn(product.name_en);
+    setEditProductBasePrice(product.base_price.toString());
+  };
+
+  const handleSaveProductEdit = async (e) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    setIsSaving(true);
+    try {
+      await db.saveProduct({
+        ...editingProduct,
+        name_kh: editProductNameKh,
+        name_en: editProductNameEn,
+        base_price: Number(editProductBasePrice)
+      });
+      onRefresh();
+      setEditingProduct(null);
+    } catch (err) {
+      alert("Error updating product: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!editingProduct) return;
+    const confirmed = window.confirm(`Are you sure you want to delete product "${editingProduct.name_kh}"? This will also remove all its prices and inventory counts.`);
+    if (!confirmed) return;
+
+    setIsSaving(true);
+    try {
+      await db.deleteProduct(editingProduct.id);
+      onRefresh();
+      setEditingProduct(null);
+    } catch (err) {
+      if (err.code === '23503') {
+        alert("Cannot delete this product because it has been used in past invoices. You can set its stock to 0 or delete its supplier prices instead.");
+      } else {
+        alert("Error deleting product: " + err.message);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -315,9 +370,13 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                 return (
                   <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
                     {/* Product Name details */}
-                    <td className="p-4">
-                      <div className="font-semibold text-white group-hover:text-primary-400 transition-colors">
-                        {product.name_kh}
+                    <td 
+                      onClick={() => handleProductClick(product)}
+                      className="p-4 cursor-pointer hover:bg-primary-500/5 transition-colors relative group/prod-name"
+                    >
+                      <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
+                        <span>{product.name_kh}</span>
+                        <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
                       </div>
                       <div className="text-xs text-dark-400 mt-0.5">
                         {product.name_en}
@@ -619,6 +678,90 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
               >
                 {isSavingSupplier ? 'Adding...' : 'Add Supplier'}
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Editing Product Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <form 
+            onSubmit={handleSaveProductEdit}
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150"
+          >
+            <div className="p-6 border-b border-dark-800">
+              <h3 className="font-bold text-lg text-white">Edit Product Details</h3>
+              <p className="text-xs text-dark-400 mt-1">
+                Modify product name or pricing details, or delete from portal.
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Khmer Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Khmer Product Name"
+                  value={editProductNameKh}
+                  onChange={(e) => setEditProductNameKh(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">English Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="English Product Name"
+                  value={editProductNameEn}
+                  onChange={(e) => setEditProductNameEn(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Base Price (USD) *</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  required
+                  placeholder="Base Price"
+                  value={editProductBasePrice}
+                  onChange={(e) => setEditProductBasePrice(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 w-full">
+              <button
+                type="button"
+                onClick={handleDeleteProduct}
+                disabled={isSaving}
+                className="px-4 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 border border-red-500/20 cursor-pointer"
+              >
+                Delete Product
+              </button>
+              <div className="flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingProduct(null)} 
+                  className="glass-button-secondary"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="glass-button-primary"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </form>
         </div>

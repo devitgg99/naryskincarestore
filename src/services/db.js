@@ -116,6 +116,34 @@ export const db = {
     }
   },
 
+  deleteProduct: async (id) => {
+    const client = getClient();
+    if (client) {
+      const { error } = await client.from('products').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    }
+    // Fallback: check if product is used in orders
+    const orderItems = getLocal('wsp_order_items', initialOrderItems);
+    const isUsed = orderItems.some(item => item.product_id === id);
+    if (isUsed) {
+      const err = new Error("Product is used in orders");
+      err.code = '23503';
+      throw err;
+    }
+
+    const products = getLocal('wsp_products', initialProducts);
+    const updatedProducts = products.filter(p => p.id !== id);
+    setLocal('wsp_products', updatedProducts);
+
+    // Cascade delete local supplier prices
+    const prices = getLocal('wsp_supplier_prices', initialSupplierPrices);
+    const updatedPrices = prices.filter(sp => sp.product_id !== id);
+    setLocal('wsp_supplier_prices', updatedPrices);
+
+    return true;
+  },
+
   // Suppliers
   getSuppliers: async () => {
     const client = getClient();

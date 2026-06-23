@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Package, AlertTriangle, Check, Layers, ListFilter, Search } from 'lucide-react';
+import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function StockTracker({ products, suppliers, prices, onRefresh }) {
   const [groupMode, setGroupMode] = useState('product'); // 'product' or 'supplier'
   const [lowStockThreshold, setLowStockThreshold] = useState(2);
+  const [showLowStockAlerts, setShowLowStockAlerts] = useState(true);
   const [editingPriceId, setEditingPriceId] = useState(null); // id of sp record being edited
   const [editQty, setEditQty] = useState('');
   const [editUnit, setEditUnit] = useState('pcs');
@@ -131,11 +132,29 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
             <option value="5">5</option>
             <option value="10">10</option>
           </select>
+
+          <button
+            onClick={() => setShowLowStockAlerts(!showLowStockAlerts)}
+            className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold"
+            type="button"
+          >
+            {showLowStockAlerts ? (
+              <>
+                <EyeOff className="w-4 h-4 text-dark-400" />
+                Hide Alerts
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4 text-primary-400" />
+                Show Alerts ({lowStockItems.length})
+              </>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Low Stock Alerts */}
-      {lowStockItems.length > 0 && (
+      {showLowStockAlerts && lowStockItems.length > 0 && (
         <div className="bg-rose-950/20 border border-rose-900/30 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2 text-rose-400 font-bold text-sm sm:text-base">
             <AlertTriangle className="w-5 h-5" />
