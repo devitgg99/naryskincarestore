@@ -18,6 +18,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [newProductNameEn, setNewProductNameEn] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [newProductBrandId, setNewProductBrandId] = useState('');
+  const [newProductSellingPrice, setNewProductSellingPrice] = useState('');
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // States for adding a new supplier
@@ -32,6 +33,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editProductNameEn, setEditProductNameEn] = useState('');
   const [editProductBasePrice, setEditProductBasePrice] = useState('');
   const [editProductBrandId, setEditProductBrandId] = useState('');
+  const [editProductSellingPrice, setEditProductSellingPrice] = useState('');
 
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
@@ -185,6 +187,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setEditProductNameEn(product.name_en);
     setEditProductBasePrice(product.base_price.toString());
     setEditProductBrandId(product.brand_id || '');
+    setEditProductSellingPrice(product.selling_price ? product.selling_price.toString() : '');
   };
 
   const handleSaveProductEdit = async (e) => {
@@ -198,7 +201,8 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         name_kh: editProductNameKh,
         name_en: editProductNameEn,
         base_price: Number(editProductBasePrice),
-        brand_id: editProductBrandId || null
+        brand_id: editProductBrandId || null,
+        selling_price: editProductSellingPrice ? Number(editProductSellingPrice) : null
       });
       onRefresh();
       setEditingProduct(null);
@@ -240,13 +244,15 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         name_kh: newProductNameKh,
         name_en: newProductNameEn,
         base_price: Number(newProductBasePrice),
-        brand_id: newProductBrandId || null
+        brand_id: newProductBrandId || null,
+        selling_price: newProductSellingPrice ? Number(newProductSellingPrice) : null
       });
       // Reset values
       setNewProductNameKh('');
       setNewProductNameEn('');
       setNewProductBasePrice('');
       setNewProductBrandId('');
+      setNewProductSellingPrice('');
       setIsAddProductOpen(false);
       onRefresh();
     } catch (err) {
@@ -396,7 +402,9 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               {filteredProducts.map(product => {
                 const cheapestPrice = getCheapestPrice(product.id);
                 const highestPrice = getHighestPrice(product.id);
-                const sellingPrice = highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20);
+                const sellingPrice = product.selling_price && Number(product.selling_price) > 0
+                  ? Number(product.selling_price)
+                  : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
 
                 return (
                   <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
@@ -519,7 +527,9 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   className="w-full glass-input"
                 />
                 <p className="text-[10px] text-dark-500 mt-1">
-                  Expected Selling Price (Max Cost + $0.20): ${getExpectedSellingPrice(editingCell.product.id, editingCell.priceObj.id, editPrice).toFixed(2)}
+                  {editingCell.product.selling_price && Number(editingCell.product.selling_price) > 0
+                    ? `Selling Price (Manual Override): $${Number(editingCell.product.selling_price).toFixed(2)}`
+                    : `Expected Selling Price (Max Cost + $0.20): $${getExpectedSellingPrice(editingCell.product.id, editingCell.priceObj.id, editPrice).toFixed(2)}`}
                 </p>
               </div>
 
@@ -632,6 +642,19 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   placeholder="E.g. 13.50"
                   value={newProductBasePrice}
                   onChange={(e) => setNewProductBasePrice(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  placeholder="Leave blank for automatic base+0.20"
+                  value={newProductSellingPrice}
+                  onChange={(e) => setNewProductSellingPrice(e.target.value)}
                   className="w-full glass-input"
                 />
               </div>
@@ -777,6 +800,19 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   placeholder="Base Price"
                   value={editProductBasePrice}
                   onChange={(e) => setEditProductBasePrice(e.target.value)}
+                  className="w-full glass-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  placeholder="Leave blank for automatic base+0.20"
+                  value={editProductSellingPrice}
+                  onChange={(e) => setEditProductSellingPrice(e.target.value)}
                   className="w-full glass-input"
                 />
               </div>

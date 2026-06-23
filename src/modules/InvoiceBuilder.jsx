@@ -92,7 +92,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     item[field] = value;
 
     if (field === 'product_id') {
+      const prod = products.find(p => p.id === value);
       const sps = productSupplierPrices[value] || [];
+      const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
+
       if (sps.length > 0) {
         // Sort to find cheapest for inventory choice
         const sortedSpsCheapest = [...sps].sort((a, b) => a.price - b.price);
@@ -104,14 +107,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         
         item.supplier_id = cheapest.supplier_id;
         item.supplier_price = cheapest.price; // Set initial supplier price (cost price)
-        item.unit_price = Math.round((highest.price + 0.20) * 100) / 100; // Selling Price: Max Cost + $0.20
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : Math.round((highest.price + 0.20) * 100) / 100;
         item.maxStock = cheapest.stock_qty;
         item.stockUnit = cheapest.stock_unit;
       } else {
-        const prod = products.find(p => p.id === value);
         item.supplier_id = '';
         item.supplier_price = prod ? prod.base_price : 0;
-        item.unit_price = prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0;
+        item.unit_price = prod ? (customSellingPrice !== null ? customSellingPrice : Math.round((prod.base_price + 0.20) * 100) / 100) : 0;
         item.maxStock = 0;
         item.stockUnit = 'pcs';
       }
@@ -181,12 +183,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const cheapest = sps.length > 0 ? [...sps].sort((a, b) => a.price - b.price)[0] : null;
         const highest = sps.length > 0 ? [...sps].sort((a, b) => b.price - a.price)[0] : null;
         const prod = products.find(p => p.id === productId);
+        const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
 
         const supplier_id = cheapest ? cheapest.supplier_id : '';
         const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
-        const unit_price = cheapest && highest
-          ? Math.round((highest.price + 0.20) * 100) / 100
-          : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0);
+        const unit_price = customSellingPrice !== null 
+          ? customSellingPrice 
+          : (cheapest && highest
+            ? Math.round((highest.price + 0.20) * 100) / 100
+            : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0));
         const maxStock = cheapest ? cheapest.stock_qty : 0;
         const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
 
@@ -1125,12 +1130,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           const cheapest = sps.length > 0 ? [...sps].sort((a, b) => a.price - b.price)[0] : null;
                           const highest = sps.length > 0 ? [...sps].sort((a, b) => b.price - a.price)[0] : null;
                           const prod = products.find(p => p.id === productId);
+                          const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
 
                           const supplier_id = cheapest ? cheapest.supplier_id : '';
                           const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
-                          const unit_price = cheapest && highest
-                            ? Math.round((highest.price + 0.20) * 100) / 100
-                            : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0);
+                          const unit_price = customSellingPrice !== null 
+                            ? customSellingPrice 
+                            : (cheapest && highest
+                              ? Math.round((highest.price + 0.20) * 100) / 100
+                              : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0));
                           const maxStock = cheapest ? cheapest.stock_qty : 0;
                           const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
 

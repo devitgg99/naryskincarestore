@@ -82,3 +82,6 @@ create table if not exists brands (
 alter table products add column if not exists brand_id uuid references brands(id) on delete set null;
 create index if not exists idx_products_brand on products(brand_id);
 
+-- Add selling_price column to products table
+alter table products add column if not exists selling_price numeric(10, 2);
+

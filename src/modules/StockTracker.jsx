@@ -102,12 +102,15 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   });
 
   const getProductSellingPrice = (productId) => {
+    const prod = productMap[productId];
+    if (prod && prod.selling_price && Number(prod.selling_price) > 0) {
+      return Number(prod.selling_price);
+    }
     const sps = productPricesMap[productId] || [];
     if (sps.length > 0) {
       const maxPrice = Math.max(...sps.map(sp => sp.price));
       return maxPrice > 0 ? maxPrice + 0.20 : 0;
     }
-    const prod = productMap[productId];
     return prod ? prod.base_price + 0.20 : 0;
   };
 
