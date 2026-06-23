@@ -6,6 +6,7 @@ import CustomerDirectory from './modules/CustomerDirectory';
 import InvoiceBuilder from './modules/InvoiceBuilder';
 import SalesLog from './modules/SalesLog';
 import StockTracker from './modules/StockTracker';
+import BrandManager from './modules/BrandManager';
 import { db, getSupabaseConfig } from './services/db';
 import { RefreshCw, LayoutDashboard, Database, HelpCircle, Package, TrendingUp, AlertTriangle, Menu } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export default function App() {
   const [prices, setPrices] = useState([]);
   const [orders, setOrders] = useState([]);
   const [orderItems, setOrderItems] = useState([]);
+  const [brands, setBrands] = useState([]);
 
   // Config triggers state reload
   const [configVersion, setConfigVersion] = useState(0);
@@ -49,13 +51,14 @@ export default function App() {
       setSyncing(true);
     }
     try {
-      const [prods, sups, custs, prs, ords, items] = await Promise.all([
+      const [prods, sups, custs, prs, ords, items, bnds] = await Promise.all([
         db.getProducts(),
         db.getSuppliers(),
         db.getCustomers(),
         db.getSupplierPrices(),
         db.getOrders(),
-        db.getOrderItems()
+        db.getOrderItems(),
+        db.getBrands()
       ]);
 
       setProducts(prods || []);
@@ -64,6 +67,7 @@ export default function App() {
       setPrices(prs || []);
       setOrders(ords || []);
       setOrderItems(items || []);
+      setBrands(bnds || []);
     } catch (e) {
       console.error("Error loading database records:", e);
     } finally {
@@ -99,6 +103,7 @@ export default function App() {
             products={products}
             suppliers={suppliers}
             prices={prices}
+            brands={brands}
             onRefresh={loadData}
           />
         );
@@ -119,6 +124,7 @@ export default function App() {
             products={products}
             suppliers={suppliers}
             prices={prices}
+            brands={brands}
             onRefresh={loadData}
           />
         );
@@ -140,6 +146,15 @@ export default function App() {
             products={products}
             suppliers={suppliers}
             prices={prices}
+            brands={brands}
+            onRefresh={loadData}
+          />
+        );
+      case 'brands':
+        return (
+          <BrandManager 
+            brands={brands}
+            products={products}
             onRefresh={loadData}
           />
         );

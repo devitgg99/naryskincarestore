@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2 } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function PricingTable({ products, suppliers, prices, onRefresh }) {
+export default function PricingTable({ products, suppliers, prices, brands = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('all');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
   const [editingCell, setEditingCell] = useState(null); // { product, supplier, priceObj }
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
@@ -16,6 +17,7 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
   const [newProductNameKh, setNewProductNameKh] = useState('');
   const [newProductNameEn, setNewProductNameEn] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
+  const [newProductBrandId, setNewProductBrandId] = useState('');
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // States for adding a new supplier
@@ -29,6 +31,7 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
   const [editProductNameKh, setEditProductNameKh] = useState('');
   const [editProductNameEn, setEditProductNameEn] = useState('');
   const [editProductBasePrice, setEditProductBasePrice] = useState('');
+  const [editProductBrandId, setEditProductBrandId] = useState('');
 
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
@@ -94,13 +97,24 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
       product.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.name_kh.includes(searchTerm);
 
-    if (selectedSupplierFilter === 'all') {
-      return matchesSearch;
-    } else {
-      // Must be offered by the selected supplier
-      const hasSupplierOffer = priceMap[product.id] && priceMap[product.id][selectedSupplierFilter];
-      return matchesSearch && hasSupplierOffer;
+    if (!matchesSearch) return false;
+
+    // Brand filter
+    if (selectedBrandFilter !== 'all') {
+      if (selectedBrandFilter === 'none') {
+        if (product.brand_id) return false;
+      } else {
+        if (product.brand_id !== selectedBrandFilter) return false;
+      }
     }
+
+    // Supplier filter
+    if (selectedSupplierFilter !== 'all') {
+      const hasSupplierOffer = priceMap[product.id] && priceMap[product.id][selectedSupplierFilter];
+      if (!hasSupplierOffer) return false;
+    }
+
+    return true;
   });
 
   const handleCellClick = (product, supplier) => {
@@ -170,6 +184,7 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
     setEditProductNameKh(product.name_kh);
     setEditProductNameEn(product.name_en);
     setEditProductBasePrice(product.base_price.toString());
+    setEditProductBrandId(product.brand_id || '');
   };
 
   const handleSaveProductEdit = async (e) => {
@@ -182,7 +197,8 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
         ...editingProduct,
         name_kh: editProductNameKh,
         name_en: editProductNameEn,
-        base_price: Number(editProductBasePrice)
+        base_price: Number(editProductBasePrice),
+        brand_id: editProductBrandId || null
       });
       onRefresh();
       setEditingProduct(null);
@@ -223,12 +239,14 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
       await db.saveProduct({
         name_kh: newProductNameKh,
         name_en: newProductNameEn,
-        base_price: Number(newProductBasePrice)
+        base_price: Number(newProductBasePrice),
+        brand_id: newProductBrandId || null
       });
       // Reset values
       setNewProductNameKh('');
       setNewProductNameEn('');
       setNewProductBasePrice('');
+      setNewProductBrandId('');
       setIsAddProductOpen(false);
       onRefresh();
     } catch (err) {
@@ -317,8 +335,21 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
             className="w-full pl-11 glass-input"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <SlidersHorizontal className="w-5 h-5 text-dark-400" />
+          
+          <select
+            value={selectedBrandFilter}
+            onChange={(e) => setSelectedBrandFilter(e.target.value)}
+            className="glass-input min-w-[180px]"
+          >
+            <option value="all">All Brands</option>
+            <option value="none">No Brand</option>
+            {brands.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+
           <select
             value={selectedSupplierFilter}
             onChange={(e) => setSelectedSupplierFilter(e.target.value)}
@@ -604,6 +635,20 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                   className="w-full glass-input"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Brand</label>
+                <select
+                  value={newProductBrandId}
+                  onChange={(e) => setNewProductBrandId(e.target.value)}
+                  className="w-full glass-input"
+                >
+                  <option value="">No Brand / General</option>
+                  {brands.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
@@ -734,6 +779,20 @@ export default function PricingTable({ products, suppliers, prices, onRefresh })
                   onChange={(e) => setEditProductBasePrice(e.target.value)}
                   className="w-full glass-input"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Brand</label>
+                <select
+                  value={editProductBrandId}
+                  onChange={(e) => setEditProductBrandId(e.target.value)}
+                  className="w-full glass-input"
+                >
+                  <option value="">No Brand / General</option>
+                  {brands.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

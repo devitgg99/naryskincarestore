@@ -3,7 +3,8 @@ import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle,
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
-export default function InvoiceBuilder({ customers, products, suppliers, prices, onRefresh }) {
+export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], onRefresh }) {
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
     return localStorage.getItem('wsp_draft_customer') || '';
   });
@@ -67,12 +68,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   });
 
   const getFilteredProducts = (query) => {
-    if (!query) return products;
-    const lower = query.toLowerCase();
-    return products.filter(p => 
-      p.name_en.toLowerCase().includes(lower) || 
-      p.name_kh.includes(lower)
-    );
+    return products.filter(p => {
+      if (query) {
+        const lower = query.toLowerCase();
+        const matches = p.name_en.toLowerCase().includes(lower) || p.name_kh.includes(lower);
+        if (!matches) return false;
+      }
+      if (selectedBrandFilter !== 'all') {
+        if (selectedBrandFilter === 'none') {
+          if (p.brand_id) return false;
+        } else {
+          if (p.brand_id !== selectedBrandFilter) return false;
+        }
+      }
+      return true;
+    });
   };
 
   // Calculate row details
@@ -344,7 +354,19 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             <div className="glass-panel p-6 rounded-2xl border border-dark-800 space-y-4">
               <div className="flex justify-between items-center flex-wrap gap-2">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedBrandFilter}
+                    onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                    className="bg-dark-950 border border-dark-800 rounded px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500"
+                  >
+                    <option value="all">All Brands</option>
+                    <option value="none">No Brand</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -939,8 +961,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             {/* Modal Search Bar */}
-            <div className="p-4 border-b border-dark-850 bg-dark-900/40">
-              <div className="relative">
+            <div className="p-4 border-b border-dark-850 bg-dark-900/40 flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
                 <input
                   type="text"
@@ -950,6 +972,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   className="w-full pl-11 pr-4 glass-input text-sm"
                 />
               </div>
+              <select
+                value={selectedBrandFilter}
+                onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                className="glass-input text-sm min-w-[160px]"
+              >
+                <option value="all">All Brands</option>
+                <option value="none">No Brand</option>
+                {brands.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Modal Product Grid */}

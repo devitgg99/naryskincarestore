@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function StockTracker({ products, suppliers, prices, onRefresh }) {
+export default function StockTracker({ products, suppliers, prices, brands = [], onRefresh }) {
   const [groupMode, setGroupMode] = useState('product'); // 'product' or 'supplier'
   const [lowStockThreshold, setLowStockThreshold] = useState(2);
   const [showLowStockAlerts, setShowLowStockAlerts] = useState(true);
@@ -12,6 +12,7 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
   const [editPrice, setEditPrice] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
 
   // Group prices
   const productMap = {};
@@ -20,8 +21,21 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
   const supplierMap = {};
   suppliers.forEach(s => { supplierMap[s.id] = s; });
 
-  // Low stock items: stock_qty <= lowStockThreshold
-  const lowStockItems = prices.filter(sp => sp.stock_qty <= lowStockThreshold && sp.price > 0);
+  // Low stock items: stock_qty <= lowStockThreshold and matches brand filter
+  const lowStockItems = prices.filter(sp => {
+    if (sp.stock_qty > lowStockThreshold || sp.price <= 0) return false;
+    
+    if (selectedBrandFilter !== 'all') {
+      const prod = productMap[sp.product_id];
+      if (!prod) return false;
+      if (selectedBrandFilter === 'none') {
+        if (prod.brand_id) return false;
+      } else {
+        if (prod.brand_id !== selectedBrandFilter) return false;
+      }
+    }
+    return true;
+  });
 
   // Group prices by product_id
   const productPricesMap = {};
@@ -32,8 +46,16 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
     productPricesMap[sp.product_id].push(sp);
   });
 
-  // Filter products based on search term
+  // Filter products based on search term and brand
   const filteredProducts = products.filter(product => {
+    if (selectedBrandFilter !== 'all') {
+      if (selectedBrandFilter === 'none') {
+        if (product.brand_id) return false;
+      } else {
+        if (product.brand_id !== selectedBrandFilter) return false;
+      }
+    }
+
     const matchesName = 
       product.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.name_kh.includes(searchTerm);
@@ -47,12 +69,28 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
     return matchesName || matchesSupplier;
   });
 
-  // Filter suppliers based on search term
+  // Filter suppliers based on search term and brand
   const filteredSuppliers = suppliers.filter(supplier => {
-    const matchesSupplierName = supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const supplierPrices = prices.filter(sp => sp.supplier_id === supplier.id && sp.price > 0);
-    const matchesProductName = supplierPrices.some(sp => {
+    
+    // Filter supplier's offers by brand first
+    const brandMatchingPrices = supplierPrices.filter(sp => {
+      const prod = productMap[sp.product_id];
+      if (!prod) return false;
+      if (selectedBrandFilter !== 'all') {
+        if (selectedBrandFilter === 'none') {
+          return !prod.brand_id;
+        } else {
+          return prod.brand_id === selectedBrandFilter;
+        }
+      }
+      return true;
+    });
+
+    if (brandMatchingPrices.length === 0) return false;
+
+    const matchesSupplierName = supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesProductName = brandMatchingPrices.some(sp => {
       const prod = productMap[sp.product_id];
       return prod && (
         prod.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,6 +261,19 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
               />
             </div>
 
+            {/* Brand Filter */}
+            <select
+              value={selectedBrandFilter}
+              onChange={(e) => setSelectedBrandFilter(e.target.value)}
+              className="glass-input py-1.5 px-3 text-xs min-w-[130px]"
+            >
+              <option value="all">All Brands</option>
+              <option value="none">No Brand</option>
+              {brands.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+
             {/* View toggles */}
             <div className="flex items-center gap-2 bg-dark-900/30 p-1 rounded-xl border border-dark-800 self-end sm:self-auto">
               <button
@@ -388,6 +439,16 @@ export default function StockTracker({ products, suppliers, prices, onRefresh })
               const filteredSupplierPrices = supplierPrices.filter(sp => {
                 const prod = productMap[sp.product_id];
                 if (!prod) return false;
+
+                // Brand filter check
+                if (selectedBrandFilter !== 'all') {
+                  if (selectedBrandFilter === 'none') {
+                    if (prod.brand_id) return false;
+                  } else {
+                    if (prod.brand_id !== selectedBrandFilter) return false;
+                  }
+                }
+
                 const matchesSupplier = supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
                 const matchesProduct = 
                   prod.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||

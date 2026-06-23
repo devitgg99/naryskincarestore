@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Table, 
   Users, 
@@ -10,7 +9,8 @@ import {
   Info,
   Sun,
   Moon,
-  X
+  X,
+  Tag
 } from 'lucide-react';
 import { getSupabaseConfig, db } from '../services/db';
 
@@ -24,6 +24,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
     { id: 'invoice', label: 'Invoice Builder', icon: FileText },
     { id: 'sales', label: 'Sales Log', icon: ClipboardList },
     { id: 'stock', label: 'Stock Tracker', icon: Package },
+    { id: 'brands', label: 'Brand Manager', icon: Tag },
   ];
 
   const handleResetMock = () => {

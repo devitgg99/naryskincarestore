@@ -2,6 +2,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { initialProducts, initialSuppliers, initialSupplierPrices, initialCustomers, initialOrders, initialOrderItems } from './mockData';
 
+export const initialBrands = [
+  { id: 'b_1', name: 'EL', created_at: '2026-01-01T00:00:00.000Z' },
+  { id: 'b_2', name: 'Detox Bio', created_at: '2026-01-02T00:00:00.000Z' },
+  { id: 'b_3', name: 'Mr Slim', created_at: '2026-01-03T00:00:00.000Z' },
+  { id: 'b_4', name: 'Yasaka', created_at: '2026-01-04T00:00:00.000Z' },
+  { id: 'b_5', name: 'Kiss', created_at: '2026-01-05T00:00:00.000Z' }
+];
+
 // Storage helper functions
 const getLocal = (key, fallback) => {
   const val = localStorage.getItem(key);
@@ -11,7 +19,7 @@ const getLocal = (key, fallback) => {
   }
   try {
     return JSON.parse(val);
-  } catch (e) {
+  } catch {
     return fallback;
   }
 };
@@ -22,7 +30,35 @@ const setLocal = (key, data) => {
 
 // Initialize LocalStorage Mock Data if needed
 const initMockDB = () => {
-  getLocal('wsp_products', initialProducts);
+  getLocal('wsp_brands', initialBrands);
+  
+  // Seed initial product brand associations for mock fallback
+  const products = getLocal('wsp_products', initialProducts);
+  let updated = false;
+  products.forEach(p => {
+    if (!p.brand_id) {
+      if (p.name_en && p.name_en.includes('EL')) {
+        p.brand_id = 'b_1';
+        updated = true;
+      } else if (p.name_en && p.name_en.includes('Detox')) {
+        p.brand_id = 'b_2';
+        updated = true;
+      } else if (p.name_en && p.name_en.includes('Slim')) {
+        p.brand_id = 'b_3';
+        updated = true;
+      } else if (p.name_en && p.name_en.includes('Yasaka')) {
+        p.brand_id = 'b_4';
+        updated = true;
+      } else if (p.name_en && p.name_en.includes('Kiss')) {
+        p.brand_id = 'b_5';
+        updated = true;
+      }
+    }
+  });
+  if (updated) {
+    setLocal('wsp_products', products);
+  }
+
   getLocal('wsp_suppliers', initialSuppliers);
   getLocal('wsp_supplier_prices', initialSupplierPrices);
   getLocal('wsp_customers', initialCustomers);
@@ -69,6 +105,7 @@ const getClient = () => {
 export const db = {
   // Reset Mock Data to Default
   resetMockData: () => {
+    localStorage.removeItem('wsp_brands');
     localStorage.removeItem('wsp_products');
     localStorage.removeItem('wsp_suppliers');
     localStorage.removeItem('wsp_supplier_prices');
@@ -452,6 +489,92 @@ export const db = {
 
     setLocal('wsp_orders', updatedOrders);
     setLocal('wsp_order_items', updatedItems);
+    return true;
+  },
+
+  // Brands
+  getBrands: async () => {
+    const client = getClient();
+    if (client) {
+      const { data, error } = await client.from('brands').select('*').order('name', { ascending: true });
+      if (!error) return data;
+      console.error(error);
+    }
+    return getLocal('wsp_brands', initialBrands).sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  saveBrand: async (brand) => {
+    const client = getClient();
+    if (client) {
+      const { data, error } = await client.from('brands').upsert(brand).select();
+      if (!error) return data[0];
+      throw error;
+    }
+    const brands = getLocal('wsp_brands', initialBrands);
+    if (brand.id) {
+      const idx = brands.findIndex(b => b.id === brand.id);
+      if (idx !== -1) {
+        brands[idx] = { ...brands[idx], ...brand };
+        setLocal('wsp_brands', brands);
+        return brands[idx];
+      }
+      throw new Error("Brand not found");
+    } else {
+      const newBrand = { ...brand, id: 'b_' + Date.now().toString(), created_at: new Date().toISOString() };
+      brands.push(newBrand);
+      setLocal('wsp_brands', brands);
+      return newBrand;
+    }
+  },
+
+  deleteBrand: async (id) => {
+    const client = getClient();
+    if (client) {
+      const { error } = await client.from('brands').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    }
+    const brands = getLocal('wsp_brands', initialBrands);
+    const updatedBrands = brands.filter(b => b.id !== id);
+    setLocal('wsp_brands', updatedBrands);
+
+    const products = getLocal('wsp_products', initialProducts);
+    const updatedProducts = products.map(p => p.brand_id === id ? { ...p, brand_id: null } : p);
+    setLocal('wsp_products', updatedProducts);
+    return true;
+  },
+
+  associateProductsWithBrand: async (brandId, productIds) => {
+    const client = getClient();
+    if (client) {
+      // Dissociate old
+      const { error: err1 } = await client.from('products').update({ brand_id: null }).eq('brand_id', brandId);
+      if (err1) throw err1;
+      
+      // Associate new (only if there are products selected)
+      if (productIds && productIds.length > 0) {
+        const { error: err2 } = await client.from('products').update({ brand_id: brandId }).in('id', productIds);
+        if (err2) throw err2;
+      }
+      return true;
+    }
+    // Fallback
+    const products = getLocal('wsp_products', initialProducts);
+    const updatedProducts = products.map(p => {
+      if (p.brand_id === brandId) {
+        return { ...p, brand_id: null };
+      }
+      return p;
+    });
+
+    productIds.forEach(pid => {
+      const idx = updatedProducts.findIndex(p => p.id === pid);
+      if (idx !== -1) {
+        updatedProducts[idx].brand_id = brandId;
+      }
+    });
+
+    setLocal('wsp_products', updatedProducts);
     return true;
   }
 };

@@ -70,3 +70,15 @@ create index if not exists idx_supplier_prices_product on supplier_prices(produc
 create index if not exists idx_supplier_prices_supplier on supplier_prices(supplier_id);
 create index if not exists idx_orders_customer on orders(customer_id);
 create index if not exists idx_order_items_order on order_items(order_id);
+
+-- Table 7: brands
+create table if not exists brands (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamp with time zone default now()
+);
+
+-- Add brand_id column to products table
+alter table products add column if not exists brand_id uuid references brands(id) on delete set null;
+create index if not exists idx_products_brand on products(brand_id);
+
