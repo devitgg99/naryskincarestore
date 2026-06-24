@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X } from 'lucide-react';
+import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X, Eye } from 'lucide-react';
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
@@ -28,6 +28,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState(null); // Saved order details for print receipt preview modal
+  const [previewOrder, setPreviewOrder] = useState(null); // Draft preview receipt details
 
   // POS Quick Add States
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
@@ -300,6 +301,39 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handlePreviewReceipt = () => {
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    const activeItems = lineItems.filter(item => item.product_id);
+    
+    if (activeItems.length === 0) {
+      alert("Please add at least one product with quantity to preview.");
+      return;
+    }
+
+    const subtotal = activeItems.reduce((sum, item) => sum + Number(item.subtotal), 0);
+    const totalAmount = subtotal + Number(deliveryFee || 0);
+
+    const draftOrder = {
+      order: {
+        id: 'DRAFT_PREVIEW_' + Date.now().toString().slice(-4),
+        delivery_fee: Number(deliveryFee || 0),
+        total_amount: totalAmount,
+        ordered_at: new Date().toISOString()
+      },
+      customer: customer || { name: 'Walk-in Customer', location_note: 'General Delivery', phone: '' },
+      items: activeItems.map(item => ({
+        product_id: item.product_id,
+        supplier_id: item.supplier_id || null,
+        supplier_price: Number(item.supplier_price || 0),
+        unit_price: Number(item.unit_price || 0),
+        quantity: Number(item.quantity || 0),
+        subtotal: Number(item.subtotal || 0)
+      }))
+    };
+
+    setPreviewOrder(draftOrder);
   };
 
   return (
@@ -680,23 +714,33 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </span>
               </div>
 
-              <button
-                onClick={handleSaveInvoice}
-                disabled={isSaving}
-                className="w-full glass-button-primary py-3 font-bold text-base cursor-pointer"
-              >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Saving Invoice...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5" />
-                    Save & Print Invoice
-                  </>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handlePreviewReceipt}
+                  className="flex-1 glass-button-secondary py-3 font-semibold text-sm cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-dark-300" />
+                  Preview Receipt
+                </button>
+                <button
+                  onClick={handleSaveInvoice}
+                  disabled={isSaving}
+                  className="flex-[1.5] glass-button-primary py-3 font-bold text-sm cursor-pointer"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-4 h-4" />
+                      Save & Print
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="p-4 bg-dark-900/30 rounded-2xl border border-dashed border-dark-800 flex gap-3">
@@ -711,235 +755,255 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       </div>
 
       {/* Invoice Print Preview Modal Overlay */}
-      {savedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center no-print">
-          <div className="bg-dark-900 border border-dark-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            
-            {/* Top Bar controls */}
-            <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
-              <h3 className="font-semibold text-white">Invoice Details</h3>
-              <div className="flex gap-2">
-                <button onClick={handlePrint} className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs">
-                  <Printer className="w-4 h-4" />
-                  Print Invoice
-                </button>
-                <button onClick={() => setSavedOrder(null)} className="glass-button-secondary py-1.5 px-3 text-xs">
-                  Close
-                </button>
-              </div>
-            </div>
-
-            {/* Paper Receipt Box */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-dark-950/20">
+      {(() => {
+        const receiptData = savedOrder || previewOrder;
+        if (!receiptData) return null;
+        const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        return (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center no-print">
+            <div className="bg-dark-900 border border-dark-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
               
-              {/* Internal Profit Analysis Card (Owner Only) - Hidden on print */}
-              <div className="no-print glass-panel p-5 rounded-xl border border-dark-850 bg-dark-900/60 max-w-md mx-auto space-y-4 shadow-lg text-left">
-                <div className="flex justify-between items-center border-b border-dark-800 pb-3">
-                  <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Internal Profit Analysis (Owner Only)
-                  </h4>
-                  <span className="text-xs text-dark-400 font-mono">
-                    Order: #{savedOrder.order.id.slice(-6).toUpperCase()}
-                  </span>
-                </div>
-                
-                <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
-                  {savedOrder.items.map((item, idx) => {
-                    const prod = products.find(p => p.id === item.product_id);
-                    const cost = Number(item.supplier_price || 0);
-                    const selling = Number(item.unit_price);
-                    const qty = Number(item.quantity);
-                    const profitPerUnit = selling - cost;
-                    const itemProfit = profitPerUnit * qty;
-                    
-                    return (
-                      <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
-                        <div className="space-y-1">
-                          <div className="font-semibold text-white">
-                            {prod ? `${prod.name_kh} (${prod.name_en})` : 'Unknown Product'}
-                          </div>
-                          <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
-                            <span>Cost: ${cost.toFixed(2)}</span>
-                            <span>•</span>
-                            <span>Sell: ${selling.toFixed(2)}</span>
-                            <span>•</span>
-                            <span>Qty: {qty}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
-                          <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
-                  <span className="text-dark-300">Total Order Profit:</span>
-                  <span className="text-lg text-emerald-400">
-                    ${savedOrder.items.reduce((sum, item) => sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * Number(item.quantity), 0).toFixed(2)}
-                  </span>
+              {/* Top Bar controls */}
+              <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
+                <h3 className="font-semibold text-white">
+                  {isDraft ? 'Receipt Preview (Draft)' : 'Invoice Details'}
+                </h3>
+                <div className="flex gap-2">
+                  <button onClick={handlePrint} className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs">
+                    <Printer className="w-4 h-4" />
+                    {isDraft ? 'Print Draft' : 'Print Invoice'}
+                  </button>
+                  <button 
+                    onClick={() => { setSavedOrder(null); setPreviewOrder(null); }} 
+                    className="glass-button-secondary py-1.5 px-3 text-xs"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
 
               {/* Paper Receipt Box */}
-              <div className="max-w-md mx-auto border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-dark-950/20">
                 
-                {/* Receipt Header */}
-                <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
-                  <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
-                  <h2 className="text-lg font-bold text-black font-mono">
-                    {savedOrder.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
-                  </h2>
-                  <p className="text-[10px] text-gray-500">
-                    {savedOrder.customer?.location_note || 'ផ្សារអូរឫស្សី, ភ្នំពេញ'}
-                    {savedOrder.customer?.phone ? ` • ទូរស័ព្ទ: ${savedOrder.customer.phone}` : ''}
-                  </p>
-                  
-                  <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-2 font-mono text-gray-700">
-                    <div><strong>Invoice No:</strong> #{savedOrder.order.id.slice(-6).toUpperCase()}</div>
-                    <div><strong>Date:</strong> {new Date(savedOrder.order.ordered_at).toLocaleDateString()}</div>
-                    <div className="col-span-2"><strong>Customer:</strong> {savedOrder.customer?.name}</div>
-                    {savedOrder.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {savedOrder.customer.phone}</div>}
-                    {savedOrder.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {savedOrder.customer.location_note}</div>}
+                {/* Internal Profit Analysis Card (Owner Only) - Hidden on print */}
+                <div className="no-print glass-panel p-5 rounded-xl border border-dark-850 bg-dark-900/60 max-w-md mx-auto space-y-4 shadow-lg text-left">
+                  <div className="flex justify-between items-center border-b border-dark-800 pb-3">
+                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Internal Profit Analysis (Owner Only) {isDraft && <span className="text-amber-400 font-bold ml-1">(DRAFT)</span>}
+                    </h4>
+                    <span className="text-xs text-dark-400 font-mono">
+                      Order: #{isDraft ? 'DRAFT' : receiptData.order.id.slice(-6).toUpperCase()}
+                    </span>
                   </div>
-                </div>
-
-                {/* Table items */}
-                <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
-                  <thead>
-                    <tr className="border-b border-gray-300 font-bold text-gray-800">
-                      <th className="py-2">Description / ទំនិញ</th>
-                      <th className="py-2 text-center">Qty / 数量</th>
-                      <th className="py-2 text-right">Price / តម្លៃ</th>
-                      <th className="py-2 text-right">Total / សរុប</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {savedOrder.items.map((item, index) => {
+                  
+                  <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
+                    {receiptData.items.map((item, idx) => {
                       const prod = products.find(p => p.id === item.product_id);
+                      const cost = Number(item.supplier_price || 0);
+                      const selling = Number(item.unit_price);
+                      const qty = Number(item.quantity);
+                      const profitPerUnit = selling - cost;
+                      const itemProfit = profitPerUnit * qty;
+                      
                       return (
-                        <tr key={index} className="text-gray-800">
-                          <td className="py-2">
-                            <div className="font-bold">{prod?.name_kh}</div>
-                            <div className="text-[10px] text-gray-500">{prod?.name_en}</div>
-                          </td>
-                          <td className="py-2 text-center font-mono">{item.quantity}</td>
-                          <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                          <td className="py-2 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
-                        </tr>
+                        <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-white">
+                              {prod ? `${prod.name_kh} (${prod.name_en})` : 'Unknown Product'}
+                            </div>
+                            <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
+                              <span>Cost: ${cost.toFixed(2)}</span>
+                              <span>•</span>
+                              <span>Sell: ${selling.toFixed(2)}</span>
+                              <span>•</span>
+                              <span>Qty: {qty}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
+                            <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-
-                {/* Totals block */}
-                <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
-                  <div className="flex justify-between text-gray-700">
-                    <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
-                    <span>${(savedOrder.order.total_amount - savedOrder.order.delivery_fee).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-gray-700">
-                    <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
-                    <span>${Number(savedOrder.order.delivery_fee).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
-                    <span>Grand Total / សរុបរួម:</span>
-                    <span>${Number(savedOrder.order.total_amount).toFixed(2)}</span>
+                  
+                  <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
+                    <span className="text-dark-300">Total Order Profit:</span>
+                    <span className="text-lg text-emerald-400">
+                      ${receiptData.items.reduce((sum, item) => sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * Number(item.quantity), 0).toFixed(2)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Footer terms */}
-                <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
-                  <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you for your support!)</p>
-                  <p className="font-mono">Wholesale Portal Invoice System</p>
-                </div>
+                {/* Paper Receipt Box */}
+                <div className="max-w-md mx-auto border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
+                  {isDraft && (
+                    <div className="no-print text-center text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold animate-pulse">
+                      ⚠️ DRAFT RECEIPT PREVIEW
+                    </div>
+                  )}
+                  
+                  {/* Receipt Header */}
+                  <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
+                    <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
+                    <h2 className="text-lg font-bold text-black font-mono">
+                      {receiptData.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
+                    </h2>
+                    <p className="text-[10px] text-gray-500">
+                      {receiptData.customer?.location_note || 'ផ្សារអូរឫស្សី, ភ្នំពេញ'}
+                      {receiptData.customer?.phone ? ` • ទូរស័ព្ទ: ${receiptData.customer.phone}` : ''}
+                    </p>
+                    
+                    <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-2 font-mono text-gray-700">
+                      <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
+                      <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
+                      <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
+                      {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
+                      {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
+                    </div>
+                  </div>
 
+                  {/* Table items */}
+                  <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
+                    <thead>
+                      <tr className="border-b border-gray-300 font-bold text-gray-800">
+                        <th className="py-2">Description / ទំនិញ</th>
+                        <th className="py-2 text-center">Qty / 数量</th>
+                        <th className="py-2 text-right">Price / តម្លៃ</th>
+                        <th className="py-2 text-right">Total / សរុប</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {receiptData.items.map((item, index) => {
+                        const prod = products.find(p => p.id === item.product_id);
+                        return (
+                          <tr key={index} className="text-gray-800">
+                            <td className="py-2">
+                              <div className="font-bold">{prod?.name_kh}</div>
+                              <div className="text-[10px] text-gray-500">{prod?.name_en}</div>
+                            </td>
+                            <td className="py-2 text-center font-mono">{item.quantity}</td>
+                            <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
+                            <td className="py-2 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* Totals block */}
+                  <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
+                    <div className="flex justify-between text-gray-700">
+                      <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
+                      <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
+                      <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
+                      <span>Grand Total / សរុបរួម:</span>
+                      <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer terms */}
+                  <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
+                    <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you for your support!)</p>
+                    <p className="font-mono">Wholesale Portal Invoice System</p>
+                  </div>
+
+                </div>
               </div>
+              
             </div>
-            
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Actual Hidden print layout for window.print() */}
-      {savedOrder && (
-        <div className="hidden print-only bg-white text-black p-4 font-sans leading-normal">
-          <div className="max-w-md mx-auto border-0 p-2">
-            
-            {/* Header */}
-            <div className="text-center space-y-1 pb-2 border-b border-dashed border-gray-400">
-              <h1 className="text-lg font-bold tracking-wider">
-                {savedOrder.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
-              </h1>
-              <p className="text-[10px]">
-                វិក្កយបត្រ / INVOICE
-                {savedOrder.customer?.location_note ? ` • ${savedOrder.customer.location_note}` : ''}
-                {savedOrder.customer?.phone ? ` • Tel: ${savedOrder.customer.phone}` : ''}
-              </p>
+      {(() => {
+        const receiptData = savedOrder || previewOrder;
+        if (!receiptData) return null;
+        const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        return (
+          <div className="hidden print-only bg-white text-black p-4 font-sans leading-normal">
+            <div className="max-w-md mx-auto border-0 p-2">
               
-              <div className="text-left text-[10px] grid grid-cols-2 gap-y-0.5 pt-2 font-mono">
-                <div>No: #{savedOrder.order.id.slice(-6).toUpperCase()}</div>
-                <div>Date: {new Date(savedOrder.order.ordered_at).toLocaleDateString()}</div>
-                <div className="col-span-2">Customer: {savedOrder.customer?.name}</div>
-                {savedOrder.customer?.phone && <div className="col-span-2">Phone: {savedOrder.customer.phone}</div>}
+              {/* Header */}
+              <div className="text-center space-y-1 pb-2 border-b border-dashed border-gray-400">
+                <h1 className="text-lg font-bold tracking-wider">
+                  {receiptData.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
+                </h1>
+                <p className="text-[10px]">
+                  វិក្កយបត្រ / INVOICE {isDraft && '(DRAFT PREVIEW)'}
+                  {receiptData.customer?.location_note ? ` • ${receiptData.customer.location_note}` : ''}
+                  {receiptData.customer?.phone ? ` • Tel: ${receiptData.customer.phone}` : ''}
+                </p>
+                
+                <div className="text-left text-[10px] grid grid-cols-2 gap-y-0.5 pt-2 font-mono">
+                  <div>No: #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
+                  <div>Date: {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
+                  <div className="col-span-2">Customer: {receiptData.customer?.name}</div>
+                  {receiptData.customer?.phone && <div className="col-span-2">Phone: {receiptData.customer.phone}</div>}
+                </div>
               </div>
+
+              {/* Table */}
+              <table className="w-full text-[10px] text-left mt-2 border-b border-dashed border-gray-400 pb-2">
+                <thead>
+                  <tr className="border-b border-gray-400 font-bold">
+                    <th className="py-1">Product</th>
+                    <th className="py-1 text-center">Qty</th>
+                    <th className="py-1 text-right">Price</th>
+                    <th className="py-1 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-150">
+                  {receiptData.items.map((item, index) => {
+                    const prod = products.find(p => p.id === item.product_id);
+                    return (
+                      <tr key={index}>
+                        <td className="py-1">
+                          <div className="font-bold">{prod?.name_kh}</div>
+                          <div className="text-[9px] text-gray-500">{prod?.name_en}</div>
+                        </td>
+                        <td className="py-1 text-center font-mono">{item.quantity}</td>
+                        <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
+                        <td className="py-1 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div className="mt-2 space-y-1 text-[10px] text-right font-mono">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Delivery:</span>
+                  <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-double pt-1 font-bold">
+                  <span>Grand Total:</span>
+                  <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Terms */}
+              <div className="mt-4 text-center text-[9px] text-gray-500">
+                <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you!)</p>
+              </div>
+
             </div>
-
-            {/* Table */}
-            <table className="w-full text-[10px] text-left mt-2 border-b border-dashed border-gray-400 pb-2">
-              <thead>
-                <tr className="border-b border-gray-400 font-bold">
-                  <th className="py-1">Product</th>
-                  <th className="py-1 text-center">Qty</th>
-                  <th className="py-1 text-right">Price</th>
-                  <th className="py-1 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-150">
-                {savedOrder.items.map((item, index) => {
-                  const prod = products.find(p => p.id === item.product_id);
-                  return (
-                    <tr key={index}>
-                      <td className="py-1">
-                        <div className="font-bold">{prod?.name_kh}</div>
-                        <div className="text-[9px] text-gray-500">{prod?.name_en}</div>
-                      </td>
-                      <td className="py-1 text-center font-mono">{item.quantity}</td>
-                      <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                      <td className="py-1 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Totals */}
-            <div className="mt-2 space-y-1 text-[10px] text-right font-mono">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span>${(savedOrder.order.total_amount - savedOrder.order.delivery_fee).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Delivery:</span>
-                <span>${Number(savedOrder.order.delivery_fee).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t border-double pt-1 font-bold">
-                <span>Grand Total:</span>
-                <span>${Number(savedOrder.order.total_amount).toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Terms */}
-            <div className="mt-4 text-center text-[9px] text-gray-500">
-              <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you!)</p>
-            </div>
-
           </div>
-        </div>
-      )}
+        );
+      })()}
       {/* Batch Add Catalog Modal */}
       {isBatchModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center no-print">
