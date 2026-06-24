@@ -1,6 +1,81 @@
-import { useState } from 'react';
-import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X } from 'lucide-react';
 import { db } from '../services/db';
+import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
+
+
+
+// ─── Simple Image Upload Widget ───────────────────────────────────────────────
+function ImageUploadWidget({ existingImageUrl, onStateChange }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [removed, setRemoved] = useState(false);
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  const handleFileSelect = (selected) => {
+    if (!selected) return;
+    if (preview) URL.revokeObjectURL(preview);
+    const url = URL.createObjectURL(selected);
+    setFile(selected);
+    setPreview(url);
+    setRemoved(false);
+    onStateChange({ file: selected, removed: false });
+  };
+
+  const handleRemove = () => {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+    setRemoved(true);
+    onStateChange({ file: null, removed: true });
+  };
+
+  const displayUrl = preview || (!removed && existingImageUrl) || null;
+  const hasImage = file || (existingImageUrl && !removed);
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* Preview */}
+      <div className="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-dark-700 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0">
+        {displayUrl ? (
+          <img src={displayUrl} alt="Product" className="w-full h-full object-cover rounded-xl" />
+        ) : (
+          <ImageIcon className="w-6 h-6 text-dark-600" />
+        )}
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-col gap-2 flex-1">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => cameraInputRef.current?.click()}
+            className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5">
+            <Camera className="w-3.5 h-3.5" /> Camera
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()}
+            className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5" /> Upload
+          </button>
+        </div>
+        {hasImage && (
+          <button type="button" onClick={handleRemove}
+            className="glass-button-danger py-1.5 px-2 text-xs gap-1.5">
+            <X className="w-3.5 h-3.5" /> Remove Photo
+          </button>
+        )}
+      </div>
+
+      {/* Hidden inputs */}
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => handleFileSelect(e.target.files[0])} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => handleFileSelect(e.target.files[0])} />
+    </div>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
+
 
 export default function PricingTable({ products, suppliers, prices, brands = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,6 +94,8 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [newProductBrandId, setNewProductBrandId] = useState('');
   const [newProductSellingPrice, setNewProductSellingPrice] = useState('');
+  const [newProductImageState, setNewProductImageState] = useState({ file: null, removed: false });
+
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // States for adding a new supplier
@@ -34,6 +111,8 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editProductBasePrice, setEditProductBasePrice] = useState('');
   const [editProductBrandId, setEditProductBrandId] = useState('');
   const [editProductSellingPrice, setEditProductSellingPrice] = useState('');
+  const [editProductImageState, setEditProductImageState] = useState({ file: null, removed: false });
+
 
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
@@ -188,7 +267,17 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setEditProductBasePrice(product.base_price.toString());
     setEditProductBrandId(product.brand_id || '');
     setEditProductSellingPrice(product.selling_price ? product.selling_price.toString() : '');
+    setEditProductImageState({ file: null, removed: false });
+
   };
+
+  // Helper: get the final file to upload from image state
+  const resolveFinalBlob = (imageState) => {
+    const { file } = imageState;
+    if (file) return { blob: file, mime: file.type || 'image/jpeg' };
+    return null;
+  };
+
 
   const handleSaveProductEdit = async (e) => {
     e.preventDefault();
@@ -196,13 +285,30 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
     setIsSaving(true);
     try {
+      let imageUrl = editingProduct.image_url || null;
+
+      // Handle image changes
+      if (editProductImageState.removed) {
+        // User explicitly removed the image
+        await deleteProductImage(imageUrl);
+        imageUrl = null;
+      } else {
+        const final = resolveFinalBlob(editProductImageState);
+        if (final) {
+          // Upload new image, delete old one
+          await deleteProductImage(imageUrl);
+          imageUrl = await uploadProductImage(final.blob, editingProduct.id, final.mime);
+        }
+      }
+
       await db.saveProduct({
         ...editingProduct,
         name_kh: editProductNameKh,
         name_en: editProductNameEn,
         base_price: Number(editProductBasePrice),
         brand_id: editProductBrandId || null,
-        selling_price: editProductSellingPrice ? Number(editProductSellingPrice) : null
+        selling_price: editProductSellingPrice ? Number(editProductSellingPrice) : null,
+        image_url: imageUrl,
       });
       onRefresh();
       setEditingProduct(null);
@@ -220,6 +326,10 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
     setIsSaving(true);
     try {
+      // Clean up image in storage
+      if (editingProduct.image_url) {
+        await deleteProductImage(editingProduct.image_url);
+      }
       await db.deleteProduct(editingProduct.id);
       onRefresh();
       setEditingProduct(null);
@@ -240,19 +350,33 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     
     setIsSavingProduct(true);
     try {
+      // Upload image if one was selected
+      let imageUrl = null;
+      const final = resolveFinalBlob(newProductImageState);
+      if (final) {
+        // We upload after creating the product to get a real ID
+        // For now use a temp ID and we'll update
+        const tempId = 'temp_' + Date.now();
+        imageUrl = await uploadProductImage(final.blob, tempId, final.mime);
+      }
+
       await db.saveProduct({
         name_kh: newProductNameKh,
         name_en: newProductNameEn,
         base_price: Number(newProductBasePrice),
         brand_id: newProductBrandId || null,
-        selling_price: newProductSellingPrice ? Number(newProductSellingPrice) : null
+        selling_price: newProductSellingPrice ? Number(newProductSellingPrice) : null,
+        image_url: imageUrl,
       });
-      // Reset values
+
+      // Reset all fields
       setNewProductNameKh('');
       setNewProductNameEn('');
       setNewProductBasePrice('');
       setNewProductBrandId('');
       setNewProductSellingPrice('');
+      setNewProductImageState({ file: null, removed: false });
+
       setIsAddProductOpen(false);
       onRefresh();
     } catch (err) {
@@ -375,7 +499,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="bg-dark-950/60 border-b border-dark-800/80 text-dark-300 font-semibold">
-                <th className="p-4 min-w-[240px]">Product Details</th>
+                <th className="p-4 min-w-[260px]">Product Details</th>
                 <th className="p-4 text-center">Selling Price</th>
                 {suppliers.map(supplier => {
                   // Hide columns if single supplier filter is active (except selected)
@@ -408,17 +532,36 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
                 return (
                   <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
-                    {/* Product Name details */}
+                    {/* Product Name + Image Thumbnail */}
                     <td 
                       onClick={() => handleProductClick(product)}
                       className="p-4 cursor-pointer hover:bg-primary-500/5 transition-colors relative group/prod-name"
                     >
-                      <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
-                        <span>{product.name_kh}</span>
-                        <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
-                      </div>
-                      <div className="text-xs text-dark-400 mt-0.5">
-                        {product.name_en}
+                      <div className="flex items-center gap-3">
+                        {/* Thumbnail */}
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name_en}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-4 h-4 text-dark-600" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
+                            <span>{product.name_kh}</span>
+                            <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
+                          </div>
+                          <div className="text-xs text-dark-400 mt-0.5">
+                            {product.name_en}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     
@@ -499,7 +642,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         </div>
       </div>
 
-      {/* Editing Dialog Modal */}
+      {/* Edit Price/Stock Dialog Modal */}
       {editingCell && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
@@ -600,14 +743,23 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleAddProduct}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 text-left"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 text-left flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-dark-800">
+            <div className="p-6 border-b border-dark-800 flex-shrink-0">
               <h3 className="font-bold text-lg text-white">Add New Product</h3>
               <p className="text-xs text-dark-400 mt-1">Create a new product in the system catalog.</p>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto scrollbar-thin flex-1">
+              {/* Product Image */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Image</label>
+                <ImageUploadWidget
+                  existingImageUrl={null}
+                  onStateChange={setNewProductImageState}
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Khmer Name (ឈ្មោះទំនិញ) *</label>
                 <input 
@@ -674,10 +826,14 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
+            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20 flex-shrink-0">
               <button 
                 type="button" 
-                onClick={() => setIsAddProductOpen(false)} 
+                onClick={() => {
+                  setIsAddProductOpen(false);
+                  setNewProductImageState({ file: null, removed: false });
+
+                }}
                 className="glass-button-secondary"
               >
                 Cancel
@@ -751,21 +907,30 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         </div>
       )}
 
-      {/* Editing Product Modal */}
+      {/* Edit Product Modal */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleSaveProductEdit}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-dark-800">
+            <div className="p-6 border-b border-dark-800 flex-shrink-0">
               <h3 className="font-bold text-lg text-white">Edit Product Details</h3>
               <p className="text-xs text-dark-400 mt-1">
-                Modify product name or pricing details, or delete from portal.
+                Modify product name, image, or pricing details, or delete from portal.
               </p>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto scrollbar-thin flex-1">
+              {/* Product Image */}
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Image</label>
+                <ImageUploadWidget
+                  existingImageUrl={editingProduct.image_url || null}
+                  onStateChange={setEditProductImageState}
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Khmer Name *</label>
                 <input 
@@ -832,7 +997,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
             </div>
 
-            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 w-full">
+            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 flex-shrink-0 w-full">
               <button
                 type="button"
                 onClick={handleDeleteProduct}
@@ -854,7 +1019,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   disabled={isSaving}
                   className="glass-button-primary"
                 >
-                  Save Changes
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>

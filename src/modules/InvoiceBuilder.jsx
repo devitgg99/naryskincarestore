@@ -492,9 +492,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           }}
                           className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors flex justify-between items-center gap-4"
                         >
-                          <div>
-                            <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
-                            <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                              {p.image_url ? (
+                                <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-dark-600 text-xs">📦</div>
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
+                              <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                            </div>
                           </div>
                           <div className="flex items-center gap-2.5">
                             <div className="text-right text-[10px] text-dark-400">
@@ -1102,9 +1111,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       }`}
                     >
                       <div className="flex justify-between items-start gap-2 h-12">
-                        <div className="text-left">
-                          <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-1">{p.name_kh}</h4>
-                          <p className="text-[10px] text-dark-400 mt-0.5 line-clamp-1">{p.name_en}</p>
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                            {p.image_url ? (
+                              <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-dark-600 text-xs">📦</div>
+                            )}
+                          </div>
+                          <div className="text-left">
+                            <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-1">{p.name_kh}</h4>
+                            <p className="text-[10px] text-dark-400 mt-0.5 line-clamp-1">{p.name_en}</p>
+                          </div>
                         </div>
                         <span className="text-xs font-bold text-primary-400 shrink-0">
                           ${cheapestPrice.toFixed(2)}

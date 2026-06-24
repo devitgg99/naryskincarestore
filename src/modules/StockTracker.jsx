@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff } from 'lucide-react';
+import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff, ImageIcon } from 'lucide-react';
 import { db } from '../services/db';
+
 
 export default function StockTracker({ products, suppliers, prices, brands = [], onRefresh }) {
   const [groupMode, setGroupMode] = useState('product'); // 'product' or 'supplier'
@@ -213,12 +214,24 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                   key={sp.id} 
                   className="bg-dark-950/40 border border-rose-900/20 rounded-xl p-4 flex justify-between items-center"
                 >
-                  <div className="space-y-1">
-                    <span className="font-bold text-white text-sm block">{prod.name_kh}</span>
-                    <span className="text-xs text-dark-400 block">{prod.name_en}</span>
-                    <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full inline-block font-semibold mt-1">
-                      {sup.name}: {sp.stock_qty} {sp.stock_unit} left
-                    </span>
+                  <div className="flex items-center gap-3">
+                    {/* Thumbnail */}
+                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                      {prod.image_url ? (
+                        <img src={prod.image_url} alt={prod.name_en} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-4 h-4 text-dark-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <span className="font-bold text-white text-sm block">{prod.name_kh}</span>
+                      <span className="text-xs text-dark-400 block">{prod.name_en}</span>
+                      <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full inline-block font-semibold mt-1">
+                        {sup.name}: {sp.stock_qty} {sp.stock_unit} left
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -316,10 +329,21 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
 
               return (
                 <div key={product.id} className="glass-panel p-5 rounded-2xl border border-dark-800 space-y-4">
-                  {/* Title */}
-                  <div>
-                    <h4 className="font-bold text-white text-base">{product.name_kh}</h4>
-                    <p className="text-xs text-dark-400">{product.name_en}</p>
+                  {/* Title with thumbnail */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name_en} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-5 h-5 text-dark-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base">{product.name_kh}</h4>
+                      <p className="text-xs text-dark-400">{product.name_en}</p>
+                    </div>
                   </div>
 
                   {/* Supplier offers list */}

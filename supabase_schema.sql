@@ -85,3 +85,34 @@ create index if not exists idx_products_brand on products(brand_id);
 -- Add selling_price column to products table
 alter table products add column if not exists selling_price numeric(10, 2);
 
+
+-- ============================================================
+-- Storage: Product Images Bucket
+-- Run these in: Supabase Dashboard → SQL Editor
+-- ============================================================
+
+-- Create a public storage bucket for product images
+insert into storage.buckets (id, name, public)
+values ('product-images', 'product-images', true)
+on conflict (id) do nothing;
+
+-- Allow public read access (images load in browser without auth)
+drop policy if exists "Public read product images" on storage.objects;
+create policy "Public read product images"
+  on storage.objects for select
+  using (bucket_id = 'product-images');
+
+-- Allow uploads from the app
+drop policy if exists "Allow product image uploads" on storage.objects;
+create policy "Allow product image uploads"
+  on storage.objects for insert
+  with check (bucket_id = 'product-images');
+
+-- Allow deleting/replacing old images
+drop policy if exists "Allow product image deletes" on storage.objects;
+create policy "Allow product image deletes"
+  on storage.objects for delete
+  using (bucket_id = 'product-images');
+
+
+
