@@ -1144,7 +1144,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     >
                       <div className="flex justify-between items-start gap-2 h-12">
                         <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                          <div 
+                            onClick={increment}
+                            className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
+                            title="Click to increase quantity"
+                          >
                             {p.image_url ? (
                               <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
                             ) : (
