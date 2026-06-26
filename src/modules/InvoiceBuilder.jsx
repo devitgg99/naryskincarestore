@@ -133,6 +133,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         item.maxStock = match.stock_qty;
         item.stockUnit = match.stock_unit;
         item.supplier_price = match.price; // Update supplier price (cost price)
+        
+        // Update the selling price (unit_price) based on the new supplier cost
+        const prod = products.find(p => p.id === item.product_id);
+        const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : Math.round((match.price + 0.20) * 100) / 100;
       }
     }
 
