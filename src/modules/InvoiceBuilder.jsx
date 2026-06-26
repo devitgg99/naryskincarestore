@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X, Eye } from 'lucide-react';
+import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X, Eye, ImageIcon } from 'lucide-react';
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
@@ -220,7 +220,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           subtotal: Number(unit_price) * qtyToAdd,
           maxStock,
           stockUnit,
-          searchQuery: '',
+          searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
           isDropdownOpen: false
         };
         
@@ -564,64 +564,77 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                   return (
                     <div key={item.id} className="p-4 rounded-xl border border-dark-850 bg-dark-950/20 space-y-4 sm:space-y-0 sm:flex sm:items-center sm:gap-3 transition-colors hover:border-dark-800">
-                      
-                      {/* Product Selector */}
-                      <div className="flex-1 min-w-[180px] relative">
-                        <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Product</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Search product..."
-                          value={item.searchQuery !== undefined ? item.searchQuery : (products.find(p => p.id === item.product_id) ? `${products.find(p => p.id === item.product_id).name_kh} (${products.find(p => p.id === item.product_id).name_en})` : '')}
-                          onFocus={() => {
-                            const updated = [...lineItems];
-                            updated[idx].isDropdownOpen = true;
-                            const currentProd = products.find(p => p.id === item.product_id);
-                            updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
-                            setLineItems(updated);
-                          }}
-                          onBlur={() => {
-                            setTimeout(() => {
+                                        {/* Product Selector */}
+                      <div className="flex-1 min-w-[220px] flex items-center gap-3">
+                        {/* Product Image Thumbnail */}
+                        <div className="w-10 h-10 rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
+                          {(() => {
+                            const prod = products.find(p => p.id === item.product_id);
+                            return prod && prod.image_url ? (
+                              <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
+                            ) : (
+                              <ImageIcon className="w-5 h-5 text-dark-600" />
+                            );
+                          })()}
+                        </div>
+
+                        <div className="flex-1 relative">
+                          <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Product</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Search product..."
+                            value={item.searchQuery !== undefined ? item.searchQuery : (products.find(p => p.id === item.product_id) ? `${products.find(p => p.id === item.product_id).name_kh} (${products.find(p => p.id === item.product_id).name_en})` : '')}
+                            onFocus={() => {
                               const updated = [...lineItems];
-                              if (updated[idx]) {
-                                updated[idx].isDropdownOpen = false;
-                                const currentProd = products.find(p => p.id === updated[idx].product_id);
-                                updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
-                                setLineItems(updated);
-                              }
-                            }, 250);
-                          }}
-                          onChange={(e) => {
-                            const updated = [...lineItems];
-                            updated[idx].searchQuery = e.target.value;
-                            updated[idx].isDropdownOpen = true;
-                            setLineItems(updated);
-                          }}
-                          className="w-full glass-input"
-                        />
-                        {item.isDropdownOpen && (
-                          <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-xl divide-y divide-dark-850 scrollbar-thin">
-                            {getFilteredProducts(item.searchQuery || '').map(p => (
-                              <div
-                                key={p.id}
-                                onClick={() => {
-                                  updateLineItem(idx, 'product_id', p.id);
-                                  const updated = [...lineItems];
-                                  updated[idx].searchQuery = `${p.name_kh} (${p.name_en})`;
+                              updated[idx].isDropdownOpen = true;
+                              const currentProd = products.find(p => p.id === item.product_id);
+                              updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
+                              setLineItems(updated);
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                const updated = [...lineItems];
+                                if (updated[idx]) {
                                   updated[idx].isDropdownOpen = false;
+                                  const currentProd = products.find(p => p.id === updated[idx].product_id);
+                                  updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
                                   setLineItems(updated);
-                                }}
-                                className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors"
-                              >
-                                <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
-                                <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
-                              </div>
-                            ))}
-                            {getFilteredProducts(item.searchQuery || '').length === 0 && (
-                              <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
-                            )}
-                          </div>
-                        )}
+                                }
+                              }, 250);
+                            }}
+                            onChange={(e) => {
+                              const updated = [...lineItems];
+                              updated[idx].searchQuery = e.target.value;
+                              updated[idx].isDropdownOpen = true;
+                              setLineItems(updated);
+                            }}
+                            className="w-full glass-input"
+                          />
+                          {item.isDropdownOpen && (
+                            <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-xl divide-y divide-dark-850 scrollbar-thin">
+                              {getFilteredProducts(item.searchQuery || '').map(p => (
+                                <div
+                                  key={p.id}
+                                  onClick={() => {
+                                    updateLineItem(idx, 'product_id', p.id);
+                                    const updated = [...lineItems];
+                                    updated[idx].searchQuery = `${p.name_kh} (${p.name_en})`;
+                                    updated[idx].isDropdownOpen = false;
+                                    setLineItems(updated);
+                                  }}
+                                  className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors"
+                                >
+                                  <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
+                                  <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                                </div>
+                              ))}
+                              {getFilteredProducts(item.searchQuery || '').length === 0 && (
+                                <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Supplier Selector */}
@@ -1288,7 +1301,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             subtotal: Number(unit_price) * qty,
                             maxStock,
                             stockUnit,
-                            searchQuery: '',
+                            searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
                             isDropdownOpen: false
                           });
                         }
