@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, MapPin, Phone, Calendar, ShoppingBag, Edit, Trash2, X, ChevronRight, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Plus, MapPin, Phone, Calendar, ShoppingBag, Edit, Trash2, X } from 'lucide-react';
 import { db } from '../services/db';
 
 export default function CustomerDirectory({ customers, orders, orderItems, products, onRefresh }) {
@@ -165,17 +165,17 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
                     </div>
                   </div>
 
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pl-2">
+                  <div className="flex gap-2 opacity-80 hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity pl-2">
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleOpenForm(customer); }}
-                      className="p-1 rounded bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white"
+                      className="p-1.5 rounded bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white transition-colors"
                       title="Edit Customer"
                     >
                       <Edit className="w-3.5 h-3.5" />
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(customer.id); }}
-                      className="p-1 rounded bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/20"
+                      className="p-1.5 rounded bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/20 transition-colors"
                       title="Delete Customer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -218,7 +218,7 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
                   )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {activeCustomer.map_url ? (
                     <a
                       href={activeCustomer.map_url}
@@ -230,10 +230,26 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
                       Google Maps
                     </a>
                   ) : (
-                    <span className="text-[10px] text-dark-500 italic border border-dashed border-dark-800 p-2 rounded-xl">
+                    <span className="text-[10px] text-dark-500 italic border border-dashed border-dark-800 p-2 rounded-xl flex items-center">
                       No GPS location added
                     </span>
                   )}
+                  
+                  <button 
+                    onClick={() => handleOpenForm(activeCustomer)}
+                    className="glass-button-secondary py-2 px-3 flex items-center gap-1.5"
+                  >
+                    <Edit className="w-4 h-4 text-primary-400" />
+                    Edit Info
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleDeleteCustomer(activeCustomer.id)}
+                    className="glass-button-danger py-2 px-3 flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Customer
+                  </button>
                 </div>
               </div>
 
