@@ -1,32 +1,60 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X } from 'lucide-react';
+import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
 
 
 
-// ─── Simple Image Upload Widget ───────────────────────────────────────────────
+// ─── Image Upload Widget with Cropping ─────────────────────────────────────────
 function ImageUploadWidget({ existingImageUrl, onStateChange }) {
   const [file, setFile] = useState(null);
+  const [originalFile, setOriginalFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [removed, setRemoved] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
+  
+  // Cropper States
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropSrc, setCropSrc] = useState(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [cropImageName, setCropImageName] = useState('product_image.jpg');
+  
+  // Dragging States
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragOffsetStart, setDragOffsetStart] = useState({ x: 0, y: 0 });
+
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const viewportRef = useRef(null);
+  const imageRef = useRef(null);
+
+  const V = 320; // Viewport width/height
 
   const handleFileSelect = useCallback((selected) => {
     if (!selected) return;
-    setPreview((prevPreview) => {
-      if (prevPreview) URL.revokeObjectURL(prevPreview);
-      return URL.createObjectURL(selected);
-    });
-    setFile(selected);
+    
+    // Store original file so we can crop/re-crop from original resolution
+    setOriginalFile(selected);
+    
+    // Revoke old cropSrc if any
+    if (cropSrc && cropSrc.startsWith('blob:')) {
+      URL.revokeObjectURL(cropSrc);
+    }
+    
+    const objectUrl = URL.createObjectURL(selected);
+    setCropSrc(objectUrl);
+    setCropImageName(selected.name || 'product_image.jpg');
+    setIsCropping(true);
     setRemoved(false);
-    onStateChange({ file: selected, removed: false });
-  }, [onStateChange]);
+  }, [cropSrc]);
 
   useEffect(() => {
     const handlePaste = (e) => {
+      // Don't intercept paste if crop modal is open
+      if (isCropping) return;
       const items = e.clipboardData?.items;
       if (!items) return;
       for (let i = 0; i < items.length; i++) {
@@ -44,7 +72,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
     return () => {
       window.removeEventListener('paste', handlePaste);
     };
-  }, [handleFileSelect]);
+  }, [handleFileSelect, isCropping]);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -66,63 +94,381 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
   };
 
   const handleRemove = () => {
-    if (preview) URL.revokeObjectURL(preview);
+    if (preview && preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    if (cropSrc && cropSrc.startsWith('blob:')) URL.revokeObjectURL(cropSrc);
     setFile(null);
+    setOriginalFile(null);
     setPreview(null);
     setRemoved(true);
     onStateChange({ file: null, removed: true });
+  };
+
+  // Open cropper manually
+  const handleOpenCropper = () => {
+    if (originalFile) {
+      const objectUrl = URL.createObjectURL(originalFile);
+      setCropSrc(objectUrl);
+      setCropImageName(originalFile.name || 'product_image.jpg');
+      setIsCropping(true);
+    } else if (existingImageUrl && !removed) {
+      setCropSrc(existingImageUrl);
+      setCropImageName('product_image.jpg');
+      setIsCropping(true);
+    }
+  };
+
+  const handleCancelCrop = () => {
+    if (cropSrc && cropSrc.startsWith('blob:')) {
+      URL.revokeObjectURL(cropSrc);
+    }
+    setCropSrc(null);
+    setIsCropping(false);
+  };
+
+  const handleImageLoad = (e) => {
+    const { naturalWidth, naturalHeight } = e.target;
+    setImageDimensions({ width: naturalWidth, height: naturalHeight });
+    setCropZoom(1);
+    setCropOffset({ x: 0, y: 0 });
+  };
+
+  const baseScale = imageDimensions.width > 0
+    ? Math.max(V / imageDimensions.width, V / imageDimensions.height)
+    : 1;
+
+  const renderedWidth = imageDimensions.width * baseScale * cropZoom;
+  const renderedHeight = imageDimensions.height * baseScale * cropZoom;
+  const initX = (V - renderedWidth) / 2;
+  const initY = (V - renderedHeight) / 2;
+  const renderedX = initX + cropOffset.x;
+  const renderedY = initY + cropOffset.y;
+
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+
+  const handleZoomChange = (newZoom) => {
+    setCropZoom(newZoom);
+    // Constrain offset based on new zoom
+    const wRendered = imageDimensions.width * baseScale * newZoom;
+    const hRendered = imageDimensions.height * baseScale * newZoom;
+    const maxOffsetX = Math.max(0, (wRendered - V) / 2);
+    const maxOffsetY = Math.max(0, (hRendered - V) / 2);
+    setCropOffset((prev) => ({
+      x: clamp(prev.x, -maxOffsetX, maxOffsetX),
+      y: clamp(prev.y, -maxOffsetY, maxOffsetY),
+    }));
+  };
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setDragOffsetStart({ ...cropOffset });
+  };
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    setDragOffsetStart({ ...cropOffset });
+  };
+
+  // Dragging event listeners in useEffect
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      
+      const targetX = dragOffsetStart.x + dx;
+      const targetY = dragOffsetStart.y + dy;
+      
+      const wRendered = imageDimensions.width * baseScale * cropZoom;
+      const hRendered = imageDimensions.height * baseScale * cropZoom;
+      
+      const maxOffsetX = Math.max(0, (wRendered - V) / 2);
+      const maxOffsetY = Math.max(0, (hRendered - V) / 2);
+      
+      setCropOffset({
+        x: clamp(targetX, -maxOffsetX, maxOffsetX),
+        y: clamp(targetY, -maxOffsetY, maxOffsetY)
+      });
+    };
+
+    const handleTouchMove = (e) => {
+      if (e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - dragStart.x;
+      const dy = e.touches[0].clientY - dragStart.y;
+      
+      const targetX = dragOffsetStart.x + dx;
+      const targetY = dragOffsetStart.y + dy;
+      
+      const wRendered = imageDimensions.width * baseScale * cropZoom;
+      const hRendered = imageDimensions.height * baseScale * cropZoom;
+      
+      const maxOffsetX = Math.max(0, (wRendered - V) / 2);
+      const maxOffsetY = Math.max(0, (hRendered - V) / 2);
+      
+      setCropOffset({
+        x: clamp(targetX, -maxOffsetX, maxOffsetX),
+        y: clamp(targetY, -maxOffsetY, maxOffsetY)
+      });
+    };
+
+    const handleDragEnd = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleDragEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+  }, [isDragging, dragStart, dragOffsetStart, cropZoom, imageDimensions, baseScale]);
+
+  const handleSaveCrop = () => {
+    if (imageDimensions.width === 0) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvasBaseScale = Math.max(600 / imageDimensions.width, 600 / imageDimensions.height);
+        const canvasScale = canvasBaseScale * cropZoom;
+        const wCanvas = imageDimensions.width * canvasScale;
+        const hCanvas = imageDimensions.height * canvasScale;
+
+        const canvasCenterX = cropOffset.x * (600 / V);
+        const canvasCenterY = cropOffset.y * (600 / V);
+
+        const canvasX = (600 - wCanvas) / 2 + canvasCenterX;
+        const canvasY = (600 - hCanvas) / 2 + canvasCenterY;
+
+        ctx.drawImage(img, canvasX, canvasY, wCanvas, hCanvas);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            console.error("Failed to generate blob from canvas");
+            setIsCropping(false);
+            return;
+          }
+          
+          const croppedFile = new File([blob], cropImageName, { type: blob.type || 'image/jpeg' });
+          
+          setPreview((prevPreview) => {
+            if (prevPreview && prevPreview.startsWith('blob:')) URL.revokeObjectURL(prevPreview);
+            return URL.createObjectURL(croppedFile);
+          });
+          setFile(croppedFile);
+          setRemoved(false);
+          onStateChange({ file: croppedFile, removed: false });
+          
+          // Cleanup crop source blob if it was created locally
+          if (cropSrc && cropSrc.startsWith('blob:')) {
+            URL.revokeObjectURL(cropSrc);
+          }
+          setCropSrc(null);
+          setIsCropping(false);
+        }, 'image/jpeg', 0.9);
+      } catch (err) {
+        console.error("Error cropping image:", err);
+        // Fallback: use original file if we can
+        if (originalFile) {
+          setFile(originalFile);
+          setPreview((prev) => {
+            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(originalFile);
+          });
+          onStateChange({ file: originalFile, removed: false });
+        }
+        setIsCropping(false);
+      }
+    };
+
+    img.onerror = (e) => {
+      console.error("Failed to load image for cropping", e);
+      // Fallback
+      if (originalFile) {
+        setFile(originalFile);
+        setPreview((prev) => {
+          if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(originalFile);
+        });
+        onStateChange({ file: originalFile, removed: false });
+      }
+      setIsCropping(false);
+    };
+
+    img.src = cropSrc;
   };
 
   const displayUrl = preview || (!removed && existingImageUrl) || null;
   const hasImage = file || (existingImageUrl && !removed);
 
   return (
-    <div 
-      onDragEnter={handleDrag}
-      onDragOver={handleDrag}
-      onDragLeave={handleDrag}
-      onDrop={handleDrop}
-      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed transition-all duration-200 relative ${
-        isDragActive 
-          ? 'border-primary-500 bg-primary-500/10 shadow-lg shadow-primary-500/5' 
-          : 'border-dark-800 bg-dark-900/20 hover:border-dark-700/60'
-      }`}
-    >
-      {/* Preview */}
-      <div className="w-[72px] h-[72px] rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
-        {displayUrl ? (
-          <img src={displayUrl} alt="Product" className="w-full h-full object-cover rounded-xl" />
-        ) : (
-          <ImageIcon className="w-6 h-6 text-dark-600" />
-        )}
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-col gap-2 flex-1">
-        <div className="flex gap-2">
-          <button type="button" onClick={() => cameraInputRef.current?.click()}
-            className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
-            <Camera className="w-3.5 h-3.5 text-primary-400" /> Camera
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}
-            className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
-            <ImageIcon className="w-3.5 h-3.5 text-violet-400" /> Upload
-          </button>
+    <>
+      <div 
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDrag}
+        onDrop={handleDrop}
+        className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed transition-all duration-200 relative ${
+          isDragActive 
+            ? 'border-primary-500 bg-primary-500/10 shadow-lg shadow-primary-500/5' 
+            : 'border-dark-800 bg-dark-900/20 hover:border-dark-700/60'
+        }`}
+      >
+        {/* Preview */}
+        <div className="w-[72px] h-[72px] rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
+          {displayUrl ? (
+            <img src={displayUrl} alt="Product" className="w-full h-full object-cover rounded-xl" />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-dark-600" />
+          )}
         </div>
-        {hasImage && (
-          <button type="button" onClick={handleRemove}
-            className="glass-button-danger py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
-            <X className="w-3.5 h-3.5" /> Remove Photo
-          </button>
-        )}
+
+        {/* Controls */}
+        <div className="flex flex-col gap-2 flex-1">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => cameraInputRef.current?.click()}
+              className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
+              <Camera className="w-3.5 h-3.5 text-primary-400" /> Camera
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
+              <ImageIcon className="w-3.5 h-3.5 text-violet-400" /> Upload
+            </button>
+          </div>
+          {hasImage && (
+            <div className="flex gap-2">
+              <button type="button" onClick={handleOpenCropper}
+                className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer border border-primary-500/30 hover:border-primary-500/60">
+                <Crop className="w-3.5 h-3.5 text-primary-400" /> Crop
+              </button>
+              <button type="button" onClick={handleRemove}
+                className="flex-1 glass-button-danger py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
+                <X className="w-3.5 h-3.5" /> Remove
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Hidden inputs */}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files[0])} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files[0])} />
       </div>
 
-      {/* Hidden inputs */}
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleFileSelect(e.target.files[0])} />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => handleFileSelect(e.target.files[0])} />
-    </div>
+      {/* Crop Modal */}
+      {isCropping && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-900">
+              <div>
+                <h3 className="font-bold text-base text-white">Crop Product Image</h3>
+                <p className="text-xs text-dark-400 mt-0.5">Drag to position, zoom to fit</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelCrop}
+                className="p-1.5 hover:bg-dark-800 rounded-lg text-dark-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body: Cropper Viewport */}
+            <div className="p-6 flex flex-col items-center justify-center bg-dark-950/40">
+              
+              {/* Viewport container */}
+              <div
+                ref={viewportRef}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+                className="w-[320px] h-[320px] relative overflow-hidden rounded-xl border border-dark-700 bg-black/40 cursor-grab active:cursor-grabbing select-none"
+                style={{ width: `${V}px`, height: `${V}px` }}
+              >
+                {cropSrc && (
+                  <img
+                    ref={imageRef}
+                    src={cropSrc}
+                    alt="Cropper Source"
+                    onLoad={handleImageLoad}
+                    className="absolute select-none pointer-events-none max-w-none origin-center"
+                    style={{
+                      width: `${renderedWidth}px`,
+                      height: `${renderedHeight}px`,
+                      left: `${renderedX}px`,
+                      top: `${renderedY}px`,
+                    }}
+                  />
+                )}
+
+                {/* Camera Grid Overlay */}
+                <div className="absolute inset-0 pointer-events-none border border-white/20 rounded-xl">
+                  <div className="absolute inset-x-0 top-1/3 border-t border-white/15"></div>
+                  <div className="absolute inset-x-0 top-2/3 border-t border-white/15"></div>
+                  <div className="absolute inset-y-0 left-1/3 border-l border-white/15"></div>
+                  <div className="absolute inset-y-0 left-2/3 border-l border-white/15"></div>
+                </div>
+              </div>
+
+              {/* Zoom Slider */}
+              <div className="w-full max-w-[320px] mt-6 space-y-2">
+                <div className="flex justify-between text-xs text-dark-400">
+                  <span>Zoom</span>
+                  <span>{Math.round(cropZoom * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.01"
+                  value={cropZoom}
+                  onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
+                  className="w-full accent-primary-500 h-1 bg-dark-800 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-dark-800 flex gap-3 justify-end bg-dark-900">
+              <button
+                type="button"
+                onClick={handleCancelCrop}
+                className="glass-button-secondary py-2 px-4 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCrop}
+                className="glass-button-primary py-2 px-4 text-sm"
+              >
+                Apply Crop
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
