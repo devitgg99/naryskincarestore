@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { Tag, Search, Trash2, Edit2, CheckSquare, Square, X, Filter } from 'lucide-react';
+import { Layers, Search, Trash2, Edit2, CheckSquare, Square, X, Filter } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function BrandManager({ brands, categories = [], products, onRefresh }) {
-  const [editingBrand, setEditingBrand] = useState(null); // null when creating
-  const [brandName, setBrandName] = useState('');
+export default function CategoryManager({ categories, brands, products, onRefresh }) {
+  const [editingCategory, setEditingCategory] = useState(null); // null when creating
+  const [categoryName, setCategoryName] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [filterCurrentBrandOnly, setFilterCurrentBrandOnly] = useState('all'); // 'all', 'none', or 'current'
- 
+  const [filterCurrentCategoryOnly, setFilterCurrentCategoryOnly] = useState('all'); // 'all', 'none', or 'current'
+
   // Quick edit product states
   const [quickEditingProduct, setQuickEditingProduct] = useState(null);
   const [quickEditNameKh, setQuickEditNameKh] = useState('');
@@ -20,39 +20,131 @@ export default function BrandManager({ brands, categories = [], products, onRefr
   const [quickEditCategoryId, setQuickEditCategoryId] = useState('');
   const [isSavingQuickEdit, setIsSavingQuickEdit] = useState(false);
 
-  // Map products to see their brand names for label styling
-  const brandMap = {};
-  brands.forEach(b => {
-    brandMap[b.id] = b.name;
-  });
-
-  // Map categories for label lookup
+  // Map categories to see their names for label styling
   const categoryMap = {};
   categories.forEach(c => {
     categoryMap[c.id] = c.name;
   });
 
-  // Calculate product counts per brand
-  const productCounts = {};
+  // Map brands for quick lookup
+  const brandMap = {};
   brands.forEach(b => {
-    productCounts[b.id] = 0;
+    brandMap[b.id] = b.name;
+  });
+
+  // Calculate product counts per category
+  const productCounts = {};
+  categories.forEach(c => {
+    productCounts[c.id] = 0;
   });
   products.forEach(p => {
-    if (p.brand_id && productCounts[p.brand_id] !== undefined) {
-      productCounts[p.brand_id]++;
+    if (p.category_id && productCounts[p.category_id] !== undefined) {
+      productCounts[p.category_id]++;
     }
   });
 
-  // Handle Edit click
-  const handleEditClick = (brand) => {
-    setEditingBrand(brand);
-    setBrandName(brand.name);
-    // Gather all products associated with this brand
+  // Handle Edit category click
+  const handleEditClick = (category) => {
+    setEditingCategory(category);
+    setCategoryName(category.name);
+    // Gather all products associated with this category
     const associatedIds = products
-      .filter(p => p.brand_id === brand.id)
+      .filter(p => p.category_id === category.id)
       .map(p => p.id);
     setSelectedProductIds(associatedIds);
     setProductSearch('');
+  };
+
+  // Cancel edit
+  const handleCancelEdit = () => {
+    setEditingCategory(null);
+    setCategoryName('');
+    setSelectedProductIds([]);
+    setProductSearch('');
+  };
+
+  // Toggle single product selection
+  const handleProductToggle = (productId) => {
+    setSelectedProductIds(prev => {
+      if (prev.includes(productId)) {
+        return prev.filter(id => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
+    });
+  };
+
+  // Select all / Deselect all currently filtered products
+  const handleSelectAllFiltered = (filteredProds) => {
+    const filteredIds = filteredProds.map(p => p.id);
+    const allSelected = filteredIds.every(id => selectedProductIds.includes(id));
+
+    if (allSelected) {
+      // Remove all filtered ids
+      setSelectedProductIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      // Add missing filtered ids
+      setSelectedProductIds(prev => {
+        const toAdd = filteredIds.filter(id => !prev.includes(id));
+        return [...prev, ...toAdd];
+      });
+    }
+  };
+
+  // Delete category
+  const handleDeleteCategory = async (category) => {
+    if (!window.confirm(`Are you sure you want to delete the category "${category.name}"? Products under this category will not be deleted, but they will be dissociated.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await db.deleteCategory(category.id);
+      if (editingCategory?.id === category.id) {
+        handleCancelEdit();
+      }
+      onRefresh();
+    } catch (e) {
+      console.error(e);
+      alert("Failed to delete category: " + e.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Save category and associations
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    if (!categoryName.trim()) {
+      alert("Please enter a category name.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // 1. Save or Update category
+      const categoryToSave = {
+        name: categoryName.trim()
+      };
+      if (editingCategory) {
+        categoryToSave.id = editingCategory.id;
+      }
+      const savedCategory = await db.saveCategory(categoryToSave);
+
+      // 2. Save bulk product associations
+      await db.associateProductsWithCategory(savedCategory.id, selectedProductIds);
+
+      // Reset form
+      setCategoryName('');
+      setSelectedProductIds([]);
+      setEditingCategory(null);
+      setProductSearch('');
+      onRefresh();
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Failed to save category details.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Open quick edit product modal
@@ -95,98 +187,6 @@ export default function BrandManager({ brands, categories = [], products, onRefr
     }
   };
 
-  // Cancel edit
-  const handleCancelEdit = () => {
-    setEditingBrand(null);
-    setBrandName('');
-    setSelectedProductIds([]);
-    setProductSearch('');
-  };
-
-  // Toggle single product selection
-  const handleProductToggle = (productId) => {
-    setSelectedProductIds(prev => {
-      if (prev.includes(productId)) {
-        return prev.filter(id => id !== productId);
-      } else {
-        return [...prev, productId];
-      }
-    });
-  };
-
-  // Select all / Deselect all currently filtered products
-  const handleSelectAllFiltered = (filteredProds) => {
-    const filteredIds = filteredProds.map(p => p.id);
-    const allSelected = filteredIds.every(id => selectedProductIds.includes(id));
-
-    if (allSelected) {
-      // Remove all filtered ids
-      setSelectedProductIds(prev => prev.filter(id => !filteredIds.includes(id)));
-    } else {
-      // Add missing filtered ids
-      setSelectedProductIds(prev => {
-        const toAdd = filteredIds.filter(id => !prev.includes(id));
-        return [...prev, ...toAdd];
-      });
-    }
-  };
-
-  // Delete brand
-  const handleDeleteBrand = async (brand) => {
-    if (!window.confirm(`Are you sure you want to delete the brand "${brand.name}"? Products under this brand will not be deleted, but they will be dissociated.`)) {
-      return;
-    }
-    setIsDeleting(true);
-    try {
-      await db.deleteBrand(brand.id);
-      if (editingBrand?.id === brand.id) {
-        handleCancelEdit();
-      }
-      onRefresh();
-    } catch (e) {
-      console.error(e);
-      alert("Failed to delete brand: " + e.message);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Save brand and associations
-  const handleSaveBrand = async (e) => {
-    e.preventDefault();
-    if (!brandName.trim()) {
-      alert("Please enter a brand name.");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // 1. Save or Update brand
-      const brandToSave = {
-        name: brandName.trim()
-      };
-      if (editingBrand) {
-        brandToSave.id = editingBrand.id;
-      }
-      const savedBrand = await db.saveBrand(brandToSave);
-
-      // 2. Save bulk product associations
-      await db.associateProductsWithBrand(savedBrand.id, selectedProductIds);
-
-      // Reset form
-      setBrandName('');
-      setSelectedProductIds([]);
-      setEditingBrand(null);
-      setProductSearch('');
-      onRefresh();
-    } catch (e) {
-      console.error(e);
-      alert(e.message || "Failed to save brand details.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // Filter products list for bulk selector
   const filteredProducts = products.filter(p => {
     const matchesSearch = 
@@ -195,13 +195,13 @@ export default function BrandManager({ brands, categories = [], products, onRefr
 
     if (!matchesSearch) return false;
 
-    if (filterCurrentBrandOnly === 'none') {
-      return !p.brand_id;
-    } else if (filterCurrentBrandOnly === 'current') {
-      return editingBrand && p.brand_id === editingBrand.id;
-    } else if (filterCurrentBrandOnly !== 'all') {
-      // By specific brand ID
-      return p.brand_id === filterCurrentBrandOnly;
+    if (filterCurrentCategoryOnly === 'none') {
+      return !p.category_id;
+    } else if (filterCurrentCategoryOnly === 'current') {
+      return editingCategory && p.category_id === editingCategory.id;
+    } else if (filterCurrentCategoryOnly !== 'all') {
+      // By specific category ID
+      return p.category_id === filterCurrentCategoryOnly;
     }
     return true;
   });
@@ -225,41 +225,41 @@ export default function BrandManager({ brands, categories = [], products, onRefr
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <Tag className="w-6 h-6 text-primary-400" />
-            Brand Management
+            <Layers className="w-6 h-6 text-primary-400" />
+            Category Management
           </h2>
           <p className="text-sm text-dark-400 mt-1">
-            Categorize products by brand and manage associations in bulk.
+            Categorize products by cosmetic categories (lotion, cream, mask) and manage assignments.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Brands List (5 cols) */}
+        {/* Left Column: Categories List (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="glass-panel rounded-2xl p-6 border border-dark-800 space-y-4">
             <h3 className="text-lg font-bold text-white flex items-center justify-between">
-              <span>Brands Catalog</span>
+              <span>Categories Catalog</span>
               <span className="text-xs bg-dark-850 px-2.5 py-1 rounded-md text-dark-400 font-semibold border border-dark-800">
-                {brands.length} {brands.length === 1 ? 'brand' : 'brands'}
+                {categories.length} {categories.length === 1 ? 'category' : 'categories'}
               </span>
             </h3>
 
-            {brands.length === 0 ? (
+            {categories.length === 0 ? (
               <div className="text-center py-8 text-dark-500 italic text-sm">
-                No brands created yet. Create one on the right to start.
+                No categories created yet. Create one on the right to start.
               </div>
             ) : (
               <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin">
-                {brands.map(b => {
-                  const count = productCounts[b.id] || 0;
-                  const isSelected = editingBrand?.id === b.id;
+                {categories.map(c => {
+                  const count = productCounts[c.id] || 0;
+                  const isSelected = editingCategory?.id === c.id;
 
                   return (
                     <div 
-                      key={b.id}
-                      onClick={() => handleEditClick(b)}
+                      key={c.id}
+                      onClick={() => handleEditClick(c)}
                       className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer group ${
                         isSelected 
                           ? 'bg-primary-500/10 border-primary-500/40 text-primary-300 ring-1 ring-primary-500/20' 
@@ -268,7 +268,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                     >
                       <div className="space-y-1">
                         <div className="font-bold text-sm text-white group-hover:text-primary-400 transition-colors flex items-center gap-1.5">
-                          <span>{b.name}</span>
+                          <span>{c.name}</span>
                           {isSelected && (
                             <span className="text-[9px] bg-primary-500 text-white font-extrabold uppercase px-1 py-0.5 rounded leading-none">
                               Editing
@@ -282,22 +282,24 @@ export default function BrandManager({ brands, categories = [], products, onRefr
 
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleEditClick(b);
+                            handleEditClick(c);
                           }}
                           className="p-1.5 text-dark-400 hover:text-white hover:bg-dark-800 rounded-lg transition-colors"
-                          title="Edit brand & products"
+                          title="Edit category & products"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteBrand(b);
+                            handleDeleteCategory(c);
                           }}
                           className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                          title="Delete Brand"
+                          title="Delete Category"
                           disabled={isDeleting}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -314,19 +316,19 @@ export default function BrandManager({ brands, categories = [], products, onRefr
         {/* Right Column: Create/Edit and Bulk Associate (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
           <form 
-            onSubmit={handleSaveBrand} 
+            onSubmit={handleSaveCategory} 
             className={`glass-panel rounded-2xl p-6 border transition-all duration-350 space-y-5 ${
-              editingBrand 
+              editingCategory 
                 ? 'border-primary-500/40 shadow-lg shadow-primary-500/5 bg-dark-900/80' 
                 : 'border-dark-800'
             }`}
           >
             <div className="flex items-center justify-between border-b border-dark-800/50 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Tag className="w-5 h-5 text-primary-400" />
-                {editingBrand ? `Edit Brand: ${editingBrand.name}` : 'Create New Brand'}
+                <Layers className="w-5 h-5 text-primary-400" />
+                {editingCategory ? `Edit Category: ${editingCategory.name}` : 'Create New Category'}
               </h3>
-              {editingBrand && (
+              {editingCategory && (
                 <button
                   type="button"
                   onClick={handleCancelEdit}
@@ -338,14 +340,14 @@ export default function BrandManager({ brands, categories = [], products, onRefr
               )}
             </div>
 
-            {/* Brand Name Input */}
+            {/* Category Name Input */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-dark-300 uppercase tracking-wider">Brand Name</label>
+              <label className="text-xs font-bold text-dark-300 uppercase tracking-wider">Category Name</label>
               <input
                 type="text"
-                placeholder="e.g. EL, Yasaka, Kiss..."
-                value={brandName}
-                onChange={(e) => setBrandName(e.target.value)}
+                placeholder="e.g. Lotion, Night Cream, Mask, Serum..."
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
                 className="w-full glass-input"
                 required
               />
@@ -358,19 +360,20 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                   Bulk Product Assignment ({selectedProductIds.length} selected)
                 </label>
                 
+                {/* Category Selection/Filter */}
                 <div className="flex items-center gap-1.5 text-xs">
                   <Filter className="w-3.5 h-3.5 text-dark-400" />
                   <span className="text-dark-400 font-medium">View:</span>
                   <select
-                    value={filterCurrentBrandOnly}
-                    onChange={(e) => setFilterCurrentBrandOnly(e.target.value)}
+                    value={filterCurrentCategoryOnly}
+                    onChange={(e) => setFilterCurrentCategoryOnly(e.target.value)}
                     className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-[11px] text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
                   >
                     <option value="all">All Products</option>
-                    <option value="none">No Brand Assigned</option>
-                    {editingBrand && <option value="current">Assigned to this Brand</option>}
-                    {brands.filter(b => !editingBrand || b.id !== editingBrand.id).map(b => (
-                      <option key={b.id} value={b.id}>Assigned to {b.name}</option>
+                    <option value="none">No Category Assigned</option>
+                    {editingCategory && <option value="current">Assigned to this Category</option>}
+                    {categories.filter(c => !editingCategory || c.id !== editingCategory.id).map(c => (
+                      <option key={c.id} value={c.id}>Assigned to {c.name}</option>
                     ))}
                   </select>
                 </div>
@@ -413,7 +416,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                   ) : (
                     sortedFilteredProducts.map(p => {
                       const isChecked = selectedProductIds.includes(p.id);
-                      const currentBrandName = p.brand_id ? brandMap[p.brand_id] : null;
+                      const currentCategoryName = p.category_id ? categoryMap[p.category_id] : null;
 
                       return (
                         <div 
@@ -438,18 +441,13 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                           </div>
 
                           <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                            {currentBrandName ? (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10">
-                                {currentBrandName}
+                            {currentCategoryName ? (
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10`}>
+                                {currentCategoryName}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded-full text-[9px] text-dark-500 bg-dark-900/80 border border-dark-850">
-                                Unbranded
-                              </span>
-                            )}
-                            {p.category_id && categoryMap[p.category_id] && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10">
-                                {categoryMap[p.category_id]}
+                                Uncategorized
                               </span>
                             )}
                             <button
@@ -474,7 +472,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
 
             {/* Actions */}
             <div className="pt-2 flex items-center justify-end gap-3">
-              {editingBrand && (
+              {editingCategory && (
                 <button
                   type="button"
                   onClick={handleCancelEdit}
@@ -489,7 +487,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                 className="glass-button-primary py-2 px-6"
                 disabled={isSaving}
               >
-                {isSaving ? 'Saving...' : editingBrand ? 'Update Brand' : 'Create Brand'}
+                {isSaving ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
               </button>
             </div>
           </form>

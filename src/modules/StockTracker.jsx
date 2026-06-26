@@ -3,7 +3,7 @@ import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff,
 import { db } from '../services/db';
 
 
-export default function StockTracker({ products, suppliers, prices, brands = [], onRefresh }) {
+export default function StockTracker({ products, suppliers, prices, brands = [], categories = [], onRefresh }) {
   const [groupMode, setGroupMode] = useState('product'); // 'product' or 'supplier'
   const [lowStockThreshold, setLowStockThreshold] = useState(2);
   const [showLowStockAlerts, setShowLowStockAlerts] = useState(true);
@@ -14,6 +14,7 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
 
   // Group prices
   const productMap = {};
@@ -22,17 +23,26 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   const supplierMap = {};
   suppliers.forEach(s => { supplierMap[s.id] = s; });
 
-  // Low stock items: stock_qty <= lowStockThreshold and matches brand filter
+  // Low stock items: stock_qty <= lowStockThreshold and matches brand + category filters
   const lowStockItems = prices.filter(sp => {
     if (sp.stock_qty > lowStockThreshold || sp.price <= 0) return false;
     
+    const prod = productMap[sp.product_id];
+    if (!prod) return false;
+ 
     if (selectedBrandFilter !== 'all') {
-      const prod = productMap[sp.product_id];
-      if (!prod) return false;
       if (selectedBrandFilter === 'none') {
         if (prod.brand_id) return false;
       } else {
         if (prod.brand_id !== selectedBrandFilter) return false;
+      }
+    }
+ 
+    if (selectedCategoryFilter !== 'all') {
+      if (selectedCategoryFilter === 'none') {
+        if (prod.category_id) return false;
+      } else {
+        if (prod.category_id !== selectedCategoryFilter) return false;
       }
     }
     return true;
@@ -47,13 +57,21 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
     productPricesMap[sp.product_id].push(sp);
   });
 
-  // Filter products based on search term and brand
+  // Filter products based on search term and brand + category
   const filteredProducts = products.filter(product => {
     if (selectedBrandFilter !== 'all') {
       if (selectedBrandFilter === 'none') {
         if (product.brand_id) return false;
       } else {
         if (product.brand_id !== selectedBrandFilter) return false;
+      }
+    }
+ 
+    if (selectedCategoryFilter !== 'all') {
+      if (selectedCategoryFilter === 'none') {
+        if (product.category_id) return false;
+      } else {
+        if (product.category_id !== selectedCategoryFilter) return false;
       }
     }
 
@@ -74,15 +92,22 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   const filteredSuppliers = suppliers.filter(supplier => {
     const supplierPrices = prices.filter(sp => sp.supplier_id === supplier.id && sp.price > 0);
     
-    // Filter supplier's offers by brand first
+    // Filter supplier's offers by brand and category first
     const brandMatchingPrices = supplierPrices.filter(sp => {
       const prod = productMap[sp.product_id];
       if (!prod) return false;
       if (selectedBrandFilter !== 'all') {
         if (selectedBrandFilter === 'none') {
-          return !prod.brand_id;
+          if (prod.brand_id) return false;
         } else {
-          return prod.brand_id === selectedBrandFilter;
+          if (prod.brand_id !== selectedBrandFilter) return false;
+        }
+      }
+      if (selectedCategoryFilter !== 'all') {
+        if (selectedCategoryFilter === 'none') {
+          if (prod.category_id) return false;
+        } else {
+          if (prod.category_id !== selectedCategoryFilter) return false;
         }
       }
       return true;
@@ -155,7 +180,7 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   return (
     <div className="space-y-6">
       {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/30 p-6 rounded-2xl border border-dark-800">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-white tracking-wide">Stock Tracker</h2>
           <p className="text-xs text-dark-400 mt-1">
@@ -289,6 +314,19 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+ 
+            {/* Category Filter */}
+            <select
+              value={selectedCategoryFilter}
+              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+              className="glass-input py-1.5 px-3 text-xs min-w-[130px]"
+            >
+              <option value="all">All Categories</option>
+              <option value="none">No Category</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
 
             {/* View toggles */}
             <div className="flex items-center gap-2 bg-dark-900/30 p-1 rounded-xl border border-dark-800 self-end sm:self-auto">
@@ -342,7 +380,19 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                     </div>
                     <div>
                       <h4 className="font-bold text-white text-base">{product.name_kh}</h4>
-                      <p className="text-xs text-dark-400">{product.name_en}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="text-xs text-dark-400">{product.name_en}</span>
+                        {product.brand_id && brands.find(b => b.id === product.brand_id) && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                            {brands.find(b => b.id === product.brand_id).name}
+                          </span>
+                        )}
+                        {product.category_id && categories.find(c => c.id === product.category_id) && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                            {categories.find(c => c.id === product.category_id).name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -475,6 +525,15 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                     if (prod.brand_id !== selectedBrandFilter) return false;
                   }
                 }
+ 
+                // Category filter check
+                if (selectedCategoryFilter !== 'all') {
+                  if (selectedCategoryFilter === 'none') {
+                    if (prod.category_id) return false;
+                  } else {
+                    if (prod.category_id !== selectedCategoryFilter) return false;
+                  }
+                }
 
                 const matchesSupplier = supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
                 const matchesProduct = 
@@ -522,7 +581,19 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                             <tr key={sp.id} className="hover:bg-dark-900/20">
                               <td className="py-3">
                                 <div className="font-bold text-white">{prod.name_kh}</div>
-                                <div className="text-[10px] text-dark-400">{prod.name_en}</div>
+                                <div className="text-[10px] text-dark-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span>{prod.name_en}</span>
+                                  {prod.brand_id && brands.find(b => b.id === prod.brand_id) && (
+                                    <span className="px-1 py-0.2 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
+                                      {brands.find(b => b.id === prod.brand_id).name}
+                                    </span>
+                                  )}
+                                  {prod.category_id && categories.find(c => c.id === prod.category_id) && (
+                                    <span className="px-1 py-0.2 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
+                                      {categories.find(c => c.id === prod.category_id).name}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 text-center">
                                 {isEditing ? (

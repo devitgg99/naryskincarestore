@@ -115,4 +115,27 @@ create policy "Allow product image deletes"
   using (bucket_id = 'product-images');
 
 
+-- Table 8: categories
+create table if not exists categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamp with time zone default now()
+);
+
+-- Add category_id column to products table
+alter table products add column if not exists category_id uuid references categories(id) on delete set null;
+create index if not exists idx_products_category on products(category_id);
+
+-- Disable Row Level Security (RLS) on all tables for public local access
+alter table products disable row level security;
+alter table suppliers disable row level security;
+alter table supplier_prices disable row level security;
+alter table customers disable row level security;
+alter table orders disable row level security;
+alter table order_items disable row level security;
+alter table brands disable row level security;
+alter table categories disable row level security;
+
+
+
 

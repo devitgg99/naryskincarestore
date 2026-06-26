@@ -16,11 +16,13 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
   const [isSaving, setIsSaving] = useState(false);
 
   // Set default customer selected
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (customers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const activeCustomer = customers.find(c => c.id === selectedCustomerId) || (customers.length > 0 ? customers[0] : null);
 
@@ -103,7 +105,7 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
   return (
     <div className="space-y-6">
       {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/30 p-6 rounded-2xl border border-dark-800">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-white tracking-wide">Customer Directory</h2>
           <p className="text-xs text-dark-400 mt-1">

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Search, Calendar, Filter, CheckCircle2, Truck, HelpCircle, Eye, Printer, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Calendar, Filter, Eye, Printer, Trash2 } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function SalesLog({ orders, customers, orderItems, products, suppliers, prices, onRefresh }) {
+export default function SalesLog({ orders, customers, orderItems, products, prices, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState(''); // YYYY-MM-DD
@@ -90,7 +90,7 @@ export default function SalesLog({ orders, customers, orderItems, products, supp
     <div className="space-y-6">
       <div className="no-print space-y-6">
         {/* Header Panel */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/30 p-6 rounded-2xl border border-dark-800">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
           <div>
             <h2 className="text-xl font-bold text-white tracking-wide">Sales Log</h2>
             <p className="text-xs text-dark-400 mt-1">

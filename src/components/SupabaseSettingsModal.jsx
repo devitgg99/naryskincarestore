@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertTriangle, RefreshCw, Database } from 'lucide-react';
 import { getSupabaseConfig, saveSupabaseConfig } from '../services/db';
 import { createClient } from '@supabase/supabase-js';
@@ -10,6 +10,7 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // { success: boolean, message: string }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen) {
       const config = getSupabaseConfig();
@@ -19,6 +20,7 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
       setTestResult(null);
     }
   }, [isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
@@ -34,7 +36,7 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
     try {
       const testClient = createClient(url, key);
       // Query a simple check
-      const { data, error } = await testClient.from('products').select('id').limit(1);
+      const { error } = await testClient.from('products').select('id').limit(1);
       
       if (error) {
         throw error;

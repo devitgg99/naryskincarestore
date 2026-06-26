@@ -3,8 +3,9 @@ import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle,
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
-export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], onRefresh }) {
+export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh }) {
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
     return localStorage.getItem('wsp_draft_customer') || '';
   });
@@ -80,6 +81,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           if (p.brand_id) return false;
         } else {
           if (p.brand_id !== selectedBrandFilter) return false;
+        }
+      }
+      if (selectedCategoryFilter !== 'all') {
+        if (selectedCategoryFilter === 'none') {
+          if (p.category_id) return false;
+        } else {
+          if (p.category_id !== selectedCategoryFilter) return false;
         }
       }
       return true;
@@ -340,7 +348,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     <div className="space-y-6">
       <div className="no-print space-y-6">
         {/* Header Panel */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/30 p-6 rounded-2xl border border-dark-800">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
           <div>
             <h2 className="text-xl font-bold text-white tracking-wide">Invoice Builder</h2>
             <p className="text-xs text-dark-400 mt-1">
@@ -397,12 +405,24 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <select
                     value={selectedBrandFilter}
                     onChange={(e) => setSelectedBrandFilter(e.target.value)}
-                    className="bg-dark-950 border border-dark-800 rounded px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500"
+                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
                   >
                     <option value="all">All Brands</option>
                     <option value="none">No Brand</option>
                     {brands.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+ 
+                  <select
+                    value={selectedCategoryFilter}
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="none">No Category</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
 
@@ -1061,6 +1081,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
+ 
+              <select
+                value={selectedCategoryFilter}
+                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                className="glass-input text-sm min-w-[160px]"
+              >
+                <option value="all">All Categories</option>
+                <option value="none">No Category</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Modal Product Grid */}
@@ -1121,7 +1153,19 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           </div>
                           <div className="text-left">
                             <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-1">{p.name_kh}</h4>
-                            <p className="text-[10px] text-dark-400 mt-0.5 line-clamp-1">{p.name_en}</p>
+                            <div className="text-[10px] text-dark-400 mt-0.5 flex flex-wrap items-center gap-1">
+                              <span className="line-clamp-1">{p.name_en}</span>
+                              {p.brand_id && brands.find(b => b.id === p.brand_id) && (
+                                <span className="px-1 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
+                                  {brands.find(b => b.id === p.brand_id).name}
+                                </span>
+                              )}
+                              {p.category_id && categories.find(c => c.id === p.category_id) && (
+                                <span className="px-1 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
+                                  {categories.find(c => c.id === p.category_id).name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <span className="text-xs font-bold text-primary-400 shrink-0">

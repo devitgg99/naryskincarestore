@@ -73,26 +73,25 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
     </div>
   );
 }
-// ──────────────────────────────────────────────────────────────────────────────
 
-
-
-export default function PricingTable({ products, suppliers, prices, brands = [], onRefresh }) {
+export default function PricingTable({ products, suppliers, prices, brands = [], categories = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('all');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [editingCell, setEditingCell] = useState(null); // { product, supplier, priceObj }
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
   const [editUnit, setEditUnit] = useState('pcs');
   const [isSaving, setIsSaving] = useState(false);
-
+ 
   // States for adding a new product
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [newProductNameKh, setNewProductNameKh] = useState('');
   const [newProductNameEn, setNewProductNameEn] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [newProductBrandId, setNewProductBrandId] = useState('');
+  const [newProductCategoryId, setNewProductCategoryId] = useState('');
   const [newProductSellingPrice, setNewProductSellingPrice] = useState('');
   const [newProductImageState, setNewProductImageState] = useState({ file: null, removed: false });
 
@@ -110,9 +109,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editProductNameEn, setEditProductNameEn] = useState('');
   const [editProductBasePrice, setEditProductBasePrice] = useState('');
   const [editProductBrandId, setEditProductBrandId] = useState('');
+  const [editProductCategoryId, setEditProductCategoryId] = useState('');
   const [editProductSellingPrice, setEditProductSellingPrice] = useState('');
   const [editProductImageState, setEditProductImageState] = useState({ file: null, removed: false });
 
+  // Map brands & categories for lookup
+  const brandMap = {};
+  brands.forEach(b => {
+    brandMap[b.id] = b.name;
+  });
+
+  const categoryMap = {};
+  categories.forEach(c => {
+    categoryMap[c.id] = c.name;
+  });
 
   // Group prices by product_id and supplier_id for easy lookup
   const priceMap = {};
@@ -186,6 +196,15 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         if (product.brand_id) return false;
       } else {
         if (product.brand_id !== selectedBrandFilter) return false;
+      }
+    }
+ 
+    // Category filter
+    if (selectedCategoryFilter !== 'all') {
+      if (selectedCategoryFilter === 'none') {
+        if (product.category_id) return false;
+      } else {
+        if (product.category_id !== selectedCategoryFilter) return false;
       }
     }
 
@@ -266,9 +285,9 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setEditProductNameEn(product.name_en);
     setEditProductBasePrice(product.base_price.toString());
     setEditProductBrandId(product.brand_id || '');
+    setEditProductCategoryId(product.category_id || '');
     setEditProductSellingPrice(product.selling_price ? product.selling_price.toString() : '');
     setEditProductImageState({ file: null, removed: false });
-
   };
 
   // Helper: get the final file to upload from image state
@@ -307,6 +326,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         name_en: editProductNameEn,
         base_price: Number(editProductBasePrice),
         brand_id: editProductBrandId || null,
+        category_id: editProductCategoryId || null,
         selling_price: editProductSellingPrice ? Number(editProductSellingPrice) : null,
         image_url: imageUrl,
       });
@@ -365,6 +385,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         name_en: newProductNameEn,
         base_price: Number(newProductBasePrice),
         brand_id: newProductBrandId || null,
+        category_id: newProductCategoryId || null,
         selling_price: newProductSellingPrice ? Number(newProductSellingPrice) : null,
         image_url: imageUrl,
       });
@@ -374,6 +395,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       setNewProductNameEn('');
       setNewProductBasePrice('');
       setNewProductBrandId('');
+      setNewProductCategoryId('');
       setNewProductSellingPrice('');
       setNewProductImageState({ file: null, removed: false });
 
@@ -479,6 +501,18 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
+ 
+          <select
+            value={selectedCategoryFilter}
+            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+            className="glass-input min-w-[180px]"
+          >
+            <option value="all">All Categories</option>
+            <option value="none">No Category</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
 
           <select
             value={selectedSupplierFilter}
@@ -493,12 +527,11 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         </div>
       </div>
 
-      {/* Main Grid Card */}
-      <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-dark-800">
+      <div className="glass-panel rounded-2xl overflow-hidden border border-dark-800/40 shadow-xl">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="bg-dark-950/60 border-b border-dark-800/80 text-dark-300 font-semibold">
+              <tr className="bg-dark-900/60 border-b border-dark-800/40 text-dark-400 text-[11px] font-semibold tracking-wider uppercase">
                 <th className="p-4 min-w-[260px]">Product Details</th>
                 <th className="p-4 text-center">Selling Price</th>
                 {suppliers.map(supplier => {
@@ -558,8 +591,18 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                             <span>{product.name_kh}</span>
                             <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
                           </div>
-                          <div className="text-xs text-dark-400 mt-0.5">
-                            {product.name_en}
+                          <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span>{product.name_en}</span>
+                            {product.brand_id && brandMap[product.brand_id] && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                                {brandMap[product.brand_id]}
+                              </span>
+                            )}
+                            {product.category_id && categoryMap[product.category_id] && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                                {categoryMap[product.category_id]}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -824,6 +867,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   ))}
                 </select>
               </div>
+ 
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Category</label>
+                <select
+                  value={newProductCategoryId}
+                  onChange={(e) => setNewProductCategoryId(e.target.value)}
+                  className="w-full glass-input"
+                >
+                  <option value="">No Category</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20 flex-shrink-0">
@@ -992,6 +1049,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   <option value="">No Brand / General</option>
                   {brands.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+ 
+              <div>
+                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Category</label>
+                <select
+                  value={editProductCategoryId}
+                  onChange={(e) => setEditProductCategoryId(e.target.value)}
+                  className="w-full glass-input"
+                >
+                  <option value="">No Category</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
