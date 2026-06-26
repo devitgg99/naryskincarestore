@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
@@ -373,7 +374,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
       </div>
 
       {/* Crop Modal */}
-      {isCropping && (
+      {isCropping && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in zoom-in duration-150 flex flex-col max-h-[90vh]">
             
@@ -466,7 +467,8 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -1084,7 +1086,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       </div>
 
       {/* Edit Price/Stock Dialog Modal */}
-      {editingCell && (
+      {editingCell && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleSavePrice}
@@ -1176,11 +1178,12 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Product Modal */}
-      {isAddProductOpen && (
+      {isAddProductOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleAddProduct}
@@ -1302,11 +1305,12 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Supplier Modal */}
-      {isAddSupplierOpen && (
+      {isAddSupplierOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleAddSupplier}
@@ -1359,11 +1363,12 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit Product Modal */}
-      {editingProduct && (
+      {editingProduct && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <form 
             onSubmit={handleSaveProductEdit}
@@ -1493,7 +1498,8 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
