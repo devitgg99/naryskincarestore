@@ -1,14 +1,16 @@
+"use client";
+
 import { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import SupabaseSettingsModal from './components/SupabaseSettingsModal';
-import PricingTable from './modules/PricingTable';
-import CustomerDirectory from './modules/CustomerDirectory';
-import InvoiceBuilder from './modules/InvoiceBuilder';
-import SalesLog from './modules/SalesLog';
-import StockTracker from './modules/StockTracker';
-import BrandManager from './modules/BrandManager';
-import CategoryManager from './modules/CategoryManager';
-import { db } from './services/db';
+import Sidebar from '../../components/Sidebar';
+import SupabaseSettingsModal from '../../components/SupabaseSettingsModal';
+import PricingTable from '../../modules/PricingTable';
+import CustomerDirectory from '../../modules/CustomerDirectory';
+import InvoiceBuilder from '../../modules/InvoiceBuilder';
+import SalesLog from '../../modules/SalesLog';
+import StockTracker from '../../modules/StockTracker';
+import BrandManager from '../../modules/BrandManager';
+import CategoryManager from '../../modules/CategoryManager';
+import { db } from '../../services/db';
 import { 
   RefreshCw, 
   LayoutDashboard, 
@@ -21,16 +23,78 @@ import {
   ClipboardList, 
   Package, 
   Tag, 
-  Layers 
+  Layers,
+  ShieldAlert,
+  Lock,
+  ArrowLeft,
+  ChevronRight
 } from 'lucide-react';
 
-export default function App() {
+export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('pricing');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'dark');
+  const [theme, setTheme] = useState('dark');
+
+  // Admin access gate states
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
+  const [adminSubmitting, setAdminSubmitting] = useState(false);
+
+  // Config triggers state reload
+  const [configVersion, setConfigVersion] = useState(0);
+
+  // Global state
+  const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [prices, setPrices] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState([]);
+
+  // Check admin status on mount/config change
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      setCheckingAdmin(true);
+      try {
+        const session = await db.getCurrentCustomer();
+        if (session && session.user) {
+          const email = session.user.email;
+          const adminEmailsStr = process.env.NEXT_PUBLIC_ADMIN_EMAILS || 'admin@naryskincare.com,devitgg99@gmail.com';
+          const adminEmails = adminEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+          
+          if (adminEmails.includes(email.toLowerCase())) {
+            setIsAdminLoggedIn(true);
+            await loadData();
+          } else {
+            setIsAdminLoggedIn(false);
+          }
+        } else {
+          setIsAdminLoggedIn(false);
+        }
+      } catch (err) {
+        console.error('Error checking admin status:', err);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+    checkAdminStatus();
+  }, [configVersion]);
+
+  // Handle Theme
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('wsp_theme') || 'dark';
+      setTheme(savedTheme);
+    }
+  }, []);
 
   useEffect(() => {
     if (theme === 'light') {
@@ -44,19 +108,6 @@ export default function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
-
-  // Global state
-  const [products, setProducts] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [prices, setPrices] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [orderItems, setOrderItems] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [categories, setCategories] = useState([]);
-
-  // Config triggers state reload
-  const [configVersion, setConfigVersion] = useState(0);
 
   const loadData = async () => {
     const isInitial = products.length === 0;
@@ -93,14 +144,32 @@ export default function App() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
-  useEffect(() => {
-    loadData();
-  }, [configVersion]);
-  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    setAdminLoginError('');
+    setAdminSubmitting(true);
+
+    try {
+      const session = await db.signInCustomer(adminEmail, adminPassword);
+      const email = session.user.email;
+      const adminEmailsStr = process.env.NEXT_PUBLIC_ADMIN_EMAILS || 'admin@naryskincare.com,devitgg99@gmail.com';
+      const adminEmails = adminEmailsStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
+      if (adminEmails.includes(email.toLowerCase())) {
+        setIsAdminLoggedIn(true);
+        await loadData();
+      } else {
+        await db.signOutCustomer();
+        throw new Error('Access Denied: You are not authorized as an admin.');
+      }
+    } catch (err) {
+      setAdminLoginError(err.message || 'Login failed');
+    } finally {
+      setAdminSubmitting(false);
+    }
+  };
 
   const handleConfigChange = () => {
-    // Increment config version to force data reload with new db client
     setConfigVersion(prev => prev + 1);
   };
 
@@ -195,7 +264,103 @@ export default function App() {
     }
   };
 
-  // Quick stats calculations
+  // Loading Screen while verifying session
+  if (checkingAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-dark-950 gap-4 text-dark-400">
+        <RefreshCw className="w-8 h-8 animate-spin text-primary-400" />
+        <span className="text-xs font-bold tracking-widest uppercase text-dark-300">Verifying administrative access...</span>
+      </div>
+    );
+  }
+
+  // Access Gate Card (If not Admin)
+  if (!isAdminLoggedIn) {
+    return (
+      <div className="min-h-screen bg-dark-950 text-dark-100 flex items-center justify-center p-6 relative font-sans w-full">
+        {/* Decorative background gradients */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
+
+        <div className="w-full max-w-md glass-panel border border-dark-800/60 rounded-3xl p-8 relative overflow-hidden bg-dark-900/30 shadow-2xl">
+          <div className="text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+              <ShieldAlert className="w-6 h-6 text-white" />
+            </div>
+            
+            <div>
+              <h1 className="font-extrabold text-xl tracking-wider text-white uppercase leading-none">ADMIN ACCESS GATE</h1>
+              <p className="text-xs text-dark-400 mt-2">
+                Authorized access only. Please enter your administrator credentials to manage inventories, prices, and orders.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="mt-8 space-y-4">
+            {adminLoginError && (
+              <div className="p-3 text-xs bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400">
+                {adminLoginError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[10px] font-bold text-dark-300 uppercase tracking-widest mb-2">Admin Email</label>
+              <input 
+                type="email"
+                required
+                placeholder="admin@naryskincare.com"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                className="glass-input w-full text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-dark-300 uppercase tracking-widest mb-2">Password</label>
+              <input 
+                type="password"
+                required
+                placeholder="••••••••"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="glass-input w-full text-xs"
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={adminSubmitting}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 font-bold text-white text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-rose-500/10 active:scale-98 cursor-pointer mt-6"
+            >
+              {adminSubmitting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Authenticating...
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  Unlock Dashboard
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="border-t border-dark-850/80 mt-6 pt-4 text-center">
+            <a 
+              href="/"
+              className="inline-flex items-center gap-1.5 text-[10px] font-bold text-dark-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              Return to Customer Storefront
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dashboard calculations
   const totalSales = orders.reduce((sum, o) => sum + Number(o.total_amount), 0);
   const lowStockCount = prices.filter(sp => sp.stock_qty <= 2 && sp.price > 0).length;
 
@@ -226,7 +391,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-dark-950 font-sans">
+    <div className="flex h-screen overflow-hidden bg-dark-950 font-sans w-full">
       {/* Sidebar Backdrop Overlay on Mobile */}
       {isSidebarOpen && (
         <div 

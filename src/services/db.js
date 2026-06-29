@@ -19,6 +19,7 @@ export const initialCategories = [
 
 // Storage helper functions
 const getLocal = (key, fallback) => {
+  if (typeof window === 'undefined') return fallback;
   const val = localStorage.getItem(key);
   if (!val) {
     localStorage.setItem(key, JSON.stringify(fallback));
@@ -32,11 +33,15 @@ const getLocal = (key, fallback) => {
 };
 
 const setLocal = (key, data) => {
+  if (typeof window === 'undefined') return;
   localStorage.setItem(key, JSON.stringify(data));
 };
 
 // Initialize LocalStorage Mock Data if needed
+let mockDBInitialized = false;
 const initMockDB = () => {
+  if (typeof window === 'undefined' || mockDBInitialized) return;
+  
   getLocal('wsp_brands', initialBrands);
   getLocal('wsp_categories', initialCategories);
   
@@ -89,20 +94,24 @@ const initMockDB = () => {
   getLocal('wsp_customers', initialCustomers);
   getLocal('wsp_orders', initialOrders);
   getLocal('wsp_order_items', initialOrderItems);
+  
+  mockDBInitialized = true;
 };
-
-initMockDB();
 
 // Connection settings
 export const getSupabaseConfig = () => {
-  const url = localStorage.getItem('wsp_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
-  const key = localStorage.getItem('wsp_supabase_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-  const localActive = localStorage.getItem('wsp_supabase_active');
+  const isBrowser = typeof window !== 'undefined';
+  const url = (isBrowser ? localStorage.getItem('wsp_supabase_url') : '') || 
+              process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const key = (isBrowser ? localStorage.getItem('wsp_supabase_key') : '') || 
+              process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const localActive = isBrowser ? localStorage.getItem('wsp_supabase_active') : 'false';
   const active = localActive === 'true' || (localActive === null && !!url && !!key);
   return { url, key, active };
 };
 
 export const saveSupabaseConfig = (url, key, active) => {
+  if (typeof window === 'undefined') return;
   localStorage.setItem('wsp_supabase_url', url || '');
   localStorage.setItem('wsp_supabase_key', key || '');
   localStorage.setItem('wsp_supabase_active', active ? 'true' : 'false');
@@ -111,6 +120,8 @@ export const saveSupabaseConfig = (url, key, active) => {
 // Global DB instance switcher
 let supabase = null;
 const getClient = () => {
+  if (typeof window === 'undefined') return null;
+  
   const config = getSupabaseConfig();
   if (config.active && config.url && config.key) {
     if (!supabase) {
@@ -123,6 +134,9 @@ const getClient = () => {
     }
     return supabase;
   }
+  
+  // Lazy initialize mock storage on the client side
+  initMockDB();
   return null;
 };
 
@@ -130,6 +144,7 @@ const getClient = () => {
 export const db = {
   // Reset Mock Data to Default
   resetMockData: () => {
+    if (typeof window === 'undefined') return;
     localStorage.removeItem('wsp_brands');
     localStorage.removeItem('wsp_categories');
     localStorage.removeItem('wsp_products');
@@ -138,6 +153,9 @@ export const db = {
     localStorage.removeItem('wsp_customers');
     localStorage.removeItem('wsp_orders');
     localStorage.removeItem('wsp_order_items');
+    localStorage.removeItem('wsp_mock_session');
+    localStorage.removeItem('wsp_mock_users');
+    mockDBInitialized = false;
     initMockDB();
   },
 
@@ -688,5 +706,268 @@ export const db = {
 
     setLocal('wsp_products', updatedProducts);
     return true;
+  },
+  // --- Customer Authentication & Profiles ---
+
+  // Standard password login
+  signInCustomer: async (email, password) => {
+    const client = getClient();
+    if (!client) {
+      const mockUsers = getLocal('wsp_mock_users', []);
+      const user = mockUsers.find(u => u.email === email && u.password === password);
+      if (!user) throw new Error('Invalid email or password');
+      
+      localStorage.setItem('wsp_mock_session', JSON.stringify({ user: { id: user.id, email }, profile: user.profile }));
+      return { user: { id: user.id, email }, customer: user.profile };
+    }
+
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error('Sign in failed');
+
+    const { data: profile, error: profileError } = await client
+      .from('customers')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    return { user: data.user, customer: profileError ? null : profile };
+  },
+
+  // Initiate Sign Up (triggers confirmation OTP)
+  signUpCustomer: async (email, password) => {
+    const client = getClient();
+    if (!client) {
+      const mockUsers = getLocal('wsp_mock_users', []);
+      if (mockUsers.some(u => u.email === email)) {
+        throw new Error('User already exists');
+      }
+      const mockRegTemp = {
+        email,
+        password,
+        otp: '123456'
+      };
+      localStorage.setItem('wsp_temp_registration', JSON.stringify(mockRegTemp));
+      console.log('Offline OTP triggered. Simulation code: 123456');
+      return { email, otpSent: true };
+    }
+
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : ''
+      }
+    });
+
+    if (error) throw error;
+    return { user: data.user, email: data.user?.email, otpSent: true };
+  },
+
+  // Verify Sign Up OTP & insert customer profile
+  verifySignupOtp: async (email, token, name, phone, locationNote) => {
+    const client = getClient();
+    if (!client) {
+      const tempReg = localStorage.getItem('wsp_temp_registration');
+      if (!tempReg) throw new Error('No pending registration found');
+      
+      const { email: tempEmail, password: tempPassword, otp } = JSON.parse(tempReg);
+      if (tempEmail !== email || token !== otp) {
+        throw new Error('Invalid verification code');
+      }
+
+      const mockUsers = getLocal('wsp_mock_users', []);
+      const newId = 'cust_' + Date.now();
+      const newCustomer = { id: newId, name, phone, location_note: locationNote, email };
+      
+      mockUsers.push({ id: newId, email, password: tempPassword, profile: newCustomer });
+      setLocal('wsp_mock_users', mockUsers);
+      
+      const customers = getLocal('wsp_customers', []);
+      customers.push(newCustomer);
+      setLocal('wsp_customers', customers);
+
+      localStorage.removeItem('wsp_temp_registration');
+      localStorage.setItem('wsp_mock_session', JSON.stringify({ user: { id: newId, email }, profile: newCustomer }));
+      return { user: { id: newId, email }, customer: newCustomer };
+    }
+
+    const { data: verifyData, error: verifyError } = await client.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+
+    if (verifyError) throw verifyError;
+    if (!verifyData.user) throw new Error('Verification failed');
+
+    const newCustomer = {
+      id: verifyData.user.id,
+      name,
+      phone,
+      location_note: locationNote,
+    };
+
+    const { error: profileError } = await client.from('customers').insert([newCustomer]);
+    if (profileError) {
+      console.error('Error inserting customer profile:', profileError);
+    }
+
+    return { user: verifyData.user, customer: newCustomer };
+  },
+
+  // Trigger password reset OTP
+  sendPasswordResetOtp: async (email) => {
+    const client = getClient();
+    if (!client) {
+      const mockUsers = getLocal('wsp_mock_users', []);
+      const user = mockUsers.find(u => u.email === email);
+      if (!user) throw new Error('User not found');
+      
+      const resetTemp = {
+        email,
+        otp: '654321'
+      };
+      localStorage.setItem('wsp_temp_reset', JSON.stringify(resetTemp));
+      console.log('Offline recovery code triggered. Simulation code: 654321');
+      return { email, otpSent: true };
+    }
+
+    const { error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: typeof window !== 'undefined' ? window.location.origin : ''
+    });
+
+    if (error) throw error;
+    return { email, otpSent: true };
+  },
+
+  // Verify password reset OTP
+  verifyResetOtp: async (email, token) => {
+    const client = getClient();
+    if (!client) {
+      const tempReset = localStorage.getItem('wsp_temp_reset');
+      if (!tempReset) throw new Error('No password reset process initiated');
+      
+      const { email: resetEmail, otp } = JSON.parse(tempReset);
+      if (resetEmail !== email || token !== otp) {
+        throw new Error('Invalid verification code');
+      }
+      
+      const mockUsers = getLocal('wsp_mock_users', []);
+      const user = mockUsers.find(u => u.email === email);
+      localStorage.setItem('wsp_mock_session', JSON.stringify({ user: { id: user.id, email }, profile: user.profile }));
+      localStorage.removeItem('wsp_temp_reset');
+      return true;
+    }
+
+    const { error } = await client.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    });
+
+    if (error) throw error;
+    return true;
+  },
+
+  // Save new password
+  updatePassword: async (newPassword) => {
+    const client = getClient();
+    if (!client) {
+      const savedSession = localStorage.getItem('wsp_mock_session');
+      if (!savedSession) throw new Error('No active session found');
+      
+      const { user } = JSON.parse(savedSession);
+      const mockUsers = getLocal('wsp_mock_users', []);
+      const idx = mockUsers.findIndex(u => u.email === user.email);
+      if (idx !== -1) {
+        mockUsers[idx].password = newPassword;
+        setLocal('wsp_mock_users', mockUsers);
+      }
+      return true;
+    }
+
+    const { error } = await client.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) throw error;
+    return true;
+  },
+
+  // Google OAuth Login
+  signInWithGoogle: async () => {
+    const client = getClient();
+    if (!client) {
+      const googleUser = {
+        id: 'google_user_' + Date.now(),
+        email: 'google.user@gmail.com'
+      };
+      const customerProfile = {
+        id: googleUser.id,
+        name: 'Google Customer',
+        phone: '012 888 888',
+        location_note: 'Phnom Penh, Google OAuth'
+      };
+      
+      const customers = getLocal('wsp_customers', []);
+      if (!customers.some(c => c.id === googleUser.id)) {
+        customers.push(customerProfile);
+        setLocal('wsp_customers', customers);
+      }
+      
+      localStorage.setItem('wsp_mock_session', JSON.stringify({ user: googleUser, profile: customerProfile }));
+      window.location.reload();
+      return;
+    }
+
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+
+    if (error) throw error;
+  },
+
+  signOutCustomer: async () => {
+    const client = getClient();
+    if (!client) {
+      localStorage.removeItem('wsp_mock_session');
+      return;
+    }
+    await client.auth.signOut();
+  },
+
+  getCurrentCustomer: async () => {
+    if (typeof window === 'undefined') return null;
+    const client = getClient();
+    if (!client) {
+      const saved = localStorage.getItem('wsp_mock_session');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    const { data: { session }, error } = await client.auth.getSession();
+    if (error || !session?.user) return null;
+
+    const { data: profile } = await client
+      .from('customers')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    return { user: session.user, customer: profile };
   }
 };
