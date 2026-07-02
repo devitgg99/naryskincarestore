@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Layers, Search, Trash2, Edit2, CheckSquare, Square, X, Filter } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function CategoryManager({ categories, brands, products, onRefresh }) {
+export default function CategoryManager({ categories, brands, products, onRefresh, showToast }) {
   const [editingCategory, setEditingCategory] = useState(null); // null when creating
   const [categoryName, setCategoryName] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -93,19 +93,20 @@ export default function CategoryManager({ categories, brands, products, onRefres
 
   // Delete category
   const handleDeleteCategory = async (category) => {
-    if (!window.confirm(`Are you sure you want to delete the category "${category.name}"? Products under this category will not be deleted, but they will be dissociated.`)) {
+    if (!confirm(`Are you sure you want to delete the category "${category.name}"? Products under this category will not be deleted, but they will be dissociated.`)) {
       return;
     }
     setIsDeleting(true);
     try {
       await db.deleteCategory(category.id);
+      showToast("Category deleted successfully.", "success");
       if (editingCategory?.id === category.id) {
         handleCancelEdit();
       }
       onRefresh();
     } catch (e) {
       console.error(e);
-      alert("Failed to delete category: " + e.message);
+      showToast("Failed to delete category: " + e.message, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -115,7 +116,7 @@ export default function CategoryManager({ categories, brands, products, onRefres
   const handleSaveCategory = async (e) => {
     e.preventDefault();
     if (!categoryName.trim()) {
-      alert("Please enter a category name.");
+      showToast("Please enter a category name.", "warning");
       return;
     }
 
@@ -133,6 +134,7 @@ export default function CategoryManager({ categories, brands, products, onRefres
       // 2. Save bulk product associations
       await db.associateProductsWithCategory(savedCategory.id, selectedProductIds);
 
+      showToast("Category saved and products associated successfully!", "success");
       // Reset form
       setCategoryName('');
       setSelectedProductIds([]);
@@ -141,7 +143,7 @@ export default function CategoryManager({ categories, brands, products, onRefres
       onRefresh();
     } catch (e) {
       console.error(e);
-      alert(e.message || "Failed to save category details.");
+      showToast(e.message || "Failed to save category details.", "error");
     } finally {
       setIsSaving(false);
     }
@@ -161,7 +163,7 @@ export default function CategoryManager({ categories, brands, products, onRefres
   const handleSaveQuickEdit = async (e) => {
     e.preventDefault();
     if (!quickEditNameKh.trim() || !quickEditNameEn.trim()) {
-      alert("Please enter both Khmer and English product names.");
+      showToast("Please enter both Khmer and English product names.", "warning");
       return;
     }
 
@@ -177,11 +179,12 @@ export default function CategoryManager({ categories, brands, products, onRefres
       };
 
       await db.saveProduct(updatedProduct);
+      showToast("Product updated successfully!", "success");
       setQuickEditingProduct(null);
       onRefresh();
     } catch (err) {
       console.error(err);
-      alert("Failed to save product details: " + err.message);
+      showToast("Failed to save product details: " + err.message, "error");
     } finally {
       setIsSavingQuickEdit(false);
     }

@@ -401,7 +401,8 @@ export const db = {
       // Create order items
       const itemsToInsert = items.map(item => ({
         order_id: newOrder.id,
-        product_id: item.product_id,
+        product_id: item.product_id || null,
+        custom_name: item.custom_name || null,
         supplier_id: item.supplier_id || null,
         supplier_price: Number(item.supplier_price || 0),
         unit_price: Number(item.unit_price),
@@ -459,7 +460,8 @@ export const db = {
       const newItem = {
         id: `oi_${Date.now()}_${idx}`,
         order_id: orderId,
-        product_id: item.product_id,
+        product_id: item.product_id || null,
+        custom_name: item.custom_name || null,
         supplier_id: item.supplier_id || null,
         supplier_price: Number(item.supplier_price || 0),
         unit_price: Number(item.unit_price),

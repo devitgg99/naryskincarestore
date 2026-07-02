@@ -2,43 +2,45 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --bg-50: #fbfbfe;
-  --bg-100: #f4f4f7;
-  --bg-200: #e8e8ed;
-  --bg-300: #d2d2dc;
-  --bg-400: #a0a0b0;
-  --bg-500: #707080;
-  --bg-600: #4a4a5a;
-  --bg-700: #2d2d3a;
-  --bg-800: #1d1d26;
-  --bg-900: #0e0e15;
-  --bg-950: #06060c;
-  --radial-g1: rgba(99, 102, 241, 0.06);
-  --radial-g2: rgba(139, 92, 246, 0.06);
-  --radial-g3: rgba(16, 185, 129, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-bg: rgba(14, 14, 21, 0.7);
-  --glass-shadow: rgba(0, 0, 0, 0.4);
+  /* Slate-themed dark mode palette (Simple SaaS) */
+  --bg-50: #f8fafc;       /* text light */
+  --bg-100: #f1f5f9;
+  --bg-200: #e2e8f0;
+  --bg-300: #cbd5e1;
+  --bg-400: #94a3b8;
+  --bg-500: #64748b;
+  --bg-600: #475569;
+  --bg-700: #334155;
+  --bg-800: #1e293b;      /* borders */
+  --bg-900: #0f172a;      /* panels */
+  --bg-950: #090d16;      /* body canvas */
+  --radial-g1: rgba(99, 102, 241, 0.04);
+  --radial-g2: rgba(79, 70, 229, 0.04);
+  --radial-g3: rgba(30, 41, 59, 0.02);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-shadow: rgba(0, 0, 0, 0.25);
 }
 
 .light {
-  --bg-50: #0b0b14;
-  --bg-100: #12121d;
-  --bg-200: #1a1a29;
-  --bg-300: #2d2d3e;
-  --bg-400: #424258;
-  --bg-500: #64647f;
-  --bg-600: #d6d6e2;
-  --bg-700: #e2e2ed;
-  --bg-800: #ececf3;
-  --bg-900: #f9f9fb;
-  --bg-950: #ffffff;
-  --radial-g1: rgba(99, 102, 241, 0.03);
-  --radial-g2: rgba(139, 92, 246, 0.03);
-  --radial-g3: rgba(16, 185, 129, 0.01);
-  --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-shadow: rgba(31, 38, 135, 0.04);
+  /* Clean light mode palette (SaaS Slate) */
+  --bg-50: #0f172a;       /* text dark */
+  --bg-100: #1e293b;
+  --bg-200: #334155;
+  --bg-300: #475569;
+  --bg-400: #64748b;
+  --bg-500: #94a3b8;
+  --bg-600: #cbd5e1;
+  --bg-700: #e2e8f0;
+  --bg-800: #f1f5f9;      /* borders */
+  --bg-900: #ffffff;      /* panels */
+  --bg-950: #f8fafc;      /* body canvas */
+  --radial-g1: transparent;
+  --radial-g2: transparent;
+  --radial-g3: transparent;
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-shadow: rgba(15, 23, 42, 0.03);
 }
 
 @theme {
@@ -82,43 +84,44 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Beautiful SaaS Design Elements */
 @utility glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 var(--glass-shadow);
+  box-shadow: 0 4px 20px 0 var(--glass-shadow);
 }
 
 @utility glass-panel-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s ease;
   &:hover {
     background: var(--bg-900);
     border-color: rgba(99, 102, 241, 0.2);
-    box-shadow: 0 12px 40px 0 rgba(99, 102, 241, 0.05);
+    box-shadow: 0 8px 30px 0 rgba(99, 102, 241, 0.04);
   }
 }
 
 @utility glass-card {
   background: rgba(var(--bg-900), 0.4);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 20px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  padding: 18px;
+  transition: all 0.25s ease;
 }
 
 @utility glass-card-interactive {
   background: rgba(var(--bg-900), 0.3);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 20px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  padding: 18px;
+  transition: all 0.2s ease;
   cursor: pointer;
   &:hover {
     background: var(--glass-bg);
-    border-color: rgba(99, 102, 241, 0.25);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.04);
+    border-color: rgba(99, 102, 241, 0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.03);
   }
   &:active {
     transform: translateY(0);
@@ -126,43 +129,50 @@
 }
 
 @utility glass-input {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.08);
   border: 1px solid var(--glass-border);
   color: var(--bg-100);
-  border-radius: 12px;
-  padding: 10px 16px;
+  border-radius: 8px;
+  padding: 8px 14px;
   outline: none;
-  transition: all 0.2s ease;
-  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  font-size: 0.85rem;
   &:focus {
     border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    background: rgba(0, 0, 0, 0.12);
   }
   &::placeholder {
     color: var(--bg-500);
   }
 }
 
+.light .glass-input {
+  background: rgba(15, 23, 42, 0.03);
+  &:focus {
+    background: rgba(15, 23, 42, 0.05);
+  }
+}
+
 @utility glass-button-primary {
-  background: linear-gradient(135deg, var(--color-primary-600) 0%, #7c3aed 100%);
+  background: var(--color-primary-600);
   color: #ffffff;
-  border-radius: 12px;
-  padding: 10px 18px;
+  border-radius: 8px;
+  padding: 8px 16px;
   font-weight: 500;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.2);
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 0.875rem;
+  gap: 6px;
+  font-size: 0.85rem;
   cursor: pointer;
   border: none;
+  box-shadow: 0 2px 8px 0 rgba(99, 102, 241, 0.15);
   &:hover {
-    opacity: 0.95;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.3);
+    background: var(--color-primary-500);
+    transform: translateY(-0.5px);
+    box-shadow: 0 4px 12px 0 rgba(99, 102, 241, 0.2);
   }
   &:active {
     transform: translateY(0);
@@ -178,20 +188,20 @@
   background: var(--bg-900);
   border: 1px solid var(--glass-border);
   color: var(--bg-200);
-  border-radius: 12px;
-  padding: 10px 18px;
+  border-radius: 8px;
+  padding: 8px 16px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 0.875rem;
+  gap: 6px;
+  font-size: 0.85rem;
   cursor: pointer;
   &:hover {
     background: var(--bg-800);
-    color: #ffffff;
-    border-color: var(--bg-600);
+    color: var(--bg-50);
+    border-color: var(--bg-700);
   }
   &:active {
     scale: 0.98;
@@ -204,21 +214,21 @@
 
 @utility glass-button-danger {
   background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.15);
   color: #fca5a5;
-  border-radius: 12px;
-  padding: 10px 18px;
+  border-radius: 8px;
+  padding: 8px 16px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 0.875rem;
+  gap: 6px;
+  font-size: 0.85rem;
   cursor: pointer;
   &:hover {
-    background: rgba(239, 68, 68, 0.16);
-    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
     color: #ffffff;
   }
   &:active {
@@ -230,8 +240,17 @@
   }
 }
 
+.light .glass-button-danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+  &:hover {
+    background: rgba(239, 68, 68, 0.05);
+    color: #dc2626;
+  }
+}
+
 /* Light mode text overrides, keeping buttons and primary components white */
-.light .text-white:not(button):not(button *):not(.bg-gradient-to-tr *):not(.bg-primary-600 *):not(.bg-primary-500 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-amber-500 *):not(.bg-violet-500 *) {
+.light .text-white:not(button):not(button *):not(.bg-gradient-to-tr *):not(.bg-primary-600 *):not(.bg-primary-500 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-amber-500 *):not(.bg-violet-500 *):not(.badge *):not(.glass-button-primary *) {
   color: var(--bg-100) !important;
 }
 
@@ -300,4 +319,3 @@ body {
     width: 100% !important;
   }
 }
-

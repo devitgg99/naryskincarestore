@@ -56,6 +56,7 @@ create table if not exists order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid references orders(id) on delete cascade,
   product_id uuid references products(id) on delete restrict,
+  custom_name text,
   supplier_id uuid references suppliers(id) on delete set null,
   supplier_price numeric(10, 2) not null default 0.00,
   unit_price numeric(10, 2) not null,
@@ -135,6 +136,9 @@ alter table orders disable row level security;
 alter table order_items disable row level security;
 alter table brands disable row level security;
 alter table categories disable row level security;
+
+-- Migration/Upgrade updates
+alter table order_items add column if not exists custom_name text;
 
 
 

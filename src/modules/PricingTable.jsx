@@ -474,7 +474,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
   );
 }
 
-export default function PricingTable({ products, suppliers, prices, brands = [], categories = [], onRefresh }) {
+export default function PricingTable({ products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('all');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
@@ -484,9 +484,16 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editStock, setEditStock] = useState('');
   const [editUnit, setEditUnit] = useState('pcs');
   const [isSaving, setIsSaving] = useState(false);
- 
+
   // States for adding a new product
-  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(() => {
+    const autoOpen = localStorage.getItem('wsp_auto_open_add_product');
+    if (autoOpen === 'true') {
+      localStorage.removeItem('wsp_auto_open_add_product');
+      return true;
+    }
+    return false;
+  });
   const [newProductNameKh, setNewProductNameKh] = useState('');
   const [newProductNameEn, setNewProductNameEn] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
@@ -653,10 +660,11 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           stock_unit: editUnit
         });
       }
+      showToast("Supplier price saved!", "success");
       onRefresh();
       setEditingCell(null);
     } catch (err) {
-      alert("Error saving price: " + err.message);
+      showToast("Error saving price: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -664,16 +672,17 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
   const handleDeleteOffer = async () => {
     if (!editingCell) return;
-    const confirmed = window.confirm(`Are you sure you want to delete this product offer from supplier "${editingCell.supplier.name}"?`);
+    const confirmed = confirm(`Are you sure you want to delete this product offer from supplier "${editingCell.supplier.name}"?`);
     if (!confirmed) return;
 
     setIsSaving(true);
     try {
       await db.deleteSupplierPrice(editingCell.product.id, editingCell.supplier.id);
+      showToast("Offer deleted successfully.", "success");
       onRefresh();
       setEditingCell(null);
     } catch (err) {
-      alert("Error deleting offer: " + err.message);
+      showToast("Error deleting offer: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -730,10 +739,11 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         selling_price: editProductSellingPrice ? Number(editProductSellingPrice) : null,
         image_url: imageUrl,
       });
+      showToast("Product updated successfully!", "success");
       onRefresh();
       setEditingProduct(null);
     } catch (err) {
-      alert("Error updating product: " + err.message);
+      showToast("Error updating product: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -741,7 +751,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
   const handleDeleteProduct = async () => {
     if (!editingProduct) return;
-    const confirmed = window.confirm(`Are you sure you want to delete product "${editingProduct.name_kh}"? This will also remove all its prices and inventory counts.`);
+    const confirmed = confirm(`Are you sure you want to delete product "${editingProduct.name_kh}"? This will also remove all its prices and inventory counts.`);
     if (!confirmed) return;
 
     setIsSaving(true);
@@ -751,13 +761,14 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         await deleteProductImage(editingProduct.image_url);
       }
       await db.deleteProduct(editingProduct.id);
+      showToast("Product deleted successfully.", "success");
       onRefresh();
       setEditingProduct(null);
     } catch (err) {
       if (err.code === '23503') {
-        alert("Cannot delete this product because it has been used in past invoices. You can set its stock to 0 or delete its supplier prices instead.");
+        showToast("Cannot delete this product because it has been used in past invoices. You can set its stock to 0 or delete its supplier prices instead.", "warning");
       } else {
-        alert("Error deleting product: " + err.message);
+        showToast("Error deleting product: " + err.message, "error");
       }
     } finally {
       setIsSaving(false);
@@ -800,9 +811,10 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       setNewProductImageState({ file: null, removed: false });
 
       setIsAddProductOpen(false);
+      showToast("Product added successfully!", "success");
       onRefresh();
     } catch (err) {
-      alert("Error adding product: " + err.message);
+      showToast("Error adding product: " + err.message, "error");
     } finally {
       setIsSavingProduct(false);
     }
@@ -822,23 +834,25 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       setNewSupplierName('');
       setNewSupplierPhone('');
       setIsAddSupplierOpen(false);
+      showToast("Supplier added successfully!", "success");
       onRefresh();
     } catch (err) {
-      alert("Error adding supplier: " + err.message);
+      showToast("Error adding supplier: " + err.message, "error");
     } finally {
       setIsSavingSupplier(false);
     }
   };
 
   const handleDeleteSupplier = async (supplier) => {
-    const confirmed = window.confirm(`Are you sure you want to delete supplier "${supplier.name}"? This will remove all their prices and inventory records.`);
+    const confirmed = confirm(`Are you sure you want to delete supplier "${supplier.name}"? This will remove all their prices and inventory records.`);
     if (!confirmed) return;
 
     try {
       await db.deleteSupplier(supplier.id);
+      showToast("Supplier deleted successfully.", "success");
       onRefresh();
     } catch (err) {
-      alert("Error deleting supplier: " + err.message);
+      showToast("Error deleting supplier: " + err.message, "error");
     }
   };
 

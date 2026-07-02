@@ -8,6 +8,8 @@ import SalesLog from './modules/SalesLog';
 import StockTracker from './modules/StockTracker';
 import BrandManager from './modules/BrandManager';
 import CategoryManager from './modules/CategoryManager';
+import Dashboard from './modules/Dashboard';
+import CommandPalette from './components/CommandPalette';
 import { db } from './services/db';
 import { 
   RefreshCw, 
@@ -21,16 +23,74 @@ import {
   ClipboardList, 
   Package, 
   Tag, 
-  Layers 
+  Layers,
+  CheckCircle,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('pricing');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'dark');
+  const [toasts, setToasts] = useState([]);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  const showToast = (message, type = 'info') => {
+    const id = Date.now().toString() + Math.random().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Toggle Command Palette with Cmd+K or Ctrl+K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+      
+      // Alt shortcuts for navigation
+      if (e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case 'd':
+            e.preventDefault();
+            setActiveTab('dashboard');
+            break;
+          case 'p':
+            e.preventDefault();
+            setActiveTab('pricing');
+            break;
+          case 'c':
+            e.preventDefault();
+            setActiveTab('customers');
+            break;
+          case 'i':
+            e.preventDefault();
+            setActiveTab('invoice');
+            break;
+          case 's':
+            e.preventDefault();
+            setActiveTab('sales');
+            break;
+          case 't':
+            e.preventDefault();
+            setActiveTab('stock');
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (theme === 'light') {
@@ -116,6 +176,22 @@ export default function App() {
     }
 
     switch (activeTab) {
+      case 'dashboard':
+        return (
+          <Dashboard 
+            products={products}
+            suppliers={suppliers}
+            customers={customers}
+            prices={prices}
+            orders={orders}
+            orderItems={orderItems}
+            brands={brands}
+            categories={categories}
+            setActiveTab={setActiveTab}
+            showToast={showToast}
+            onRefresh={loadData}
+          />
+        );
       case 'pricing':
         return (
           <PricingTable 
@@ -125,6 +201,7 @@ export default function App() {
             brands={brands}
             categories={categories}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'customers':
@@ -135,6 +212,7 @@ export default function App() {
             orderItems={orderItems}
             products={products}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'invoice':
@@ -147,6 +225,7 @@ export default function App() {
             brands={brands}
             categories={categories}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'sales':
@@ -159,6 +238,7 @@ export default function App() {
             suppliers={suppliers}
             prices={prices}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'stock':
@@ -170,6 +250,7 @@ export default function App() {
             brands={brands}
             categories={categories}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'brands':
@@ -179,6 +260,7 @@ export default function App() {
             categories={categories}
             products={products}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       case 'categories':
@@ -188,6 +270,7 @@ export default function App() {
             brands={brands}
             products={products}
             onRefresh={loadData}
+            showToast={showToast}
           />
         );
       default:
@@ -307,6 +390,42 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         onConfigChange={handleConfigChange}
       />
+
+      {/* Floating Toast Notifications Banner */}
+      <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 max-w-sm pointer-events-none">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`p-4 rounded-xl shadow-lg flex items-center gap-3 border text-sm font-semibold pointer-events-auto animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+              t.type === 'success'
+                ? 'bg-emerald-950/90 text-emerald-400 border-emerald-500/30'
+                : t.type === 'error'
+                ? 'bg-rose-950/90 text-rose-400 border-rose-500/30'
+                : t.type === 'warning'
+                ? 'bg-amber-950/90 text-amber-400 border-amber-500/30'
+                : 'bg-dark-900/90 text-white border-dark-800'
+            }`}
+          >
+            {t.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />}
+            {t.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />}
+            {t.type === 'warning' && <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />}
+            {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0 text-primary-400" />}
+            <span>{t.message}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Global Command Palette search overlay */}
+      {isCommandPaletteOpen && (
+        <CommandPalette
+          onClose={() => setIsCommandPaletteOpen(false)}
+          setActiveTab={setActiveTab}
+          products={products}
+          customers={customers}
+          onRefresh={loadData}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }

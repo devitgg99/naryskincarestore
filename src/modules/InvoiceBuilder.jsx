@@ -3,7 +3,7 @@ import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle,
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
 
-export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh }) {
+export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
@@ -12,6 +12,26 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [deliveryFee, setDeliveryFee] = useState(() => {
     return localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
   });
+
+  // Receipt custom header states
+  const [shopName, setShopName] = useState(() => localStorage.getItem('wsp_shop_name') || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)');
+  const [shopAddress, setShopAddress] = useState(() => localStorage.getItem('wsp_shop_address') || 'ផ្សារអូរឫស្សី, ភ្នំពេញ');
+  const [shopPhone, setShopPhone] = useState(() => localStorage.getItem('wsp_shop_phone') || '012 345 678');
+  const [customFooter, setCustomFooter] = useState(() => localStorage.getItem('wsp_custom_footer') || 'សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you for your support!)');
+
+  useEffect(() => {
+    localStorage.setItem('wsp_shop_name', shopName);
+  }, [shopName]);
+  useEffect(() => {
+    localStorage.setItem('wsp_shop_address', shopAddress);
+  }, [shopAddress]);
+  useEffect(() => {
+    localStorage.setItem('wsp_shop_phone', shopPhone);
+  }, [shopPhone]);
+  useEffect(() => {
+    localStorage.setItem('wsp_custom_footer', customFooter);
+  }, [customFooter]);
+
   const [lineItems, setLineItems] = useState(() => {
     const saved = localStorage.getItem('wsp_draft_line_items');
     if (saved) {
@@ -24,7 +44,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
 
     return [
-      { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false }
+      { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false, isCustom: false, custom_name: '' }
     ];
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -157,7 +177,9 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       maxStock: 0,
       stockUnit: 'pcs',
       searchQuery: '',
-      isDropdownOpen: false
+      isDropdownOpen: false,
+      isCustom: false,
+      custom_name: ''
     }]);
   };
 
@@ -174,7 +196,9 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       maxStock: 0,
       stockUnit: 'pcs',
       searchQuery: '',
-      isDropdownOpen: false
+      isDropdownOpen: false,
+      isCustom: false,
+      custom_name: ''
     }]);
   };
 
@@ -239,7 +263,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
   const totalAmount = subtotal + Number(deliveryFee || 0);
   const totalProfit = lineItems.reduce((sum, item) => {
-    if (!item.product_id) return sum;
+    if (item.isCustom || !item.product_id) return sum; // Skip profit calculation for custom items
     const profit = (Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * Number(item.quantity || 0);
     return sum + profit;
   }, 0);
@@ -247,13 +271,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const handleSaveInvoice = async (e) => {
     e.preventDefault();
     if (!selectedCustomerId) {
-      alert("Please select a customer first!");
+      showToast("Please select a customer first!", "warning");
       return;
     }
 
-    const validItems = lineItems.filter(item => item.product_id && item.quantity > 0);
+    const validItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && item.quantity > 0);
     if (validItems.length === 0) {
-      alert("Please add at least one valid product line item.");
+      showToast("Please add at least one valid product or custom line item.", "warning");
       return;
     }
 
@@ -302,11 +326,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         maxStock: 0,
         stockUnit: 'pcs',
         searchQuery: '',
-        isDropdownOpen: false
+        isDropdownOpen: false,
+        isCustom: false,
+        custom_name: ''
       }]);
       setDeliveryFee('1.50');
+      showToast("Invoice saved successfully!", "success");
     } catch (err) {
-      alert("Error creating order: " + err.message);
+      showToast("Error creating order: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -318,10 +345,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const handlePreviewReceipt = () => {
     const customer = customers.find(c => c.id === selectedCustomerId);
-    const activeItems = lineItems.filter(item => item.product_id);
+    const activeItems = lineItems.filter(item => item.product_id || (item.isCustom && item.custom_name));
     
     if (activeItems.length === 0) {
-      alert("Please add at least one product with quantity to preview.");
+      showToast("Please add at least one item with quantity to preview.", "warning");
       return;
     }
 
@@ -337,7 +364,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       },
       customer: customer || { name: 'Walk-in Customer', location_note: 'General Delivery', phone: '' },
       items: activeItems.map(item => ({
-        product_id: item.product_id,
+        product_id: item.product_id || null,
+        custom_name: item.custom_name || null,
         supplier_id: item.supplier_id || null,
         supplier_price: Number(item.supplier_price || 0),
         unit_price: Number(item.unit_price || 0),
@@ -561,78 +589,93 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   const sps = productSupplierPrices[item.product_id] || [];
                   const cheapestSp = [...sps].sort((a, b) => a.price - b.price)[0];
                   const isStockWarning = item.product_id && item.supplier_id && (item.quantity > item.maxStock);
+                  const prod = products.find(p => p.id === item.product_id);
 
                   return (
                     <div key={item.id} className="p-4 rounded-xl border border-dark-850 bg-dark-950/20 space-y-4 sm:space-y-0 sm:flex sm:items-center sm:gap-3 transition-colors hover:border-dark-800">
-                                        {/* Product Selector */}
+                      {/* Product Selector */}
                       <div className="flex-1 min-w-[220px] flex items-center gap-3">
                         {/* Product Image Thumbnail */}
                         <div className="w-10 h-10 rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
-                          {(() => {
-                            const prod = products.find(p => p.id === item.product_id);
-                            return prod && prod.image_url ? (
+                          {item.isCustom ? (
+                            <span className="text-[10px] text-primary-400 font-bold bg-primary-500/10 w-full h-full flex items-center justify-center">Custom</span>
+                          ) : (
+                            prod && prod.image_url ? (
                               <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
                             ) : (
                               <ImageIcon className="w-5 h-5 text-dark-600" />
-                            );
-                          })()}
+                            )
+                          )}
                         </div>
 
                         <div className="flex-1 relative">
                           <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Product</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Search product..."
-                            value={item.searchQuery !== undefined ? item.searchQuery : (products.find(p => p.id === item.product_id) ? `${products.find(p => p.id === item.product_id).name_kh} (${products.find(p => p.id === item.product_id).name_en})` : '')}
-                            onFocus={() => {
-                              const updated = [...lineItems];
-                              updated[idx].isDropdownOpen = true;
-                              const currentProd = products.find(p => p.id === item.product_id);
-                              updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
-                              setLineItems(updated);
-                            }}
-                            onBlur={() => {
-                              setTimeout(() => {
-                                const updated = [...lineItems];
-                                if (updated[idx]) {
-                                  updated[idx].isDropdownOpen = false;
-                                  const currentProd = products.find(p => p.id === updated[idx].product_id);
+                          {item.isCustom ? (
+                            <input
+                              type="text"
+                              required
+                              placeholder="Enter custom product name..."
+                              value={item.custom_name || ''}
+                              onChange={(e) => updateLineItem(idx, 'custom_name', e.target.value)}
+                              className="w-full glass-input border-primary-500/20 focus:border-primary-500/50 font-medium"
+                            />
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                required
+                                placeholder="Search product..."
+                                value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
+                                onFocus={() => {
+                                  const updated = [...lineItems];
+                                  updated[idx].isDropdownOpen = true;
+                                  const currentProd = products.find(p => p.id === item.product_id);
                                   updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
                                   setLineItems(updated);
-                                }
-                              }, 250);
-                            }}
-                            onChange={(e) => {
-                              const updated = [...lineItems];
-                              updated[idx].searchQuery = e.target.value;
-                              updated[idx].isDropdownOpen = true;
-                              setLineItems(updated);
-                            }}
-                            className="w-full glass-input"
-                          />
-                          {item.isDropdownOpen && (
-                            <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-xl divide-y divide-dark-850 scrollbar-thin">
-                              {getFilteredProducts(item.searchQuery || '').map(p => (
-                                <div
-                                  key={p.id}
-                                  onClick={() => {
-                                    updateLineItem(idx, 'product_id', p.id);
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => {
                                     const updated = [...lineItems];
-                                    updated[idx].searchQuery = `${p.name_kh} (${p.name_en})`;
-                                    updated[idx].isDropdownOpen = false;
-                                    setLineItems(updated);
-                                  }}
-                                  className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors"
-                                >
-                                  <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
-                                  <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                                    if (updated[idx]) {
+                                      updated[idx].isDropdownOpen = false;
+                                      const currentProd = products.find(p => p.id === updated[idx].product_id);
+                                      updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
+                                      setLineItems(updated);
+                                    }
+                                  }, 250);
+                                }}
+                                onChange={(e) => {
+                                  const updated = [...lineItems];
+                                  updated[idx].searchQuery = e.target.value;
+                                  updated[idx].isDropdownOpen = true;
+                                  setLineItems(updated);
+                                }}
+                                className="w-full glass-input"
+                              />
+                              {item.isDropdownOpen && (
+                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-xl divide-y divide-dark-850 scrollbar-thin">
+                                  {getFilteredProducts(item.searchQuery || '').map(p => (
+                                    <div
+                                      key={p.id}
+                                      onClick={() => {
+                                        updateLineItem(idx, 'product_id', p.id);
+                                        const updated = [...lineItems];
+                                        updated[idx].searchQuery = `${p.name_kh} (${p.name_en})`;
+                                        updated[idx].isDropdownOpen = false;
+                                        setLineItems(updated);
+                                      }}
+                                      className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors"
+                                    >
+                                      <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
+                                      <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                                    </div>
+                                  ))}
+                                  {getFilteredProducts(item.searchQuery || '').length === 0 && (
+                                    <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
+                                  )}
                                 </div>
-                              ))}
-                              {getFilteredProducts(item.searchQuery || '').length === 0 && (
-                                <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
                               )}
-                            </div>
+                            </>
                           )}
                         </div>
                       </div>
@@ -640,28 +683,34 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       {/* Supplier Selector */}
                       <div className="w-full sm:w-[170px]">
                         <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Supplier & Price</label>
-                        <select
-                          required
-                          disabled={!item.product_id}
-                          value={item.supplier_id}
-                          onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
-                          className="w-full glass-input disabled:opacity-40"
-                        >
-                          {sps.length === 0 ? (
-                            <option value="">No suppliers</option>
-                          ) : (
-                            sps.map(sp => {
-                              const sup = suppliers.find(s => s.id === sp.supplier_id);
-                              const name = sup ? sup.name : 'Unknown';
-                              const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
-                              return (
-                                <option key={sp.supplier_id} value={sp.supplier_id}>
-                                  {name}: ${sp.price.toFixed(2)} (Qty: {sp.stock_qty}){cheapestLabel}
-                                </option>
-                              );
-                            })
-                          )}
-                        </select>
+                        {item.isCustom ? (
+                          <div className="w-full glass-input bg-dark-900/30 text-dark-400 text-xs italic flex items-center justify-center border-dashed border-dark-800 py-2.5">
+                            No Supplier (Ad-hoc)
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            disabled={!item.product_id}
+                            value={item.supplier_id}
+                            onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
+                            className="w-full glass-input disabled:opacity-40"
+                          >
+                            {sps.length === 0 ? (
+                              <option value="">No suppliers</option>
+                            ) : (
+                              sps.map(sp => {
+                                const sup = suppliers.find(s => s.id === sp.supplier_id);
+                                const name = sup ? sup.name : 'Unknown';
+                                const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
+                                return (
+                                  <option key={sp.supplier_id} value={sp.supplier_id}>
+                                    {name}: ${sp.price.toFixed(2)} (Qty: {sp.stock_qty}){cheapestLabel}
+                                  </option>
+                                );
+                              })
+                            )}
+                          </select>
+                        )}
                       </div>
 
                       {/* Price field (editable input) */}
@@ -698,25 +747,44 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       <div className="w-28 text-right pr-2">
                         <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden text-right">Subtotal</label>
                         <span className="font-semibold text-white block text-sm">${Number(item.subtotal || 0).toFixed(2)}</span>
-                        {item.product_id && (
+                        {item.product_id && !item.isCustom && (
                           <div className="text-[10px] text-emerald-400 font-medium mt-1 truncate" title={`Cost: $${Number(item.supplier_price || 0).toFixed(2)} / unit`}>
                             Profit: +${((Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * Number(item.quantity || 0)).toFixed(2)}
                           </div>
                         )}
+                        {item.isCustom && (
+                          <div className="text-[10px] text-dark-500 font-semibold mt-1">
+                            No Profit calculated
+                          </div>
+                        )}
                       </div>
 
-                      {/* Remove Action */}
+                      {/* Remove / Mode Toggle Action */}
                       <div className="flex items-center gap-2 pt-2 sm:pt-0">
+                        {/* Mode toggle */}
+                        <button
+                          type="button"
+                          onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            item.isCustom 
+                              ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/20' 
+                              : 'bg-dark-900/40 border-dark-800 text-dark-400 hover:text-white hover:bg-dark-800'
+                          }`}
+                          title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual name/price input"}
+                        >
+                          {item.isCustom ? "Custom" : "Catalog"}
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => removeLineItem(idx)}
-                          className="p-2 rounded bg-dark-900 border border-dark-800 hover:bg-dark-800 text-dark-400 hover:text-white"
+                          className="p-2 rounded bg-dark-900 border border-dark-800 hover:bg-dark-800 text-dark-400 hover:text-white transition-colors cursor-pointer"
                           title="Remove row"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
 
-                        {isStockWarning && (
+                        {!item.isCustom && isStockWarning && (
                           <div className="flex items-center gap-1 text-[10px] font-bold bg-amber-500/10 border border-amber-900/40 text-amber-400 px-1.5 py-1 rounded" title={`Available stock is only ${item.maxStock} ${item.stockUnit}`}>
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                             <span>Stock: {item.maxStock}</span>
@@ -808,7 +876,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center no-print">
-            <div className="bg-dark-900 border border-dark-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
               
               {/* Top Bar controls */}
               <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
@@ -829,139 +897,202 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </div>
               </div>
 
-              {/* Paper Receipt Box */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin bg-dark-950/20">
-                
-                {/* Internal Profit Analysis Card (Owner Only) - Hidden on print */}
-                <div className="no-print glass-panel p-5 rounded-xl border border-dark-850 bg-dark-900/60 max-w-md mx-auto space-y-4 shadow-lg text-left">
-                  <div className="flex justify-between items-center border-b border-dark-800 pb-3">
-                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Internal Profit Analysis (Owner Only) {isDraft && <span className="text-amber-400 font-bold ml-1">(DRAFT)</span>}
-                    </h4>
-                    <span className="text-xs text-dark-400 font-mono">
-                      Order: #{isDraft ? 'DRAFT' : receiptData.order.id.slice(-6).toUpperCase()}
-                    </span>
-                  </div>
+              {/* Modal Body container (two-column split on md sizes) */}
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin bg-dark-950/20">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
                   
-                  <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
-                    {receiptData.items.map((item, idx) => {
-                      const prod = products.find(p => p.id === item.product_id);
-                      const cost = Number(item.supplier_price || 0);
-                      const selling = Number(item.unit_price);
-                      const qty = Number(item.quantity);
-                      const profitPerUnit = selling - cost;
-                      const itemProfit = profitPerUnit * qty;
-                      
-                      return (
-                        <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
-                          <div className="space-y-1">
-                            <div className="font-semibold text-white">
-                              {prod ? `${prod.name_kh} (${prod.name_en})` : 'Unknown Product'}
-                            </div>
-                            <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
-                              <span>Cost: ${cost.toFixed(2)}</span>
-                              <span>•</span>
-                              <span>Sell: ${selling.toFixed(2)}</span>
-                              <span>•</span>
-                              <span>Qty: {qty}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
-                            <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
-                    <span className="text-dark-300">Total Order Profit:</span>
-                    <span className="text-lg text-emerald-400">
-                      ${receiptData.items.reduce((sum, item) => sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * Number(item.quantity), 0).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Paper Receipt Box */}
-                <div className="max-w-md mx-auto border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
-                  {isDraft && (
-                    <div className="no-print text-center text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold animate-pulse">
-                      ⚠️ DRAFT RECEIPT PREVIEW
-                    </div>
-                  )}
-                  
-                  {/* Receipt Header */}
-                  <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
-                    <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
-                    <h2 className="text-lg font-bold text-black font-mono">
-                      {receiptData.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
-                    </h2>
-                    <p className="text-[10px] text-gray-500">
-                      {receiptData.customer?.location_note || 'ផ្សារអូរឫស្សី, ភ្នំពេញ'}
-                      {receiptData.customer?.phone ? ` • ទូរស័ព្ទ: ${receiptData.customer.phone}` : ''}
-                    </p>
+                  {/* Left Column: Receipt Customization & Profit Card (5 cols) */}
+                  <div className="md:col-span-5 space-y-6 no-print">
                     
-                    <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-2 font-mono text-gray-700">
-                      <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
-                      <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
-                      <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
-                      {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
-                      {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
+                    {/* Header Customization Form */}
+                    <div className="glass-panel p-5 rounded-2xl border border-dark-800 bg-dark-900/60 space-y-4 shadow-lg text-left">
+                      <h4 className="text-xs font-bold text-primary-400 uppercase tracking-widest border-b border-dark-800 pb-2">
+                        Edit Receipt Header
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="block font-semibold text-dark-300 uppercase mb-1">Shop/Vendor Name</label>
+                          <input 
+                            type="text" 
+                            value={shopName} 
+                            onChange={(e) => setShopName(e.target.value)} 
+                            className="w-full glass-input py-1 px-3 text-xs" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-dark-300 uppercase mb-1">Shop Address / Landmark</label>
+                          <input 
+                            type="text" 
+                            value={shopAddress} 
+                            onChange={(e) => setShopAddress(e.target.value)} 
+                            className="w-full glass-input py-1 px-3 text-xs" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-dark-300 uppercase mb-1">Phone Number</label>
+                          <input 
+                            type="text" 
+                            value={shopPhone} 
+                            onChange={(e) => setShopPhone(e.target.value)} 
+                            className="w-full glass-input py-1 px-3 text-xs" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-dark-300 uppercase mb-1">Footer Message</label>
+                          <textarea 
+                            value={customFooter} 
+                            onChange={(e) => setCustomFooter(e.target.value)} 
+                            rows="2"
+                            className="w-full glass-input py-1.5 px-3 text-xs resize-none" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Internal Profit Analysis Card (Owner Only) */}
+                    <div className="glass-panel p-5 rounded-2xl border border-dark-850 bg-dark-900/60 space-y-4 shadow-lg text-left">
+                      <div className="flex justify-between items-center border-b border-dark-800 pb-3">
+                        <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Internal Profit Analysis
+                        </h4>
+                        <span className="text-xs text-dark-400 font-mono">
+                          {isDraft ? 'DRAFT' : `#${receiptData.order.id.slice(-6).toUpperCase()}`}
+                        </span>
+                      </div>
+                      
+                      <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
+                        {receiptData.items.map((item, idx) => {
+                          const prod = products.find(p => p.id === item.product_id);
+                          const isCustom = !item.product_id;
+                          const cost = Number(item.supplier_price || 0);
+                          const selling = Number(item.unit_price);
+                          const qty = Number(item.quantity);
+                          const profitPerUnit = selling - cost;
+                          const itemProfit = profitPerUnit * qty;
+                          
+                          return (
+                            <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-white">
+                                  {prod ? `${prod.name_kh} (${prod.name_en})` : (item.custom_name || 'Custom Item')}
+                                </div>
+                                <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
+                                  {!isCustom && <span>Cost: ${cost.toFixed(2)}</span>}
+                                  {!isCustom && <span>•</span>}
+                                  <span>Sell: ${selling.toFixed(2)}</span>
+                                  <span>•</span>
+                                  <span>Qty: {qty}</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                {isCustom ? (
+                                  <span className="font-semibold text-dark-400 block">$0.00</span>
+                                ) : (
+                                  <>
+                                    <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
+                                    <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
+                        <span className="text-dark-300">Total Order Profit:</span>
+                        <span className="text-lg text-emerald-400">
+                          ${receiptData.items.reduce((sum, item) => {
+                            if (!item.product_id) return sum;
+                            return sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * Number(item.quantity);
+                          }, 0).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Table items */}
-                  <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
-                    <thead>
-                      <tr className="border-b border-gray-300 font-bold text-gray-800">
-                        <th className="py-2">Description / ទំនិញ</th>
-                        <th className="py-2 text-center">Qty / 数量</th>
-                        <th className="py-2 text-right">Price / តម្លៃ</th>
-                        <th className="py-2 text-right">Total / សរុប</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {receiptData.items.map((item, index) => {
-                        const prod = products.find(p => p.id === item.product_id);
-                        return (
-                          <tr key={index} className="text-gray-800">
-                            <td className="py-2">
-                              <div className="font-bold">{prod?.name_kh}</div>
-                              <div className="text-[10px] text-gray-500">{prod?.name_en}</div>
-                            </td>
-                            <td className="py-2 text-center font-mono">{item.quantity}</td>
-                            <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                            <td className="py-2 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
+                  {/* Right Column: Printable Receipt Preview (7 cols) */}
+                  <div className="md:col-span-7 flex justify-center items-start">
+                    <div className="w-full max-w-md border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
+                      {isDraft && (
+                        <div className="no-print text-center text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold animate-pulse">
+                          ⚠️ DRAFT RECEIPT PREVIEW
+                        </div>
+                      )}
+                      
+                      {/* Receipt Header */}
+                      <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
+                        <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
+                        <h2 className="text-lg font-bold text-black font-mono leading-tight">
+                          {shopName}
+                        </h2>
+                        <p className="text-[10px] text-gray-500">
+                          {shopAddress}
+                          {shopPhone ? ` • ទូរស័ព្ទ: ${shopPhone}` : ''}
+                        </p>
+                        
+                        <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-2 font-mono text-gray-700">
+                          <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
+                          <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
+                          <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
+                          {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
+                          {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
+                        </div>
+                      </div>
+
+                      {/* Table items */}
+                      <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
+                        <thead>
+                          <tr className="border-b border-gray-300 font-bold text-gray-800">
+                            <th className="py-2">Description / ទំនិញ</th>
+                            <th className="py-2 text-center">Qty / 数量</th>
+                            <th className="py-2 text-right">Price / តម្លៃ</th>
+                            <th className="py-2 text-right">Total / សរុប</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {receiptData.items.map((item, index) => {
+                            const prod = products.find(p => p.id === item.product_id);
+                            return (
+                              <tr key={index} className="text-gray-800">
+                                <td className="py-2">
+                                  <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
+                                  <div className="text-[10px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
+                                </td>
+                                <td className="py-2 text-center font-mono">{item.quantity}</td>
+                                <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
+                                <td className="py-2 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
 
-                  {/* Totals block */}
-                  <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
-                    <div className="flex justify-between text-gray-700">
-                      <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
-                      <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-700">
-                      <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
-                      <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
-                      <span>Grand Total / សរុបរួម:</span>
-                      <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
+                      {/* Totals block */}
+                      <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
+                        <div className="flex justify-between text-gray-700">
+                          <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
+                          <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-700">
+                          <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
+                          <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
+                          <span>Grand Total / សរុបរួម:</span>
+                          <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      {/* Footer terms */}
+                      <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
+                        <p>{customFooter}</p>
+                        <p className="font-mono">Wholesale Portal Invoice System</p>
+                      </div>
+
                     </div>
                   </div>
-
-                  {/* Footer terms */}
-                  <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
-                    <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you for your support!)</p>
-                    <p className="font-mono">Wholesale Portal Invoice System</p>
-                  </div>
-
                 </div>
               </div>
               
@@ -982,13 +1113,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               {/* Header */}
               <div className="text-center space-y-1 pb-2 border-b border-dashed border-gray-400">
                 <h1 className="text-lg font-bold tracking-wider">
-                  {receiptData.customer?.name || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)'}
+                  {shopName}
                 </h1>
                 <p className="text-[10px]">
                   វិក្កយបត្រ / INVOICE {isDraft && '(DRAFT PREVIEW)'}
                   {receiptData.customer?.location_note ? ` • ${receiptData.customer.location_note}` : ''}
                   {receiptData.customer?.phone ? ` • Tel: ${receiptData.customer.phone}` : ''}
                 </p>
+                {shopPhone && <p className="text-[9px] text-gray-600">Tel: {shopPhone} | {shopAddress}</p>}
                 
                 <div className="text-left text-[10px] grid grid-cols-2 gap-y-0.5 pt-2 font-mono">
                   <div>No: #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
@@ -1014,8 +1146,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     return (
                       <tr key={index}>
                         <td className="py-1">
-                          <div className="font-bold">{prod?.name_kh}</div>
-                          <div className="text-[9px] text-gray-500">{prod?.name_en}</div>
+                          <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
+                          <div className="text-[9px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
                         </td>
                         <td className="py-1 text-center font-mono">{item.quantity}</td>
                         <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
@@ -1044,7 +1176,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
               {/* Terms */}
               <div className="mt-4 text-center text-[9px] text-gray-500">
-                <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you!)</p>
+                <p>{customFooter}</p>
               </div>
 
             </div>
@@ -1160,39 +1292,42 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           : 'border-dark-850 bg-dark-900/20 hover:border-dark-800'
                       }`}
                     >
-                      <div className="flex justify-between items-start gap-2 h-12">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            onClick={increment}
-                            className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
-                            title="Click to increase quantity"
-                          >
-                            {p.image_url ? (
-                              <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-dark-600 text-xs">📦</div>
+                      <div className="flex items-start gap-3.5 min-h-[5rem]">
+                        {/* Interactive Large Image */}
+                        <div 
+                          onClick={increment}
+                          className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
+                          title="Click to increase quantity"
+                        >
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-dark-600 text-lg">📦</div>
+                          )}
+                        </div>
+
+                        {/* Product Info details */}
+                        <div className="flex-1 min-w-0 text-left space-y-1">
+                          <div className="flex justify-between items-start gap-1.5">
+                            <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-2">{p.name_kh}</h4>
+                            <span className="text-xs font-bold text-primary-400 shrink-0 font-mono">
+                              ${cheapestPrice.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-dark-400 flex flex-wrap items-center gap-1.5">
+                            <span className="line-clamp-1 block w-full">{p.name_en}</span>
+                            {p.brand_id && brands.find(b => b.id === p.brand_id) && (
+                              <span className="px-1.5 py-0.5 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
+                                {brands.find(b => b.id === p.brand_id).name}
+                              </span>
+                            )}
+                            {p.category_id && categories.find(c => c.id === p.category_id) && (
+                              <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
+                                {categories.find(c => c.id === p.category_id).name}
+                              </span>
                             )}
                           </div>
-                          <div className="text-left">
-                            <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-1">{p.name_kh}</h4>
-                            <div className="text-[10px] text-dark-400 mt-0.5 flex flex-wrap items-center gap-1">
-                              <span className="line-clamp-1">{p.name_en}</span>
-                              {p.brand_id && brands.find(b => b.id === p.brand_id) && (
-                                <span className="px-1 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
-                                  {brands.find(b => b.id === p.brand_id).name}
-                                </span>
-                              )}
-                              {p.category_id && categories.find(c => c.id === p.category_id) && (
-                                <span className="px-1 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
-                                  {categories.find(c => c.id === p.category_id).name}
-                                </span>
-                              )}
-                            </div>
-                          </div>
                         </div>
-                        <span className="text-xs font-bold text-primary-400 shrink-0">
-                          ${cheapestPrice.toFixed(2)}
-                        </span>
                       </div>
 
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-dark-850/60">

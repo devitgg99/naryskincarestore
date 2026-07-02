@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, MapPin, Phone, Calendar, ShoppingBag, Edit, Trash2, X } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function CustomerDirectory({ customers, orders, orderItems, products, onRefresh }) {
+export default function CustomerDirectory({ customers, orders, orderItems, products, onRefresh, showToast }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   
   // Dialog state
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(() => {
+    const autoOpen = localStorage.getItem('wsp_auto_open_add_customer');
+    if (autoOpen === 'true') {
+      localStorage.removeItem('wsp_auto_open_add_customer');
+      return true;
+    }
+    return false;
+  });
   const [editingCustomer, setEditingCustomer] = useState(null); // null means adding new
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -18,24 +25,11 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
   // Set default customer selected
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (customers.length > 0 && !selectedCustomerId) {
+    if (customers.length > 0 && selectedCustomerId === null) {
       setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  const activeCustomer = customers.find(c => c.id === selectedCustomerId) || (customers.length > 0 ? customers[0] : null);
-
-  // Filter customers
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.phone && c.phone.includes(searchTerm))
-  );
-
-  // Customer orders and stats
-  const customerOrders = orders.filter(o => o.customer_id === (activeCustomer?.id || ''));
-  const totalSpent = customerOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const avgOrderValue = customerOrders.length > 0 ? totalSpent / customerOrders.length : 0;
 
   const handleOpenForm = (customer = null) => {
     if (customer) {
@@ -54,40 +48,48 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
     setIsFormOpen(true);
   };
 
+  const activeCustomer = customers.find(c => c.id === selectedCustomerId) || (customers.length > 0 ? customers[0] : null);
+
+  // Filter customers
+  const filteredCustomers = customers.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.phone && c.phone.includes(searchTerm))
+  );
+
+  // Customer orders and stats
+  const customerOrders = orders.filter(o => o.customer_id === (activeCustomer?.id || ''));
+  const totalSpent = customerOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const avgOrderValue = customerOrders.length > 0 ? totalSpent / customerOrders.length : 0;
+
   const handleSaveCustomer = async (e) => {
     e.preventDefault();
-    if (!name) return;
-
     setIsSaving(true);
     try {
-      const payload = {
-        name,
-        phone,
-        map_url: mapUrl,
-        location_note: locationNote
-      };
+      const payload = { name, phone, map_url: mapUrl, location_note: locationNote };
       if (editingCustomer) {
         payload.id = editingCustomer.id;
       }
       const saved = await db.saveCustomer(payload);
+      showToast("Customer saved successfully!", "success");
       onRefresh();
       setSelectedCustomerId(saved.id);
       setIsFormOpen(false);
     } catch (err) {
-      alert("Error saving customer: " + err.message);
+      showToast("Error saving customer: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteCustomer = async (id) => {
-    if (window.confirm("Are you sure you want to delete this customer? All their order history will be deleted as well.")) {
+    if (confirm("Are you sure you want to delete this customer? All their order history will be deleted as well.")) {
       try {
         await db.deleteCustomer(id);
+        showToast("Customer deleted successfully.", "success");
         onRefresh();
         setSelectedCustomerId(null);
       } catch (err) {
-        alert("Error deleting customer: " + err.message);
+        showToast("Error deleting customer: " + err.message, "error");
       }
     }
   };

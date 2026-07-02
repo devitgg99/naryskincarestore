@@ -3,7 +3,7 @@ import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff,
 import { db } from '../services/db';
 
 
-export default function StockTracker({ products, suppliers, prices, brands = [], categories = [], onRefresh }) {
+export default function StockTracker({ products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
   const [groupMode, setGroupMode] = useState('product'); // 'product' or 'supplier'
   const [lowStockThreshold, setLowStockThreshold] = useState(2);
   const [showLowStockAlerts, setShowLowStockAlerts] = useState(true);
@@ -146,9 +146,10 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
         ...spRecord,
         stock_qty: spRecord.stock_qty + amount
       });
+      showToast("Stock added successfully!", "success");
       onRefresh();
     } catch (err) {
-      alert("Error restock: " + err.message);
+      showToast("Error restock: " + err.message, "error");
     }
   };
 
@@ -169,9 +170,10 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
         stock_unit: editUnit
       });
       setEditingPriceId(null);
+      showToast("Stock details updated!", "success");
       onRefresh();
     } catch (err) {
-      alert("Error saving: " + err.message);
+      showToast("Error saving: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }

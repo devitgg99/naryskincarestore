@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Search, Calendar, Filter, Eye, Printer, Trash2 } from 'lucide-react';
+import { Search, Calendar, Filter, Eye, Printer, Trash2, Download } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function SalesLog({ orders, customers, orderItems, products, prices, onRefresh }) {
+export default function SalesLog({ orders, customers, orderItems, products, prices, onRefresh, showToast }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState(''); // YYYY-MM-DD
@@ -51,28 +51,81 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
       await db.updateOrderStatus(orderId, newStatus);
+      showToast("Order status updated!", "success");
       onRefresh();
     } catch (err) {
-      alert("Error updating status: " + err.message);
+      showToast("Error updating status: " + err.message, "error");
     }
   };
 
   const handleDeleteOrder = async (orderId) => {
-    if (window.confirm("Are you sure you want to delete this order? This action cannot be undone and will restore stock deductions (if in mock mode).")) {
+    if (confirm("Are you sure you want to delete this order? This action cannot be undone.")) {
       try {
         await db.deleteOrder(orderId);
+        showToast("Order deleted successfully.", "success");
         onRefresh();
       } catch (err) {
-        alert("Error deleting order: " + err.message);
+        showToast("Error deleting order: " + err.message, "error");
       }
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredOrders.length === 0) {
+      showToast("No orders available to export.", "warning");
+      return;
+    }
+
+    const headers = ["Invoice ID", "Customer Name", "Order Date", "Items Summary", "Total Amount (USD)", "Estimated Profit (USD)", "Status"];
+    
+    const rows = filteredOrders.map(order => {
+      const cust = customers.find(c => c.id === order.customer_id);
+      const custName = cust ? cust.name : 'Unknown';
+      const orderDate = new Date(order.ordered_at).toLocaleString();
+      
+      const items = orderItems.filter(oi => oi.order_id === order.id);
+      const itemsSummary = items.map(oi => {
+        const prod = products.find(p => p.id === oi.product_id);
+        const name = prod ? prod.name_kh : (oi.custom_name || 'Custom Item');
+        return `${name} (x${oi.quantity})`;
+      }).join('; ');
+
+      const totalProfit = items.reduce((sum, oi) => {
+        if (!oi.product_id) return sum;
+        const cost = getItemCost(oi);
+        const selling = Number(oi.unit_price);
+        const qty = Number(oi.quantity);
+        return sum + (selling - cost) * qty;
+      }, 0);
+
+      return [
+        `#${order.id.slice(-6).toUpperCase()}`,
+        custName,
+        orderDate,
+        `"${itemsSummary.replace(/"/g, '""')}"`,
+        order.total_amount.toFixed(2),
+        totalProfit.toFixed(2),
+        order.status
+      ];
+    });
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `wholesale_sales_log_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("CSV exported successfully!", "success");
   };
 
   const getOrderItemsSummary = (orderId) => {
     const items = orderItems.filter(oi => oi.order_id === orderId);
     return items.map(oi => {
       const prod = products.find(p => p.id === oi.product_id);
-      return `${prod ? prod.name_kh : 'Product'} (x${oi.quantity})`;
+      return `${prod ? prod.name_kh : (oi.custom_name || 'Custom Item')} (x${oi.quantity})`;
     }).join(', ');
   };
 
@@ -97,6 +150,13 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
               Browse full sales records, update delivery and payment statuses, and review invoices.
             </p>
           </div>
+          <button
+            onClick={handleExportCSV}
+            className="glass-button-primary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Export Ledger CSV
+          </button>
         </div>
 
         {/* Filter Toolbar */}
@@ -158,6 +218,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                   
                   const currentItems = orderItems.filter(oi => oi.order_id === order.id);
                   const orderProfit = currentItems.reduce((sum, oi) => {
+                    if (!oi.product_id) return sum; // Skip custom items profit calculation
                     const cost = getItemCost(oi);
                     const selling = Number(oi.unit_price);
                     const qty = Number(oi.quantity);
@@ -288,6 +349,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                 <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
                   {activeOrderPreview.items.map((oi, idx) => {
                     const prod = products.find(p => p.id === oi.product_id);
+                    const isCustom = !oi.product_id;
                     const cost = getItemCost(oi);
                     const selling = Number(oi.unit_price);
                     const qty = Number(oi.quantity);
@@ -298,19 +360,25 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                       <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
                         <div className="space-y-1">
                           <div className="font-semibold text-white">
-                            {prod ? `${prod.name_kh} (${prod.name_en})` : 'Unknown Product'}
+                            {prod ? `${prod.name_kh} (${prod.name_en})` : (oi.custom_name || 'Custom Item')}
                           </div>
                           <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
-                            <span>Cost: ${cost.toFixed(2)}</span>
-                            <span>•</span>
+                            {!isCustom && <span>Cost: ${cost.toFixed(2)}</span>}
+                            {!isCustom && <span>•</span>}
                             <span>Sell: ${selling.toFixed(2)}</span>
                             <span>•</span>
                             <span>Qty: {qty}</span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
-                          <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
+                          {isCustom ? (
+                            <span className="font-semibold text-dark-400 block">$0.00</span>
+                          ) : (
+                            <>
+                              <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
+                              <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
@@ -320,7 +388,10 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                 <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
                   <span className="text-dark-300">Total Order Profit:</span>
                   <span className="text-lg text-emerald-400">
-                    ${activeOrderPreview.items.reduce((sum, oi) => sum + (Number(oi.unit_price) - getItemCost(oi)) * Number(oi.quantity), 0).toFixed(2)}
+                    ${activeOrderPreview.items.reduce((sum, oi) => {
+                      if (!oi.product_id) return sum;
+                      return sum + (Number(oi.unit_price) - getItemCost(oi)) * Number(oi.quantity);
+                    }, 0).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -364,8 +435,8 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                       return (
                         <tr key={index} className="text-gray-800">
                           <td className="py-2">
-                            <div className="font-bold">{prod?.name_kh}</div>
-                            <div className="text-[10px] text-gray-500">{prod?.name_en}</div>
+                            <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
+                            <div className="text-[10px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
                           </td>
                           <td className="py-2 text-center font-mono">{item.quantity}</td>
                           <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
@@ -445,8 +516,8 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                   return (
                     <tr key={index}>
                       <td className="py-1">
-                        <div className="font-bold">{prod?.name_kh}</div>
-                        <div className="text-[9px] text-gray-500">{prod?.name_en}</div>
+                        <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
+                        <div className="text-[9px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
                       </td>
                       <td className="py-1 text-center font-mono">{item.quantity}</td>
                       <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>

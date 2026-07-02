@@ -11,7 +11,9 @@ import {
   Moon,
   X,
   Tag,
-  Layers
+  Layers,
+  LayoutDashboard,
+  Keyboard
 } from 'lucide-react';
 import { getSupabaseConfig, db } from '../services/db';
 
@@ -20,7 +22,8 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
   const isSupabase = config.active && config.url && config.key;
 
   const menuItems = [
-    { id: 'pricing', label: 'Pricing Table', icon: Table },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'pricing', label: 'Pricing Catalog', icon: Table },
     { id: 'customers', label: 'Customer Directory', icon: Users },
     { id: 'invoice', label: 'Invoice Builder', icon: FileText },
     { id: 'sales', label: 'Sales Log', icon: ClipboardList },
@@ -69,6 +72,26 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
 
       {/* Nav List */}
       <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto scrollbar-thin">
+        {/* Command Palette Trigger Button */}
+        <button
+          onClick={() => {
+            const event = new KeyboardEvent('keydown', {
+              key: 'k',
+              metaKey: true,
+              ctrlKey: true,
+              bubbles: true
+            });
+            window.dispatchEvent(event);
+          }}
+          className="w-full flex items-center justify-between px-4 py-2.5 mb-4 rounded-xl border border-dark-850 hover:border-primary-500/25 bg-dark-900/40 hover:bg-dark-900/60 text-xs text-dark-400 hover:text-white cursor-pointer group transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Keyboard className="w-4 h-4 text-dark-500 group-hover:text-primary-400" />
+            <span>Command Menu</span>
+          </div>
+          <span className="font-mono text-[9px] bg-dark-950 px-1.5 py-0.5 rounded text-dark-500 border border-dark-800">⌘K</span>
+        </button>
+
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

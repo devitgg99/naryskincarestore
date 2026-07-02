@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tag, Search, Trash2, Edit2, CheckSquare, Square, X, Filter } from 'lucide-react';
 import { db } from '../services/db';
 
-export default function BrandManager({ brands, categories = [], products, onRefresh }) {
+export default function BrandManager({ brands, categories = [], products, onRefresh, showToast }) {
   const [editingBrand, setEditingBrand] = useState(null); // null when creating
   const [brandName, setBrandName] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -69,7 +69,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
   const handleSaveQuickEdit = async (e) => {
     e.preventDefault();
     if (!quickEditNameKh.trim() || !quickEditNameEn.trim()) {
-      alert("Please enter both Khmer and English product names.");
+      showToast("Please enter both Khmer and English product names.", "warning");
       return;
     }
 
@@ -85,11 +85,12 @@ export default function BrandManager({ brands, categories = [], products, onRefr
       };
 
       await db.saveProduct(updatedProduct);
+      showToast("Product updated successfully!", "success");
       setQuickEditingProduct(null);
       onRefresh();
     } catch (err) {
       console.error(err);
-      alert("Failed to save product details: " + err.message);
+      showToast("Failed to save product details: " + err.message, "error");
     } finally {
       setIsSavingQuickEdit(false);
     }
@@ -133,19 +134,20 @@ export default function BrandManager({ brands, categories = [], products, onRefr
 
   // Delete brand
   const handleDeleteBrand = async (brand) => {
-    if (!window.confirm(`Are you sure you want to delete the brand "${brand.name}"? Products under this brand will not be deleted, but they will be dissociated.`)) {
+    if (!confirm(`Are you sure you want to delete the brand "${brand.name}"? Products under this brand will not be deleted, but they will be dissociated.`)) {
       return;
     }
     setIsDeleting(true);
     try {
       await db.deleteBrand(brand.id);
+      showToast("Brand deleted successfully.", "success");
       if (editingBrand?.id === brand.id) {
         handleCancelEdit();
       }
       onRefresh();
     } catch (e) {
       console.error(e);
-      alert("Failed to delete brand: " + e.message);
+      showToast("Failed to delete brand: " + e.message, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -155,7 +157,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
   const handleSaveBrand = async (e) => {
     e.preventDefault();
     if (!brandName.trim()) {
-      alert("Please enter a brand name.");
+      showToast("Please enter a brand name.", "warning");
       return;
     }
 
@@ -173,6 +175,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
       // 2. Save bulk product associations
       await db.associateProductsWithBrand(savedBrand.id, selectedProductIds);
 
+      showToast("Brand saved and products associated successfully!", "success");
       // Reset form
       setBrandName('');
       setSelectedProductIds([]);
@@ -181,7 +184,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
       onRefresh();
     } catch (e) {
       console.error(e);
-      alert(e.message || "Failed to save brand details.");
+      showToast(e.message || "Failed to save brand details.", "error");
     } finally {
       setIsSaving(false);
     }
