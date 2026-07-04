@@ -402,7 +402,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <select
                     required
                     value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedCustomerId(val);
+                      if (val) {
+                        const customer = customers.find(c => c.id === val);
+                        if (customer) {
+                          setShopName(customer.name);
+                          setShopAddress(customer.location_note || '');
+                          setShopPhone(customer.phone || '');
+                        }
+                      }
+                    }}
                     className="w-full glass-input"
                   >
                     <option value="">-- Choose Customer --</option>
