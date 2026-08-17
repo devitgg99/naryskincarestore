@@ -1,7 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Printer, ShoppingCart, Truck, AlertTriangle, AlertCircle, RefreshCw, Search, Grid, Minus, X, Eye, ImageIcon } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Printer, 
+  ShoppingCart, 
+  Truck, 
+  AlertTriangle, 
+  AlertCircle, 
+  RefreshCw, 
+  Search, 
+  Grid, 
+  Minus, 
+  X, 
+  Eye, 
+  ImageIcon, 
+  Download, 
+  FileImage, 
+  Check, 
+  Share2 
+} from 'lucide-react';
+import { toPng, toJpeg } from 'html-to-image';
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
+
+// Floating-point precision math helper for currency calculations
+const roundMoney = (num) => {
+  const n = Number(num);
+  if (isNaN(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
+
+// Safe quantity parsing supporting floats/decimals
+const parseQuantity = (val) => {
+  if (val === '' || val === null || val === undefined) return 0;
+  const parsed = parseFloat(val);
+  return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+};
 
 export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
@@ -47,9 +81,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false, isCustom: false, custom_name: '' }
     ];
   });
+
   const [isSaving, setIsSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState(null); // Saved order details for print receipt preview modal
   const [previewOrder, setPreviewOrder] = useState(null); // Draft preview receipt details
+
+  // Image Export State & Refs
+  const printableCardRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // POS Quick Add States
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
@@ -136,13 +175,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         
         item.supplier_id = cheapest.supplier_id;
         item.supplier_price = cheapest.price; // Set initial supplier price (cost price)
-        item.unit_price = customSellingPrice !== null ? customSellingPrice : Math.round((highest.price + 0.20) * 100) / 100;
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : roundMoney(highest.price + 0.20);
         item.maxStock = cheapest.stock_qty;
         item.stockUnit = cheapest.stock_unit;
       } else {
         item.supplier_id = '';
         item.supplier_price = prod ? prod.base_price : 0;
-        item.unit_price = prod ? (customSellingPrice !== null ? customSellingPrice : Math.round((prod.base_price + 0.20) * 100) / 100) : 0;
+        item.unit_price = prod ? (customSellingPrice !== null ? customSellingPrice : roundMoney(prod.base_price + 0.20)) : 0;
         item.maxStock = 0;
         item.stockUnit = 'pcs';
       }
@@ -157,17 +196,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         // Update the selling price (unit_price) based on the new supplier cost
         const prod = products.find(p => p.id === item.product_id);
         const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
-        item.unit_price = customSellingPrice !== null ? customSellingPrice : Math.round((match.price + 0.20) * 100) / 100;
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : roundMoney(match.price + 0.20);
       }
     }
 
-    item.subtotal = Number(item.unit_price) * Number(item.quantity);
+    const qty = parseQuantity(item.quantity);
+    item.subtotal = roundMoney(Number(item.unit_price || 0) * qty);
     setLineItems(updated);
   };
 
   const addLineItem = () => {
     setLineItems([...lineItems, { 
-      id: Date.now().toString(), 
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5), 
       product_id: '', 
       supplier_id: '', 
       supplier_price: 0,
@@ -204,19 +244,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const addProductToInvoice = (productId, qtyToAdd = 1) => {
     setLineItems(prevItems => {
-      // 1. Check if the product is already in the invoice
-      const existingIdx = prevItems.findIndex(item => item.product_id === productId);
+      // Check if product is already in the invoice
+      const existingIdx = prevItems.findIndex(item => item.product_id === productId && !item.isCustom);
       
       if (existingIdx > -1) {
-        // Increment quantity of existing item
         const updated = [...prevItems];
         const item = { ...updated[existingIdx] };
-        item.quantity = Number(item.quantity) + Number(qtyToAdd);
-        item.subtotal = Number(item.unit_price) * item.quantity;
+        const currentQty = parseQuantity(item.quantity);
+        item.quantity = roundMoney(currentQty + parseQuantity(qtyToAdd));
+        item.subtotal = roundMoney(Number(item.unit_price) * parseQuantity(item.quantity));
         updated[existingIdx] = item;
         return updated;
       } else {
-        // Create new item
         const sps = productSupplierPrices[productId] || [];
         const cheapest = sps.length > 0 ? [...sps].sort((a, b) => a.price - b.price)[0] : null;
         const highest = sps.length > 0 ? [...sps].sort((a, b) => b.price - a.price)[0] : null;
@@ -228,12 +267,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const unit_price = customSellingPrice !== null 
           ? customSellingPrice 
           : (cheapest && highest
-            ? Math.round((highest.price + 0.20) * 100) / 100
-            : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0));
+            ? roundMoney(highest.price + 0.20)
+            : (prod ? roundMoney(prod.base_price + 0.20) : 0));
         const maxStock = cheapest ? cheapest.stock_qty : 0;
         const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
 
-        
         const newItem = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           product_id: productId,
@@ -241,15 +279,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           supplier_price,
           unit_price,
           quantity: qtyToAdd,
-          subtotal: Number(unit_price) * qtyToAdd,
+          subtotal: roundMoney(Number(unit_price) * parseQuantity(qtyToAdd)),
           maxStock,
           stockUnit,
           searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
           isDropdownOpen: false
         };
         
-        // If the first item in the list is empty (no product selected yet), replace it
-        if (prevItems.length === 1 && !prevItems[0].product_id) {
+        if (prevItems.length === 1 && !prevItems[0].product_id && !prevItems[0].isCustom) {
           return [newItem];
         }
         
@@ -258,26 +295,30 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     });
   };
 
+  // Calculations with money precision rounding
+  const subtotal = roundMoney(lineItems.reduce((sum, item) => {
+    return sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity));
+  }, 0));
 
-  // Calculations
-  const subtotal = lineItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const totalAmount = subtotal + Number(deliveryFee || 0);
-  const totalProfit = lineItems.reduce((sum, item) => {
-    if (item.isCustom || !item.product_id) return sum; // Skip profit calculation for custom items
-    const profit = (Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * Number(item.quantity || 0);
+  const totalAmount = roundMoney(subtotal + Number(deliveryFee || 0));
+
+  const totalProfit = roundMoney(lineItems.reduce((sum, item) => {
+    if (item.isCustom || !item.product_id) return sum;
+    const qty = parseQuantity(item.quantity);
+    const profit = (Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * qty;
     return sum + profit;
-  }, 0);
+  }, 0));
 
   const handleSaveInvoice = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!selectedCustomerId) {
       showToast("Please select a customer first!", "warning");
       return;
     }
 
-    const validItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && item.quantity > 0);
+    const validItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
     if (validItems.length === 0) {
-      showToast("Please add at least one valid product or custom line item.", "warning");
+      showToast("Please add at least one valid product or custom line item with quantity > 0.", "warning");
       return;
     }
 
@@ -290,7 +331,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         status: 'pending'
       };
 
-      const result = await db.createOrder(orderObj, validItems);
+      const sanitizedItems = validItems.map(item => ({
+        ...item,
+        quantity: parseQuantity(item.quantity),
+        subtotal: roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity))
+      }));
+
+      const result = await db.createOrder(orderObj, sanitizedItems);
       
       // Trigger canvas confetti celebration
       confetti({
@@ -305,7 +352,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       // Show print modal
       setSavedOrder({
         order: result,
-        items: validItems,
+        items: sanitizedItems,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
 
@@ -345,21 +392,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const handlePreviewReceipt = () => {
     const customer = customers.find(c => c.id === selectedCustomerId);
-    const activeItems = lineItems.filter(item => item.product_id || (item.isCustom && item.custom_name));
+    const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
     
     if (activeItems.length === 0) {
-      showToast("Please add at least one item with quantity to preview.", "warning");
+      showToast("Please add at least one item with valid quantity to preview.", "warning");
       return;
     }
 
-    const subtotal = activeItems.reduce((sum, item) => sum + Number(item.subtotal), 0);
-    const totalAmount = subtotal + Number(deliveryFee || 0);
+    const calcSubtotal = activeItems.reduce((sum, item) => sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity)), 0);
+    const calcTotalAmount = roundMoney(calcSubtotal + Number(deliveryFee || 0));
 
     const draftOrder = {
       order: {
         id: 'DRAFT_PREVIEW_' + Date.now().toString().slice(-4),
         delivery_fee: Number(deliveryFee || 0),
-        total_amount: totalAmount,
+        total_amount: calcTotalAmount,
         ordered_at: new Date().toISOString()
       },
       customer: customer || { name: 'Walk-in Customer', location_note: 'General Delivery', phone: '' },
@@ -369,32 +416,114 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         supplier_id: item.supplier_id || null,
         supplier_price: Number(item.supplier_price || 0),
         unit_price: Number(item.unit_price || 0),
-        quantity: Number(item.quantity || 0),
-        subtotal: Number(item.subtotal || 0)
+        quantity: parseQuantity(item.quantity),
+        subtotal: roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity))
       }))
     };
 
     setPreviewOrder(draftOrder);
   };
 
+  // Image Export Handler (PNG or JPEG)
+  const handleDownloadImage = async (format = 'png') => {
+    if (isExporting) return;
+
+    const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
+    
+    if (activeItems.length === 0 && !savedOrder && !previewOrder) {
+      showToast("Please add at least one valid product or item to export.", "warning");
+      return;
+    }
+
+    // Ensure preview receipt data is ready
+    if (!savedOrder && !previewOrder) {
+      handlePreviewReceipt();
+    }
+
+    setIsExporting(true);
+
+    // Allow state to settle and DOM element to render
+    await new Promise(r => setTimeout(r, 120));
+
+    try {
+      const node = printableCardRef.current;
+      if (!node) {
+        throw new Error("Invoice template container element not found");
+      }
+
+      const options = {
+        quality: 0.95,
+        pixelRatio: 3, // Crisp 3x DPI high resolution suitable for Telegram / WhatsApp sharing
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          margin: '0',
+          transform: 'none',
+          boxShadow: 'none',
+          maxWidth: 'none',
+          width: '460px' // Optimal crisp standard receipt dimension
+        }
+      };
+
+      const dataUrl = format === 'jpeg' ? await toJpeg(node, options) : await toPng(node, options);
+
+      const customer = customers.find(c => c.id === selectedCustomerId);
+      const safeName = customer ? customer.name.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF\u1780-\u17FF]/g, '_') : 'Customer';
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `Invoice_${safeName}_${timestamp}.${format}`;
+
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+
+      showToast(`Invoice exported as ${format.toUpperCase()} image!`, "success");
+    } catch (err) {
+      console.error("Export Image error:", err);
+      showToast("Failed to generate image: " + err.message, "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="no-print space-y-6">
         {/* Header Panel */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-5 sm:p-6 rounded-2xl border border-dark-800/40 shadow-sm">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide">Invoice Builder</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-wide flex items-center gap-2">
+              Invoice Builder
+            </h2>
             <p className="text-xs text-dark-400 mt-1">
-              Build wholesale invoices, compare and select suppliers, check stock levels, and print invoices.
+              Build wholesale invoices, compare suppliers, check stock levels, and print or export invoices as crisp images.
             </p>
+          </div>
+          
+          {/* Quick Action Badges for Mobile & Desktop */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => handleDownloadImage('png')}
+              disabled={isExporting}
+              className="flex-1 sm:flex-initial glass-button-secondary py-2 px-3 text-xs font-semibold flex items-center justify-center gap-1.5 min-h-[40px]"
+              title="Download Invoice as high-resolution PNG image"
+            >
+              {isExporting ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary-400" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-primary-400" />
+              )}
+              <span>Export Image</span>
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Side: Invoice Items Builder (2 cols) */}
-          <form onSubmit={handleSaveInvoice} className="lg:col-span-2 space-y-6">
-            <div className="glass-panel p-6 rounded-2xl border border-dark-800 space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Invoice Header</h3>
+          <form onSubmit={handleSaveInvoice} className="lg:col-span-2 space-y-6 min-w-0">
+            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-dark-800 space-y-4">
+              <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Invoice Header</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -414,7 +543,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         }
                       }
                     }}
-                    className="w-full glass-input"
+                    className="w-full glass-input min-h-[44px] text-xs sm:text-sm"
                   >
                     <option value="">-- Choose Customer --</option>
                     {customers.map(c => (
@@ -433,7 +562,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       min="0"
                       value={deliveryFee}
                       onChange={(e) => setDeliveryFee(e.target.value)}
-                      className="w-full pl-11 glass-input"
+                      className="w-full pl-11 glass-input min-h-[44px] text-xs sm:text-sm"
                       placeholder="1.50"
                     />
                   </div>
@@ -442,14 +571,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             {/* Line Items Grid */}
-            <div className="glass-panel p-6 rounded-2xl border border-dark-800 space-y-4">
+            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-dark-800 space-y-4 min-w-0">
               <div className="flex justify-between items-center flex-wrap gap-2">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
-                <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
+                
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                   <select
                     value={selectedBrandFilter}
                     onChange={(e) => setSelectedBrandFilter(e.target.value)}
-                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
+                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1.5 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer flex-1 sm:flex-initial"
                   >
                     <option value="all">All Brands</option>
                     <option value="none">No Brand</option>
@@ -461,7 +591,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <select
                     value={selectedCategoryFilter}
                     onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
+                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1.5 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer flex-1 sm:flex-initial"
                   >
                     <option value="all">All Categories</option>
                     <option value="none">No Category</option>
@@ -476,25 +606,26 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       const currentQties = {};
                       lineItems.forEach(item => {
                         if (item.product_id) {
-                          currentQties[item.product_id] = (currentQties[item.product_id] || 0) + item.quantity;
+                          currentQties[item.product_id] = (currentQties[item.product_id] || 0) + parseQuantity(item.quantity);
                         }
                       });
                       setBatchQuantities(currentQties);
                       setBatchSearchQuery('');
                       setIsBatchModalOpen(true);
                     }}
-                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs border-primary-500/10 hover:border-primary-500/30"
+                    className="glass-button-secondary py-1.5 px-3 flex items-center justify-center gap-1.5 text-xs border-primary-500/10 hover:border-primary-500/30 flex-1 sm:flex-initial"
                   >
                     <Grid className="w-3.5 h-3.5 text-primary-400" />
-                    Batch Add Catalog
+                    <span>Batch Add</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={addLineItem}
-                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs"
+                    className="glass-button-secondary py-1.5 px-3 flex items-center justify-center gap-1.5 text-xs flex-1 sm:flex-initial"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Add Product
+                    <span>Add Item</span>
                   </button>
                 </div>
               </div>
@@ -506,7 +637,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <input
                     ref={quickInputRef}
                     type="text"
-                    placeholder="⚡ POS Quick Search & Add Product (Search name & select to instantly add)..."
+                    placeholder="⚡ POS Quick Search & Add Product..."
                     value={quickSearchQuery}
                     onChange={(e) => {
                       setQuickSearchQuery(e.target.value);
@@ -516,7 +647,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     onBlur={() => {
                       setTimeout(() => setIsQuickDropdownOpen(false), 200);
                     }}
-                    className="w-full pl-11 pr-10 glass-input text-xs sm:text-sm font-medium border-primary-500/20 focus:border-primary-500/50 shadow-inner"
+                    className="w-full pl-11 pr-10 glass-input min-h-[44px] text-xs sm:text-sm font-medium border-primary-500/20 focus:border-primary-500/50 shadow-inner"
                   />
                   {quickSearchQuery && (
                     <button
@@ -542,7 +673,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
                       const existingQty = lineItems
                         .filter(item => item.product_id === p.id)
-                        .reduce((sum, item) => sum + Number(item.quantity), 0);
+                        .reduce((sum, item) => sum + parseQuantity(item.quantity), 0);
 
                       return (
                         <div
@@ -554,7 +685,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             setIsQuickDropdownOpen(false);
                             quickInputRef.current?.focus();
                           }}
-                          className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors flex justify-between items-center gap-4"
+                          className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors flex justify-between items-center gap-4 min-h-[44px]"
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
@@ -594,48 +725,52 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 )}
               </div>
 
-
-              <div className="space-y-3">
+              {/* Line Items Cards List - Fully Responsive for Mobile, Tablet & Desktop */}
+              <div className="space-y-4">
                 {lineItems.map((item, idx) => {
                   const sps = productSupplierPrices[item.product_id] || [];
                   const cheapestSp = [...sps].sort((a, b) => a.price - b.price)[0];
-                  const isStockWarning = item.product_id && item.supplier_id && (item.quantity > item.maxStock);
+                  const numericQty = parseQuantity(item.quantity);
+                  const isStockWarning = item.product_id && item.supplier_id && (numericQty > item.maxStock);
                   const prod = products.find(p => p.id === item.product_id);
 
                   return (
-                    <div key={item.id} className="p-4 rounded-xl border border-dark-850 bg-dark-950/20 space-y-4 sm:space-y-0 sm:flex sm:items-center sm:gap-3 transition-colors hover:border-dark-800">
-                      {/* Product Selector */}
-                      <div className="flex-1 min-w-[220px] flex items-center gap-3">
-                        {/* Product Image Thumbnail */}
-                        <div className="w-10 h-10 rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
+                    <div 
+                      key={item.id} 
+                      className="p-3.5 sm:p-4 rounded-xl border border-dark-850 bg-dark-950/40 space-y-3 transition-colors hover:border-dark-800"
+                    >
+                      {/* Top Row: Thumbnail + Product Selector / Custom Name + Item Mode + Delete */}
+                      <div className="flex items-center gap-3">
+                        {/* Thumbnail */}
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-dark-800 flex items-center justify-center overflow-hidden bg-dark-900 flex-shrink-0 shadow-inner">
                           {item.isCustom ? (
-                            <span className="text-[10px] text-primary-400 font-bold bg-primary-500/10 w-full h-full flex items-center justify-center">Custom</span>
+                            <span className="text-[10px] text-violet-400 font-bold bg-violet-500/10 w-full h-full flex items-center justify-center">Custom</span>
                           ) : (
                             prod && prod.image_url ? (
                               <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
                             ) : (
-                              <ImageIcon className="w-5 h-5 text-dark-600" />
+                              <ImageIcon className="w-5 h-5 text-dark-500" />
                             )
                           )}
                         </div>
 
-                        <div className="flex-1 relative">
-                          <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Product</label>
+                        {/* Search / Select Product Input */}
+                        <div className="flex-1 relative min-w-0">
                           {item.isCustom ? (
                             <input
                               type="text"
                               required
-                              placeholder="Enter custom product name..."
+                              placeholder="Custom item name..."
                               value={item.custom_name || ''}
                               onChange={(e) => updateLineItem(idx, 'custom_name', e.target.value)}
-                              className="w-full glass-input border-primary-500/20 focus:border-primary-500/50 font-medium"
+                              className="w-full glass-input border-violet-500/30 focus:border-violet-500/60 text-xs sm:text-sm font-medium min-h-[40px]"
                             />
                           ) : (
                             <>
                               <input
                                 type="text"
                                 required
-                                placeholder="Search product..."
+                                placeholder="Search & select product..."
                                 value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
                                 onFocus={() => {
                                   const updated = [...lineItems];
@@ -661,10 +796,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                   updated[idx].isDropdownOpen = true;
                                   setLineItems(updated);
                                 }}
-                                className="w-full glass-input"
+                                className="w-full glass-input text-xs sm:text-sm min-h-[40px]"
                               />
                               {item.isDropdownOpen && (
-                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-xl divide-y divide-dark-850 scrollbar-thin">
+                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin">
                                   {getFilteredProducts(item.searchQuery || '').map(p => (
                                     <div
                                       key={p.id}
@@ -675,7 +810,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                         updated[idx].isDropdownOpen = false;
                                         setLineItems(updated);
                                       }}
-                                      className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors"
+                                      className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors min-h-[44px]"
                                     >
                                       <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
                                       <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
@@ -689,120 +824,135 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             </>
                           )}
                         </div>
-                      </div>
 
-                      {/* Supplier Selector */}
-                      <div className="w-full sm:w-[170px]">
-                        <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Supplier & Price</label>
-                        {item.isCustom ? (
-                          <div className="w-full glass-input bg-dark-900/30 text-dark-400 text-xs italic flex items-center justify-center border-dashed border-dark-800 py-2.5">
-                            No Supplier (Ad-hoc)
-                          </div>
-                        ) : (
-                          <select
-                            required
-                            disabled={!item.product_id}
-                            value={item.supplier_id}
-                            onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
-                            className="w-full glass-input disabled:opacity-40"
-                          >
-                            {sps.length === 0 ? (
-                              <option value="">No suppliers</option>
-                            ) : (
-                              sps.map(sp => {
-                                const sup = suppliers.find(s => s.id === sp.supplier_id);
-                                const name = sup ? sup.name : 'Unknown';
-                                const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
-                                return (
-                                  <option key={sp.supplier_id} value={sp.supplier_id}>
-                                    {name}: ${sp.price.toFixed(2)} (Qty: {sp.stock_qty}){cheapestLabel}
-                                  </option>
-                                );
-                              })
-                            )}
-                          </select>
-                        )}
-                      </div>
-
-                      {/* Price field (editable input) */}
-                      <div className="w-28 relative">
-                        <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Selling Price</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs font-semibold">$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            required
-                            value={item.unit_price}
-                            onChange={(e) => updateLineItem(idx, 'unit_price', e.target.value)}
-                            className="w-full pl-6 pr-2 py-2 glass-input text-left text-white text-xs font-semibold focus:border-primary-500/50"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Quantity Input */}
-                      <div className="w-20 relative">
-                        <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden">Qty</label>
-                        <input
-                          type="number"
-                          min="1"
-                          required
-                          value={item.quantity}
-                          onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
-                          className="w-full glass-input text-center text-xs"
-                        />
-                      </div>
-
-                      {/* Subtotal */}
-                      <div className="w-28 text-right pr-2">
-                        <label className="block text-[10px] font-bold text-dark-500 uppercase tracking-wider mb-1 sm:hidden text-right">Subtotal</label>
-                        <span className="font-semibold text-white block text-sm">${Number(item.subtotal || 0).toFixed(2)}</span>
-                        {item.product_id && !item.isCustom && (
-                          <div className="text-[10px] text-emerald-400 font-medium mt-1 truncate" title={`Cost: $${Number(item.supplier_price || 0).toFixed(2)} / unit`}>
-                            Profit: +${((Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * Number(item.quantity || 0)).toFixed(2)}
-                          </div>
-                        )}
-                        {item.isCustom && (
-                          <div className="text-[10px] text-dark-500 font-semibold mt-1">
-                            No Profit calculated
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Remove / Mode Toggle Action */}
-                      <div className="flex items-center gap-2 pt-2 sm:pt-0">
-                        {/* Mode toggle */}
+                        {/* Mode toggle button */}
                         <button
                           type="button"
                           onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
-                          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer shrink-0 min-h-[40px] ${
                             item.isCustom 
                               ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/20' 
-                              : 'bg-dark-900/40 border-dark-800 text-dark-400 hover:text-white hover:bg-dark-800'
+                              : 'bg-dark-900/60 border-dark-800 text-dark-400 hover:text-white hover:bg-dark-800'
                           }`}
-                          title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual name/price input"}
+                          title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
                         >
                           {item.isCustom ? "Custom" : "Catalog"}
                         </button>
 
+                        {/* Remove button */}
                         <button
                           type="button"
                           onClick={() => removeLineItem(idx)}
-                          className="p-2 rounded bg-dark-900 border border-dark-800 hover:bg-dark-800 text-dark-400 hover:text-white transition-colors cursor-pointer"
+                          className="p-2.5 rounded-xl bg-dark-900 border border-dark-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-dark-400 hover:text-rose-400 transition-colors cursor-pointer shrink-0 min-h-[40px] min-w-[40px] flex items-center justify-center"
                           title="Remove row"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-
-                        {!item.isCustom && isStockWarning && (
-                          <div className="flex items-center gap-1 text-[10px] font-bold bg-amber-500/10 border border-amber-900/40 text-amber-400 px-1.5 py-1 rounded" title={`Available stock is only ${item.maxStock} ${item.stockUnit}`}>
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                            <span>Stock: {item.maxStock}</span>
-                          </div>
-                        )}
                       </div>
 
+                      {/* Controls Grid: Supplier, Unit Price, Decimal Quantity & Subtotal */}
+                      <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 items-end pt-1">
+                        {/* Supplier Selector (Mobile full width / Desktop 4 cols) */}
+                        <div className="col-span-2 sm:col-span-4">
+                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                            Supplier & Cost Price
+                          </label>
+                          {item.isCustom ? (
+                            <div className="w-full glass-input bg-dark-900/40 text-dark-400 text-xs italic flex items-center justify-center border-dashed border-dark-800 h-[40px]">
+                              No Supplier (Ad-hoc)
+                            </div>
+                          ) : (
+                            <select
+                              required
+                              disabled={!item.product_id}
+                              value={item.supplier_id}
+                              onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
+                              className="w-full glass-input text-xs disabled:opacity-40 h-[40px]"
+                            >
+                              {sps.length === 0 ? (
+                                <option value="">No suppliers</option>
+                              ) : (
+                                sps.map(sp => {
+                                  const sup = suppliers.find(s => s.id === sp.supplier_id);
+                                  const name = sup ? sup.name : 'Unknown';
+                                  const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
+                                  return (
+                                    <option key={sp.supplier_id} value={sp.supplier_id}>
+                                      {name}: ${sp.price.toFixed(2)} (Qty: {sp.stock_qty}){cheapestLabel}
+                                    </option>
+                                  );
+                                })
+                              )}
+                            </select>
+                          )}
+                        </div>
+
+                        {/* Unit Price field */}
+                        <div className="col-span-1 sm:col-span-3">
+                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                            Unit Price ($)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs font-semibold">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              required
+                              value={item.unit_price}
+                              onChange={(e) => updateLineItem(idx, 'unit_price', e.target.value)}
+                              className="w-full pl-6 pr-2 h-[40px] glass-input text-left text-white text-xs font-semibold focus:border-primary-500/50"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Quantity Field Supporting Integers and Floating Point Decimals (0.5, 1.5, 2.25) */}
+                        <div className="col-span-1 sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                            Qty (Float)
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            inputMode="decimal"
+                            required
+                            placeholder="1"
+                            value={item.quantity}
+                            onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
+                            className="w-full h-[40px] glass-input text-center text-xs font-semibold text-white focus:border-primary-500/50"
+                          />
+                        </div>
+
+                        {/* Line Subtotal & Profit Badge */}
+                        <div className="col-span-2 sm:col-span-3 text-right flex sm:flex-col justify-between sm:justify-end items-center sm:items-end pt-1 sm:pt-0">
+                          <div>
+                            <span className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider sm:mb-1">Line Total</span>
+                            <span className="font-bold text-white text-sm sm:text-base font-mono">
+                              ${roundMoney(Number(item.unit_price || 0) * numericQty).toFixed(2)}
+                            </span>
+                          </div>
+
+                          {item.product_id && !item.isCustom && (
+                            <div className="text-[10px] text-emerald-400 font-medium truncate" title={`Cost: $${Number(item.supplier_price || 0).toFixed(2)} / unit`}>
+                              Profit: +${roundMoney((Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * numericQty).toFixed(2)}
+                            </div>
+                          )}
+                          {item.isCustom && (
+                            <div className="text-[10px] text-dark-500 font-medium">
+                              Ad-hoc item
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stock Warning alert */}
+                      {!item.isCustom && isStockWarning && (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold bg-amber-500/10 border border-amber-900/40 text-amber-400 px-3 py-1.5 rounded-lg mt-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Stock Warning: Available stock is only {item.maxStock} {item.stockUnit}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -818,51 +968,74 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               <div className="space-y-3 text-sm border-b border-dark-800/80 pb-4">
                 <div className="flex justify-between text-dark-400">
                   <span>Items Subtotal</span>
-                  <span className="font-semibold text-dark-200">${subtotal.toFixed(2)}</span>
+                  <span className="font-semibold text-dark-200 font-mono">${subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-dark-400">
                   <span>Delivery Fee</span>
-                  <span className="font-semibold text-dark-200">${Number(deliveryFee || 0).toFixed(2)}</span>
+                  <span className="font-semibold text-dark-200 font-mono">${Number(deliveryFee || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-400 font-medium">
                   <span>Estimated Profit</span>
-                  <span>${totalProfit.toFixed(2)}</span>
+                  <span className="font-mono">${totalProfit.toFixed(2)}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-end">
                 <div>
                   <span className="text-xs text-dark-400 font-bold uppercase tracking-wider block">Grand Total</span>
-                  <span className="text-2xl font-black text-white">${totalAmount.toFixed(2)}</span>
+                  <span className="text-2xl sm:text-3xl font-black text-white font-mono">${totalAmount.toFixed(2)}</span>
                 </div>
                 <span className="text-xs text-primary-400 font-semibold italic bg-primary-500/5 px-2.5 py-1 rounded border border-primary-500/15">
-                  {lineItems.filter(item => item.product_id).length} Products
+                  {lineItems.filter(item => item.product_id || (item.isCustom && item.custom_name)).length} Items
                 </span>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handlePreviewReceipt}
-                  className="flex-1 glass-button-secondary py-3 font-semibold text-sm cursor-pointer"
-                >
-                  <Eye className="w-4 h-4 text-dark-300" />
-                  Preview Receipt
-                </button>
+              {/* Action Buttons Bar */}
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePreviewReceipt}
+                    className="flex-1 glass-button-secondary py-3 font-semibold text-xs sm:text-sm cursor-pointer min-h-[44px]"
+                  >
+                    <Eye className="w-4 h-4 text-dark-300" />
+                    <span>Preview</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadImage('png')}
+                    disabled={isExporting}
+                    className="flex-1 glass-button-secondary py-3 font-semibold text-xs sm:text-sm cursor-pointer border-primary-500/20 hover:border-primary-500/40 text-primary-300 min-h-[44px]"
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Exporting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 text-primary-400" />
+                        <span>Save Image</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
                 <button
                   onClick={handleSaveInvoice}
                   disabled={isSaving}
-                  className="flex-[1.5] glass-button-primary py-3 font-bold text-sm cursor-pointer"
+                  className="w-full glass-button-primary py-3.5 font-bold text-sm cursor-pointer min-h-[44px]"
                 >
                   {isSaving ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Saving...
+                      <span>Saving Invoice...</span>
                     </>
                   ) : (
                     <>
                       <ShoppingCart className="w-4 h-4" />
-                      Save & Print
+                      <span>Save & Print Invoice</span>
                     </>
                   )}
                 </button>
@@ -870,36 +1043,53 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             <div className="p-4 bg-dark-900/30 rounded-2xl border border-dashed border-dark-800 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-primary-400 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-primary-400 shrink-0" />
               <div className="text-xs text-dark-400">
-                <span className="font-bold text-white block mb-0.5">Auto-Pricing Rule</span>
-                cheapest supplier price is auto-filled. To edit suppliers, use the dropdown. Stocks decrement automatically.
+                <span className="font-bold text-white block mb-0.5">Decimal Quantities Supported</span>
+                Enter values like 0.5, 1.5, or 2.25. Use "Save Image" to export high-definition PNG invoice pictures ready for Telegram & WhatsApp sharing.
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Invoice Print Preview Modal Overlay */}
+      {/* Invoice Print & Image Preview Modal Overlay */}
       {(() => {
         const receiptData = savedOrder || previewOrder;
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
         return (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center no-print">
-            <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center no-print">
+            <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
               
               {/* Top Bar controls */}
-              <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
-                <h3 className="font-semibold text-white">
-                  {isDraft ? 'Receipt Preview (Draft)' : 'Invoice Details'}
+              <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40 flex-wrap gap-2">
+                <h3 className="font-semibold text-white text-sm sm:text-base flex items-center gap-2">
+                  <span>{isDraft ? 'Receipt Preview (Draft)' : 'Invoice Preview'}</span>
                 </h3>
-                <div className="flex gap-2">
-                  <button onClick={handlePrint} className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs">
-                    <Printer className="w-4 h-4" />
-                    {isDraft ? 'Print Draft' : 'Print Invoice'}
-                  </button>
+
+                <div className="flex items-center gap-2 flex-wrap">
                   <button 
+                    type="button"
+                    onClick={() => handleDownloadImage('png')} 
+                    disabled={isExporting}
+                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs text-primary-300 border-primary-500/30 hover:border-primary-500/60"
+                  >
+                    {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-primary-400" />}
+                    <span>Save Image (PNG)</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={handlePrint} 
+                    className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>{isDraft ? 'Print Draft' : 'Print Invoice'}</span>
+                  </button>
+
+                  <button 
+                    type="button"
                     onClick={() => { setSavedOrder(null); setPreviewOrder(null); }} 
                     className="glass-button-secondary py-1.5 px-3 text-xs"
                   >
@@ -909,14 +1099,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               </div>
 
               {/* Modal Body container (two-column split on md sizes) */}
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin bg-dark-950/20">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-dark-950/20">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
                   
                   {/* Left Column: Receipt Customization & Profit Card (5 cols) */}
-                  <div className="md:col-span-5 space-y-6 no-print">
+                  <div className="md:col-span-5 space-y-6 no-print order-2 md:order-1">
                     
                     {/* Header Customization Form */}
-                    <div className="glass-panel p-5 rounded-2xl border border-dark-800 bg-dark-900/60 space-y-4 shadow-lg text-left">
+                    <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-dark-800 bg-dark-900/60 space-y-4 shadow-lg text-left">
                       <h4 className="text-xs font-bold text-primary-400 uppercase tracking-widest border-b border-dark-800 pb-2">
                         Edit Receipt Header
                       </h4>
@@ -927,7 +1117,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             type="text" 
                             value={shopName} 
                             onChange={(e) => setShopName(e.target.value)} 
-                            className="w-full glass-input py-1 px-3 text-xs" 
+                            className="w-full glass-input py-1.5 px-3 text-xs" 
                           />
                         </div>
                         <div>
@@ -936,7 +1126,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             type="text" 
                             value={shopAddress} 
                             onChange={(e) => setShopAddress(e.target.value)} 
-                            className="w-full glass-input py-1 px-3 text-xs" 
+                            className="w-full glass-input py-1.5 px-3 text-xs" 
                           />
                         </div>
                         <div>
@@ -945,7 +1135,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             type="text" 
                             value={shopPhone} 
                             onChange={(e) => setShopPhone(e.target.value)} 
-                            className="w-full glass-input py-1 px-3 text-xs" 
+                            className="w-full glass-input py-1.5 px-3 text-xs" 
                           />
                         </div>
                         <div>
@@ -961,7 +1151,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     </div>
 
                     {/* Internal Profit Analysis Card (Owner Only) */}
-                    <div className="glass-panel p-5 rounded-2xl border border-dark-850 bg-dark-900/60 space-y-4 shadow-lg text-left">
+                    <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-dark-850 bg-dark-900/60 space-y-4 shadow-lg text-left">
                       <div className="flex justify-between items-center border-b border-dark-800 pb-3">
                         <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -978,9 +1168,9 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           const isCustom = !item.product_id;
                           const cost = Number(item.supplier_price || 0);
                           const selling = Number(item.unit_price);
-                          const qty = Number(item.quantity);
+                          const qty = parseQuantity(item.quantity);
                           const profitPerUnit = selling - cost;
-                          const itemProfit = profitPerUnit * qty;
+                          const itemProfit = roundMoney(profitPerUnit * qty);
                           
                           return (
                             <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
@@ -996,7 +1186,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                   <span>Qty: {qty}</span>
                                 </div>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right font-mono">
                                 {isCustom ? (
                                   <span className="font-semibold text-dark-400 block">$0.00</span>
                                 ) : (
@@ -1013,97 +1203,105 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       
                       <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
                         <span className="text-dark-300">Total Order Profit:</span>
-                        <span className="text-lg text-emerald-400">
-                          ${receiptData.items.reduce((sum, item) => {
+                        <span className="text-lg text-emerald-400 font-mono">
+                          ${roundMoney(receiptData.items.reduce((sum, item) => {
                             if (!item.product_id) return sum;
-                            return sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * Number(item.quantity);
-                          }, 0).toFixed(2)}
+                            return sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * parseQuantity(item.quantity);
+                          }, 0)).toFixed(2)}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Right Column: Printable Receipt Preview (7 cols) */}
-                  <div className="md:col-span-7 flex justify-center items-start">
-                    <div className="w-full max-w-md border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
-                      {isDraft && (
-                        <div className="no-print text-center text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold animate-pulse">
-                          ⚠️ DRAFT RECEIPT PREVIEW
-                        </div>
-                      )}
+                  <div className="md:col-span-7 flex flex-col justify-center items-center overflow-x-auto w-full order-1 md:order-2">
+                    {/* Visual Container Card for Modal Display */}
+                    <div className="w-full max-w-md bg-white border border-gray-300 p-6 shadow-xl rounded-xl text-black font-sans text-left my-1">
                       
-                      {/* Receipt Header */}
-                      <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
-                        <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
-                        <h2 className="text-lg font-bold text-black font-mono leading-tight">
-                          {shopName}
-                        </h2>
-                        <p className="text-[10px] text-gray-500">
-                          {shopAddress}
-                          {shopPhone ? ` • ទូរស័ព្ទ: ${shopPhone}` : ''}
-                        </p>
+                      {/* Ref node targeted for html-to-image export */}
+                      <div ref={printableCardRef} className="bg-white p-2 text-black font-sans">
+                        {isDraft && (
+                          <div className="no-print text-center text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold">
+                            ⚠️ DRAFT INVOICE PREVIEW
+                          </div>
+                        )}
                         
-                        <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-2 font-mono text-gray-700">
-                          <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
-                          <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
-                          <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
-                          {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
-                          {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
+                        {/* Receipt Header */}
+                        <div className="text-center space-y-1.5 border-b pb-4 border-dashed border-gray-300">
+                          <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
+                          <h2 className="text-base font-bold text-black font-mono leading-tight">
+                            {shopName}
+                          </h2>
+                          <p className="text-[10px] text-gray-600">
+                            {shopAddress}
+                            {shopPhone ? ` • Tel: ${shopPhone}` : ''}
+                          </p>
+                          
+                          <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-3 font-mono text-gray-800">
+                            <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
+                            <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
+                            <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
+                            {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
+                            {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Table items */}
-                      <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
-                        <thead>
-                          <tr className="border-b border-gray-300 font-bold text-gray-800">
-                            <th className="py-2">Description / ទំនិញ</th>
-                            <th className="py-2 text-center">Qty / 数量</th>
-                            <th className="py-2 text-right">Price / តម្លៃ</th>
-                            <th className="py-2 text-right">Total / សរុប</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {receiptData.items.map((item, index) => {
-                            const prod = products.find(p => p.id === item.product_id);
-                            return (
-                              <tr key={index} className="text-gray-800">
-                                <td className="py-2">
-                                  <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
-                                  <div className="text-[10px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
-                                </td>
-                                <td className="py-2 text-center font-mono">{item.quantity}</td>
-                                <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                                <td className="py-2 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                        {/* Table items */}
+                        <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
+                          <thead>
+                            <tr className="border-b border-gray-300 font-bold text-gray-900">
+                              <th className="py-2">Description / ទំនិញ</th>
+                              <th className="py-2 text-center">Qty</th>
+                              <th className="py-2 text-right">Price</th>
+                              <th className="py-2 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {receiptData.items.map((item, index) => {
+                              const prod = products.find(p => p.id === item.product_id);
+                              const qty = parseQuantity(item.quantity);
+                              const sub = roundMoney(Number(item.unit_price) * qty);
+                              return (
+                                <tr key={index} className="text-gray-900">
+                                  <td className="py-2">
+                                    <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
+                                    <div className="text-[10px] text-gray-500">{prod ? prod.name_en : 'Custom Item'}</div>
+                                  </td>
+                                  <td className="py-2 text-center font-mono font-medium">{qty}</td>
+                                  <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
+                                  <td className="py-2 text-right font-mono font-bold">${sub.toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
 
-                      {/* Totals block */}
-                      <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
-                        <div className="flex justify-between text-gray-700">
-                          <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
-                          <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                        {/* Totals block */}
+                        <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
+                          <div className="flex justify-between text-gray-700">
+                            <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
+                            <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-700">
+                            <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
+                            <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
+                            <span>Grand Total / សរុបរួម:</span>
+                            <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-gray-700">
-                          <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
-                          <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
-                          <span>Grand Total / សរុបរួម:</span>
-                          <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
-                        </div>
-                      </div>
 
-                      {/* Footer terms */}
-                      <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
-                        <p>{customFooter}</p>
-                        <p className="font-mono">Wholesale Portal Invoice System</p>
+                        {/* Footer terms */}
+                        <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
+                          <p className="font-medium text-gray-700">{customFooter}</p>
+                          <p className="font-mono text-[9px] text-gray-400">Wholesale Portal Invoice System</p>
+                        </div>
                       </div>
 
                     </div>
                   </div>
+
                 </div>
               </div>
               
@@ -1112,7 +1310,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         );
       })()}
 
-      {/* Actual Hidden print layout for window.print() */}
+      {/* Hidden print layout for standard window.print() */}
       {(() => {
         const receiptData = savedOrder || previewOrder;
         if (!receiptData) return null;
@@ -1154,15 +1352,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 <tbody className="divide-y divide-gray-150">
                   {receiptData.items.map((item, index) => {
                     const prod = products.find(p => p.id === item.product_id);
+                    const qty = parseQuantity(item.quantity);
+                    const sub = roundMoney(Number(item.unit_price) * qty);
                     return (
                       <tr key={index}>
                         <td className="py-1">
                           <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
                           <div className="text-[9px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
                         </td>
-                        <td className="py-1 text-center font-mono">{item.quantity}</td>
+                        <td className="py-1 text-center font-mono">{qty}</td>
                         <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                        <td className="py-1 text-right font-mono">${Number(item.subtotal).toFixed(2)}</td>
+                        <td className="py-1 text-right font-mono">${sub.toFixed(2)}</td>
                       </tr>
                     );
                   })}
@@ -1194,6 +1394,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           </div>
         );
       })()}
+
       {/* Batch Add Catalog Modal */}
       {isBatchModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center no-print">
@@ -1207,13 +1408,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   Batch Add Products from Catalog
                 </h3>
                 <p className="text-xs text-dark-400 mt-1">
-                  Adjust quantities for multiple products and apply them to the invoice in one batch.
+                  Adjust quantities for multiple products (including decimals like 0.5 or 1.5) and apply them in one batch.
                 </p>
               </div>
               <button 
                 type="button"
                 onClick={() => setIsBatchModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-dark-805 text-dark-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1257,7 +1458,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             {/* Modal Product Grid */}
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin bg-dark-950/10">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-dark-950/10">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {getFilteredProducts(batchSearchQuery).map(p => {
                   const sps = productSupplierPrices[p.id] || [];
@@ -1265,31 +1466,39 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     ? Math.min(...sps.map(sp => sp.price)) 
                     : p.base_price;
                   const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
-                  const qty = batchQuantities[p.id] || 0;
+                  const qtyRaw = batchQuantities[p.id];
+                  const qtyVal = parseQuantity(qtyRaw);
 
                   const handleQtyChange = (val) => {
-                    const parsed = parseInt(val, 10);
+                    if (val === '' || val === null) {
+                      setBatchQuantities(prev => ({ ...prev, [p.id]: '' }));
+                      return;
+                    }
+                    const parsed = parseFloat(val);
                     const newQty = isNaN(parsed) || parsed < 0 ? 0 : parsed;
                     setBatchQuantities(prev => ({
                       ...prev,
-                      [p.id]: newQty
+                      [p.id]: val
                     }));
                   };
 
                   const increment = () => {
-                    setBatchQuantities(prev => ({
-                      ...prev,
-                      [p.id]: (prev[p.id] || 0) + 1
-                    }));
+                    setBatchQuantities(prev => {
+                      const curr = parseQuantity(prev[p.id]);
+                      return {
+                        ...prev,
+                        [p.id]: roundMoney(curr + 1)
+                      };
+                    });
                   };
 
                   const decrement = () => {
                     setBatchQuantities(prev => {
-                      const current = prev[p.id] || 0;
-                      if (current <= 0) return prev;
+                      const curr = parseQuantity(prev[p.id]);
+                      if (curr <= 0) return prev;
                       return {
                         ...prev,
-                        [p.id]: current - 1
+                        [p.id]: roundMoney(Math.max(0, curr - 1))
                       };
                     });
                   };
@@ -1298,16 +1507,16 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     <div 
                       key={p.id} 
                       className={`p-4 rounded-xl border transition-all ${
-                        qty > 0 
-                          ? 'border-primary-500/40 bg-primary-500/5 shadow-md shadow-primary-500/2' 
+                        qtyVal > 0 
+                          ? 'border-primary-500/40 bg-primary-500/5 shadow-md shadow-primary-500/5' 
                           : 'border-dark-850 bg-dark-900/20 hover:border-dark-800'
                       }`}
                     >
                       <div className="flex items-start gap-3.5 min-h-[5rem]">
-                        {/* Interactive Large Image */}
+                        {/* Interactive Image */}
                         <div 
                           onClick={increment}
-                          className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
                           title="Click to increase quantity"
                         >
                           {p.image_url ? (
@@ -1317,7 +1526,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           )}
                         </div>
 
-                        {/* Product Info details */}
+                        {/* Product Info */}
                         <div className="flex-1 min-w-0 text-left space-y-1">
                           <div className="flex justify-between items-start gap-1.5">
                             <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-2">{p.name_kh}</h4>
@@ -1343,13 +1552,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-dark-850/60">
                         <div className="text-[10px] text-dark-500 text-left">
-                          <span className="block">Cost: ${cheapestPrice.toFixed(2)}</span>
-                          <span className={`${totalStock <= 2 ? 'text-rose-400' : 'text-dark-400'}`}>
+                          <span className="block font-mono">Cost: ${cheapestPrice.toFixed(2)}</span>
+                          <span className={`${totalStock <= 2 ? 'text-rose-400 font-semibold' : 'text-dark-400'}`}>
                             Stock: {totalStock}
                           </span>
                         </div>
 
-                        {/* Qty Selector */}
+                        {/* Qty Input Supporting Decimals */}
                         <div className="flex items-center gap-1 bg-dark-950/80 rounded-lg p-0.5 border border-dark-800">
                           <button
                             type="button"
@@ -1359,13 +1568,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             <Minus className="w-3.5 h-3.5" />
                           </button>
                           <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={qty || ''}
+                            type="number"
+                            step="any"
+                            min="0"
+                            inputMode="decimal"
+                            value={qtyRaw !== undefined ? qtyRaw : ''}
                             placeholder="0"
                             onChange={(e) => handleQtyChange(e.target.value)}
-                            className="w-10 text-center bg-transparent border-0 outline-none text-xs font-bold text-white p-0"
+                            className="w-12 text-center bg-transparent border-0 outline-none text-xs font-bold text-white p-0 font-mono"
                           />
                           <button
                             type="button"
@@ -1390,7 +1600,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             {/* Modal Footer */}
             <div className="p-4 border-t border-dark-800 flex flex-col sm:flex-row justify-between items-center gap-3 bg-dark-950/40">
               <div className="text-xs text-dark-400 text-center sm:text-left">
-                Selected: <strong className="text-white">{Object.values(batchQuantities).filter(q => q > 0).length}</strong> products
+                Selected: <strong className="text-white">{Object.values(batchQuantities).filter(q => parseQuantity(q) > 0).length}</strong> products
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
@@ -1404,20 +1614,19 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   type="button"
                   onClick={() => {
                     const itemsToApply = Object.entries(batchQuantities)
-                      .map(([id, q]) => ({ productId: id, qty: q }));
+                      .map(([id, q]) => ({ productId: id, qty: parseQuantity(q) }))
+                      .filter(item => item.qty > 0);
 
                     setLineItems(prevItems => {
                       let updated = [];
                       
                       itemsToApply.forEach(({ productId, qty }) => {
-                        if (qty <= 0) return;
-                        
-                        const existingItem = prevItems.find(item => item.product_id === productId);
+                        const existingItem = prevItems.find(item => item.product_id === productId && !item.isCustom);
                         if (existingItem) {
                           updated.push({
                             ...existingItem,
                             quantity: qty,
-                            subtotal: Number(existingItem.unit_price) * qty
+                            subtotal: roundMoney(Number(existingItem.unit_price) * qty)
                           });
                         } else {
                           const sps = productSupplierPrices[productId] || [];
@@ -1431,11 +1640,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           const unit_price = customSellingPrice !== null 
                             ? customSellingPrice 
                             : (cheapest && highest
-                              ? Math.round((highest.price + 0.20) * 100) / 100
-                              : (prod ? Math.round((prod.base_price + 0.20) * 100) / 100 : 0));
+                              ? roundMoney(highest.price + 0.20)
+                              : (prod ? roundMoney(prod.base_price + 0.20) : 0));
                           const maxStock = cheapest ? cheapest.stock_qty : 0;
                           const stockUnit = cheapest ? cheapest.stock_unit : 'pcs';
-
 
                           updated.push({
                             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -1444,7 +1652,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             supplier_price,
                             unit_price,
                             quantity: qty,
-                            subtotal: Number(unit_price) * qty,
+                            subtotal: roundMoney(Number(unit_price) * qty),
                             maxStock,
                             stockUnit,
                             searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
@@ -1487,4 +1695,3 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     </div>
   );
 }
-
