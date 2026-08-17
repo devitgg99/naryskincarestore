@@ -399,23 +399,36 @@ export const db = {
       const newOrder = orderData[0];
 
       // Create order items
-      const itemsToInsert = items.map(item => ({
-        order_id: newOrder.id,
-        product_id: item.product_id || null,
-        custom_name: item.custom_name || null,
-        supplier_id: item.supplier_id || null,
-        supplier_price: Number(item.supplier_price || 0),
-        unit_price: Number(item.unit_price),
-        quantity: Number(item.quantity),
-        subtotal: Number(item.subtotal)
-      }));
+      const itemsToInsert = items.map(item => {
+        const row = {
+          order_id: newOrder.id,
+          product_id: item.product_id || null,
+          supplier_id: item.supplier_id || null,
+          supplier_price: Number(item.supplier_price || 0),
+          unit_price: Number(item.unit_price),
+          quantity: Number(item.quantity),
+          subtotal: Number(item.subtotal)
+        };
+        if (item.custom_name) {
+          row.custom_name = item.custom_name;
+        }
+        return row;
+      });
 
-      const { error: itemsErr } = await client.from('order_items').insert(itemsToInsert);
+      let { error: itemsErr } = await client.from('order_items').insert(itemsToInsert);
+      
+      // Fallback: If Supabase schema does not have custom_name column yet, retry insert without custom_name
+      if (itemsErr && itemsErr.message && itemsErr.message.includes('custom_name')) {
+        const fallbackItems = itemsToInsert.map(({ custom_name, ...rest }) => rest);
+        const retryRes = await client.from('order_items').insert(fallbackItems);
+        itemsErr = retryRes.error;
+      }
+
       if (itemsErr) {
         // cleanup order
         await client.from('orders').delete().eq('id', newOrder.id);
         if (itemsErr.message && (itemsErr.message.includes('type integer') || itemsErr.code === '22P02')) {
-          throw new Error('Supabase column "order_items.quantity" is set to integer. Run this in your Supabase SQL Editor: ALTER TABLE order_items ALTER COLUMN quantity TYPE numeric(10,2);');
+          throw new Error('Supabase column "order_items.quantity" is set to integer. Run in Supabase SQL Editor: ALTER TABLE order_items ALTER COLUMN quantity TYPE numeric(10,2);');
         }
         throw itemsErr;
       }
