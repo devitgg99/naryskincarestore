@@ -402,6 +402,7 @@ export const db = {
       const itemsToInsert = items.map(item => ({
         order_id: newOrder.id,
         product_id: item.product_id || null,
+        custom_name: item.custom_name || null,
         supplier_id: item.supplier_id || null,
         supplier_price: Number(item.supplier_price || 0),
         unit_price: Number(item.unit_price),
@@ -413,12 +414,15 @@ export const db = {
       if (itemsErr) {
         // cleanup order
         await client.from('orders').delete().eq('id', newOrder.id);
+        if (itemsErr.message && (itemsErr.message.includes('type integer') || itemsErr.code === '22P02')) {
+          throw new Error('Supabase column "order_items.quantity" is set to integer. Run this in your Supabase SQL Editor: ALTER TABLE order_items ALTER COLUMN quantity TYPE numeric(10,2);');
+        }
         throw itemsErr;
       }
 
       // Decrement stocks in supplier_prices
       for (const item of items) {
-        if (item.supplier_id) {
+        if (item.supplier_id && item.product_id) {
           const { data: spData } = await client.from('supplier_prices')
             .select('stock_qty, stock_unit')
             .eq('product_id', item.product_id)
@@ -426,7 +430,7 @@ export const db = {
             .single();
           
           if (spData) {
-            const newStock = Math.max(0, spData.stock_qty - item.quantity);
+            const newStock = Math.max(0, Number(spData.stock_qty || 0) - Number(item.quantity || 0));
             await client.from('supplier_prices')
               .update({ stock_qty: newStock })
               .eq('product_id', item.product_id)

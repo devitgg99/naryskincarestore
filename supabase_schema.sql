@@ -25,7 +25,7 @@ create table if not exists supplier_prices (
   product_id uuid references products(id) on delete cascade,
   supplier_id uuid references suppliers(id) on delete cascade,
   price numeric(10, 2) not null default 0.00,
-  stock_qty integer not null default 0,
+  stock_qty numeric(10, 2) not null default 0.00,
   stock_unit text not null default 'pcs',
   updated_at timestamp with time zone default now(),
   unique (product_id, supplier_id)
@@ -60,7 +60,7 @@ create table if not exists order_items (
   supplier_id uuid references suppliers(id) on delete set null,
   supplier_price numeric(10, 2) not null default 0.00,
   unit_price numeric(10, 2) not null,
-  quantity integer not null,
+  quantity numeric(10, 2) not null,
   subtotal numeric(10, 2) not null
 );
 
@@ -139,6 +139,8 @@ alter table categories disable row level security;
 
 -- Migration/Upgrade updates
 alter table order_items add column if not exists custom_name text;
+alter table order_items alter column quantity type numeric(10, 2);
+alter table supplier_prices alter column stock_qty type numeric(10, 2);
 
 
 
