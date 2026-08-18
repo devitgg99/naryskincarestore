@@ -89,6 +89,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   // Image Export State & Refs
   const printableCardRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [imageExportModal, setImageExportModal] = useState(null);
 
   // POS Quick Add States
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
@@ -424,7 +425,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setPreviewOrder(draftOrder);
   };
 
-  // Image Export Handler (PNG or JPEG)
+  // Image Export Handler (PNG or JPEG) with Mobile Save to Photos & Native Share API
   const handleDownloadImage = async (format = 'png') => {
     if (isExporting) return;
 
@@ -472,12 +473,44 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `Invoice_${safeName}_${timestamp}.${format}`;
 
-      const link = document.createElement('a');
-      link.download = filename;
-      link.href = dataUrl;
-      link.click();
+      // Convert data URL to Blob and File for Mobile Native Share API & Blob Download
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const file = new File([blob], filename, { type: mimeType });
 
-      showToast(`Invoice exported as ${format.toUpperCase()} image!`, "success");
+      // Display dedicated Mobile & Desktop Image Export Modal
+      setImageExportModal({
+        dataUrl,
+        blobUrl,
+        filename,
+        file,
+        format
+      });
+
+      // Try Native Web Share API if supported (iPhone Safari, Android Chrome)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: filename,
+            text: `Wholesale Invoice - ${safeName}`
+          });
+          showToast("Invoice image shared / saved to photos!", "success");
+        } catch (shareErr) {
+          if (shareErr.name !== 'AbortError') {
+            console.warn("Native share failed, modal preview active", shareErr);
+          }
+        }
+      } else {
+        // Fallback link download for standard browsers
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = blobUrl;
+        link.click();
+        showToast(`Invoice generated! Long-press image to Save to Photos.`, "success");
+      }
     } catch (err) {
       console.error("Export Image error:", err);
       showToast("Failed to generate image: " + err.message, "error");
@@ -1689,6 +1722,96 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Mobile-Optimized Save to Photos / Share Image Modal */}
+      {imageExportModal && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center no-print animate-in fade-in duration-200">
+          <div className="bg-dark-900 border border-dark-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            
+            {/* Modal Top Bar */}
+            <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/60">
+              <h3 className="font-bold text-white text-sm sm:text-base flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-primary-400" />
+                <span>Save Invoice to Photos</span>
+              </h3>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (imageExportModal.blobUrl) URL.revokeObjectURL(imageExportModal.blobUrl);
+                  setImageExportModal(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Helper Banner for Mobile Users */}
+            <div className="bg-primary-500/10 border-b border-primary-500/20 p-3 px-4 text-xs text-primary-300 flex items-start gap-2.5">
+              <Share2 className="w-4 h-4 text-primary-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-white">Save to Mobile Photos / Gallery:</span>
+                <span>Tap <strong>Share / Save</strong> below, or <strong>long-press (touch & hold)</strong> the image to save directly into your Photos app.</span>
+              </div>
+            </div>
+
+            {/* Rendered Invoice Image Preview Node */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center bg-dark-950/40 min-h-[260px]">
+              <img 
+                src={imageExportModal.dataUrl} 
+                alt="Generated Invoice" 
+                className="w-full h-auto max-w-sm rounded-xl shadow-2xl border border-dark-700 select-all"
+              />
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 border-t border-dark-800 bg-dark-950/60 flex flex-col sm:flex-row gap-2">
+              {navigator.canShare && imageExportModal.file && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.share({
+                        files: [imageExportModal.file],
+                        title: imageExportModal.filename,
+                        text: 'Wholesale Invoice'
+                      });
+                    } catch (err) {
+                      if (err.name !== 'AbortError') {
+                        console.warn("Share failed", err);
+                      }
+                    }
+                  }}
+                  className="flex-1 glass-button-primary py-2.5 text-xs font-bold min-h-[44px]"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share / Save to Photos</span>
+                </button>
+              )}
+
+              <a
+                href={imageExportModal.blobUrl || imageExportModal.dataUrl}
+                download={imageExportModal.filename}
+                className="flex-1 glass-button-secondary py-2.5 text-xs font-semibold min-h-[44px] text-center flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4 text-primary-400" />
+                <span>Download File</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (imageExportModal.blobUrl) URL.revokeObjectURL(imageExportModal.blobUrl);
+                  setImageExportModal(null);
+                }}
+                className="glass-button-secondary py-2.5 px-4 text-xs font-medium min-h-[44px]"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
