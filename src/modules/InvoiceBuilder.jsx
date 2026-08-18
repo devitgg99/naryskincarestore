@@ -46,6 +46,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [deliveryFee, setDeliveryFee] = useState(() => {
     return localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
   });
+  const [discountType, setDiscountType] = useState(() => {
+    return localStorage.getItem('wsp_draft_discount_type') || 'fixed';
+  });
+  const [discountValue, setDiscountValue] = useState(() => {
+    return localStorage.getItem('wsp_draft_discount') || '0';
+  });
 
   // Receipt custom header states
   const [shopName, setShopName] = useState(() => localStorage.getItem('wsp_shop_name') || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)');
@@ -109,6 +115,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   useEffect(() => {
     localStorage.setItem('wsp_draft_delivery_fee', deliveryFee);
   }, [deliveryFee]);
+
+  useEffect(() => {
+    localStorage.setItem('wsp_draft_discount_type', discountType);
+  }, [discountType]);
+
+  useEffect(() => {
+    localStorage.setItem('wsp_draft_discount', discountValue);
+  }, [discountValue]);
 
   useEffect(() => {
     const cleanItems = lineItems.map(item => ({
@@ -301,7 +315,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     return sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity));
   }, 0));
 
-  const totalAmount = roundMoney(subtotal + Number(deliveryFee || 0));
+  const parsedDiscountVal = parseQuantity(discountValue);
+  const calculatedDiscount = discountType === 'percent'
+    ? roundMoney((subtotal * Math.min(100, parsedDiscountVal)) / 100)
+    : roundMoney(Math.min(subtotal, parsedDiscountVal));
+
+  const totalAmount = roundMoney(Math.max(0, subtotal - calculatedDiscount) + Number(deliveryFee || 0));
 
   const totalProfit = roundMoney(lineItems.reduce((sum, item) => {
     if (item.isCustom || !item.product_id) return sum;
@@ -328,6 +347,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       const orderObj = {
         customer_id: selectedCustomerId,
         delivery_fee: Number(deliveryFee),
+        discount: calculatedDiscount,
         total_amount: totalAmount,
         status: 'pending'
       };
@@ -352,7 +372,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       // Show print modal
       setSavedOrder({
-        order: result,
+        order: { ...result, discount: calculatedDiscount, delivery_fee: Number(deliveryFee) },
         items: sanitizedItems,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
@@ -401,12 +421,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
 
     const calcSubtotal = activeItems.reduce((sum, item) => sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity)), 0);
-    const calcTotalAmount = roundMoney(calcSubtotal + Number(deliveryFee || 0));
+    const calcTotalAmount = roundMoney(Math.max(0, calcSubtotal - calculatedDiscount) + Number(deliveryFee || 0));
 
     const draftOrder = {
       order: {
         id: 'DRAFT_PREVIEW_' + Date.now().toString().slice(-4),
         delivery_fee: Number(deliveryFee || 0),
+        discount: calculatedDiscount,
         total_amount: calcTotalAmount,
         ordered_at: new Date().toISOString()
       },
@@ -558,7 +579,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-dark-800 space-y-4">
               <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Invoice Header</h3>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Customer *</label>
                   <select
@@ -597,6 +618,42 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       onChange={(e) => setDeliveryFee(e.target.value)}
                       className="w-full pl-11 glass-input min-h-[44px] text-xs sm:text-sm"
                       placeholder="1.50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider">Discount</label>
+                    <div className="flex items-center gap-1 bg-dark-950 rounded-lg p-0.5 border border-dark-800">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType('fixed')}
+                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'fixed' ? 'bg-primary-500 text-white' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        $
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType('percent')}
+                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'percent' ? 'bg-primary-500 text-white' : 'text-dark-400 hover:text-white'}`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500 text-xs font-semibold">
+                      {discountType === 'fixed' ? '$' : '%'}
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      className="w-full pl-8 glass-input min-h-[44px] text-xs sm:text-sm font-semibold"
+                      placeholder="0.00"
                     />
                   </div>
                 </div>
@@ -1003,6 +1060,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <span>Items Subtotal</span>
                   <span className="font-semibold text-dark-200 font-mono">${subtotal.toFixed(2)}</span>
                 </div>
+                {calculatedDiscount > 0 && (
+                  <div className="flex justify-between text-rose-400 font-medium">
+                    <span>Discount {discountType === 'percent' ? `(${discountValue}%)` : ''}</span>
+                    <span className="font-mono">-${calculatedDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-dark-400">
                   <span>Delivery Fee</span>
                   <span className="font-semibold text-dark-200 font-mono">${Number(deliveryFee || 0).toFixed(2)}</span>
@@ -1313,8 +1376,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
                           <div className="flex justify-between text-gray-700">
                             <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
-                            <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                            <span>${receiptData.items.reduce((sum, item) => sum + roundMoney(Number(item.unit_price) * parseQuantity(item.quantity)), 0).toFixed(2)}</span>
                           </div>
+                          {Number(receiptData.order.discount || 0) > 0 && (
+                            <div className="flex justify-between text-rose-600 font-semibold">
+                              <span>Discount / បញ្ចុះតម្លៃ:</span>
+                              <span>-${Number(receiptData.order.discount).toFixed(2)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-gray-700">
                             <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
                             <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
@@ -1406,8 +1475,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               <div className="mt-2 space-y-1 text-[10px] text-right font-mono">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>${(receiptData.order.total_amount - receiptData.order.delivery_fee).toFixed(2)}</span>
+                  <span>${receiptData.items.reduce((sum, item) => sum + roundMoney(Number(item.unit_price) * parseQuantity(item.quantity)), 0).toFixed(2)}</span>
                 </div>
+                {Number(receiptData.order.discount || 0) > 0 && (
+                  <div className="flex justify-between font-bold">
+                    <span>Discount:</span>
+                    <span>-${Number(receiptData.order.discount).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Delivery:</span>
                   <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>

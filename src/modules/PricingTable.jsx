@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop } from 'lucide-react';
+import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop, LayoutGrid, List } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
 
@@ -479,6 +479,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('all');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+  const [viewLayoutMode, setViewLayoutMode] = useState('matrix'); // 'matrix' or 'cards'
   const [editingCell, setEditingCell] = useState(null); // { product, supplier, priceObj }
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
@@ -938,166 +939,296 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               <option key={s.id} value={s.id}>Only {s.name}</option>
             ))}
           </select>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-dark-950/60 p-1 rounded-xl border border-dark-800">
+            <button
+              type="button"
+              onClick={() => setViewLayoutMode('matrix')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                viewLayoutMode === 'matrix' ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20' : 'text-dark-400 hover:text-white'
+              }`}
+              title="Matrix Table View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Matrix View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewLayoutMode('cards')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                viewLayoutMode === 'cards' ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20' : 'text-dark-400 hover:text-white'
+              }`}
+              title="Mobile Card List View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mobile Cards</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="glass-panel rounded-2xl overflow-hidden border border-dark-800/40 shadow-xl">
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="bg-dark-900/60 border-b border-dark-800/40 text-dark-400 text-[11px] font-semibold tracking-wider uppercase">
-                <th className="p-4 min-w-[260px]">Product Details</th>
-                <th className="p-4 text-center">Selling Price</th>
-                {suppliers.map(supplier => {
-                  // Hide columns if single supplier filter is active (except selected)
-                  if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
-                  return (
-                    <th key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-dark-800/40 relative group">
-                      <span className="inline-block">{supplier.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSupplier(supplier);
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200 cursor-pointer"
-                        title={`Delete ${supplier.name}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark-850">
-              {filteredProducts.map(product => {
-                const cheapestPrice = getCheapestPrice(product.id);
-                const highestPrice = getHighestPrice(product.id);
-                const sellingPrice = product.selling_price && Number(product.selling_price) > 0
-                  ? Number(product.selling_price)
-                  : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
+      {viewLayoutMode === 'cards' ? (
+        <div className="space-y-4">
+          {filteredProducts.map(product => {
+            const cheapestPrice = getCheapestPrice(product.id);
+            const highestPrice = getHighestPrice(product.id);
+            const sellingPrice = product.selling_price && Number(product.selling_price) > 0
+              ? Number(product.selling_price)
+              : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
 
-                return (
-                  <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
-                    {/* Product Name + Image Thumbnail */}
-                    <td 
-                      onClick={() => handleProductClick(product)}
-                      className="p-4 cursor-pointer hover:bg-primary-500/5 transition-colors relative group/prod-name"
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
-                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
-                          {product.image_url ? (
-                            <img
-                              src={product.image_url}
-                              alt={product.name_en}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon className="w-4 h-4 text-dark-600" />
-                            </div>
-                          )}
+            return (
+              <div key={product.id} className="glass-panel p-5 rounded-2xl border border-dark-800 space-y-4 shadow-lg">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-dark-850 pb-3">
+                  <div 
+                    onClick={() => handleProductClick(product)}
+                    className="flex items-center gap-3 cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name_en} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-5 h-5 text-dark-600" />
                         </div>
-                        <div>
-                          <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
-                            <span>{product.name_kh}</span>
-                            <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
-                          </div>
-                          <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-1.5">
-                            <span>{product.name_en}</span>
-                            {product.brand_id && brandMap[product.brand_id] && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
-                                {brandMap[product.brand_id]}
-                              </span>
-                            )}
-                            {product.category_id && categoryMap[product.category_id] && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
-                                {categoryMap[product.category_id]}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base group-hover:text-primary-400 transition-colors flex items-center gap-1.5">
+                        {product.name_kh}
+                        <Edit2 className="w-3.5 h-3.5 opacity-60 text-primary-400" />
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-dark-400">
+                        <span>{product.name_en}</span>
+                        {product.brand_id && brandMap[product.brand_id] && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                            {brandMap[product.brand_id]}
+                          </span>
+                        )}
+                        {product.category_id && categoryMap[product.category_id] && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                            {categoryMap[product.category_id]}
+                          </span>
+                        )}
                       </div>
-                    </td>
-                    
-                    {/* Selling Price */}
-                    <td className="p-4 text-center font-medium text-dark-300">
-                      ${sellingPrice.toFixed(2)}
-                    </td>
+                    </div>
+                  </div>
 
-                    {/* Suppliers' columns */}
+                  <div className="flex items-center gap-3 self-start sm:self-auto">
+                    <div className="text-left sm:text-right">
+                      <span className="text-[10px] text-dark-400 block font-semibold uppercase">Selling Price</span>
+                      <span className="text-base font-bold text-white">${sellingPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supplier Offers List for Card */}
+                <div className="space-y-2">
+                  <h5 className="text-[11px] font-bold text-dark-400 uppercase tracking-wider">Supplier Offers</h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {suppliers.map(supplier => {
                       if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
-
                       const priceObj = priceMap[product.id] && priceMap[product.id][supplier.id];
                       const isCheapest = cheapestPrice && priceObj && priceObj.id === cheapestPrice.id;
-                      
+
                       return (
-                        <td 
+                        <div
                           key={supplier.id}
                           onClick={() => handleCellClick(product, supplier)}
-                          className={`p-4 text-center border-l border-dark-850 cursor-pointer transition-all duration-150 group/cell hover:bg-primary-500/5 ${
+                          className={`p-3.5 rounded-xl border cursor-pointer transition-colors flex justify-between items-center ${
                             isCheapest 
-                              ? 'bg-emerald-950/20 text-emerald-300 border-x border-emerald-900/40' 
-                              : ''
+                              ? 'bg-emerald-950/30 border-emerald-800/60 shadow-sm' 
+                              : 'bg-dark-950/40 border-dark-850 hover:bg-dark-900/60'
                           }`}
                         >
-                          {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
-                            <div className="space-y-1 relative">
-                              {/* Price */}
-                              <div className="font-semibold flex items-center justify-center gap-1.5">
-                                <span className={isCheapest ? 'text-emerald-400 text-base font-bold' : 'text-white'}>
+                          <div className="space-y-0.5">
+                            <span className="font-semibold text-xs text-white block">{supplier.name}</span>
+                            {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`font-bold text-sm ${isCheapest ? 'text-emerald-400' : 'text-white'}`}>
                                   ${priceObj.price.toFixed(2)}
                                 </span>
-                                {isCheapest && (
-                                  <span className="text-[9px] font-extrabold uppercase bg-emerald-500 text-dark-950 px-1 py-0.5 rounded leading-none">
-                                    Cheapest
-                                  </span>
-                                )}
+                                <span className={`text-[10px] ${priceObj.stock_qty <= 2 ? 'text-rose-400 font-bold' : 'text-dark-400'}`}>
+                                  (Stock: {priceObj.stock_qty} {priceObj.stock_unit})
+                                </span>
                               </div>
-                              {/* Stock */}
-                              <div className="space-y-0.5">
-                                <div className={`text-[11px] font-medium ${
-                                  priceObj.stock_qty <= 2 
-                                    ? 'text-rose-400 font-bold bg-rose-500/10 px-1 py-0.5 rounded inline-block' 
-                                    : 'text-dark-400'
-                                }`}>
-                                  Stock: {priceObj.stock_qty} {priceObj.stock_unit}
-                                </div>
-                                {priceObj.updated_at && (
-                                  <div className="text-[10px] text-dark-500 font-medium group-hover/cell:text-dark-400 transition-colors">
-                                    Updated: {new Date(priceObj.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <Edit2 className="w-3.5 h-3.5 absolute right-0 top-0 opacity-0 group-hover/cell:opacity-60 transition-opacity text-primary-400" />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-dark-600 italic group-hover/cell:text-dark-400">
-                              No offer +
+                            ) : (
+                              <span className="text-[11px] text-dark-500 italic">No offer +</span>
+                            )}
+                          </div>
+
+                          {isCheapest && (
+                            <span className="text-[9px] font-extrabold uppercase bg-emerald-500 text-dark-950 px-1.5 py-0.5 rounded leading-none shrink-0">
+                              Cheapest ★
                             </span>
                           )}
-                        </td>
+                        </div>
                       );
                     })}
-                  </tr>
-                );
-              })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
-              {filteredProducts.length === 0 && (
-                <tr>
-                  <td colSpan={2 + suppliers.length} className="p-8 text-center text-dark-500 italic">
-                    No products found matching your filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {filteredProducts.length === 0 && (
+            <div className="glass-panel p-8 text-center text-dark-500 italic rounded-2xl border border-dark-800">
+              No products found matching your filters.
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="glass-panel rounded-2xl overflow-hidden border border-dark-800/40 shadow-xl">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="bg-dark-900/60 border-b border-dark-800/40 text-dark-400 text-[11px] font-semibold tracking-wider uppercase">
+                  <th className="p-4 min-w-[260px]">Product Details</th>
+                  <th className="p-4 text-center">Selling Price</th>
+                  {suppliers.map(supplier => {
+                    if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
+                    return (
+                      <th key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-dark-800/40 relative group">
+                        <span className="inline-block">{supplier.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSupplier(supplier);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200 cursor-pointer"
+                          title={`Delete ${supplier.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-850">
+                {filteredProducts.map(product => {
+                  const cheapestPrice = getCheapestPrice(product.id);
+                  const highestPrice = getHighestPrice(product.id);
+                  const sellingPrice = product.selling_price && Number(product.selling_price) > 0
+                    ? Number(product.selling_price)
+                    : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
+
+                  return (
+                    <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
+                      <td 
+                        onClick={() => handleProductClick(product)}
+                        className="p-4 cursor-pointer hover:bg-primary-500/5 transition-colors relative group/prod-name"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt={product.name_en}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <ImageIcon className="w-4 h-4 text-dark-600" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
+                              <span>{product.name_kh}</span>
+                              <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
+                            </div>
+                            <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span>{product.name_en}</span>
+                              {product.brand_id && brandMap[product.brand_id] && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                                  {brandMap[product.brand_id]}
+                                </span>
+                              )}
+                              {product.category_id && categoryMap[product.category_id] && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                                  {categoryMap[product.category_id]}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      <td className="p-4 text-center font-medium text-dark-300">
+                        ${sellingPrice.toFixed(2)}
+                      </td>
+
+                      {suppliers.map(supplier => {
+                        if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
+
+                        const priceObj = priceMap[product.id] && priceMap[product.id][supplier.id];
+                        const isCheapest = cheapestPrice && priceObj && priceObj.id === cheapestPrice.id;
+                        
+                        return (
+                          <td 
+                            key={supplier.id}
+                            onClick={() => handleCellClick(product, supplier)}
+                            className={`p-4 text-center border-l border-dark-850 cursor-pointer transition-all duration-150 group/cell hover:bg-primary-500/5 ${
+                              isCheapest 
+                                ? 'bg-emerald-950/20 text-emerald-300 border-x border-emerald-900/40' 
+                                : ''
+                            }`}
+                          >
+                            {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
+                              <div className="space-y-1 relative">
+                                <div className="font-semibold flex items-center justify-center gap-1.5">
+                                  <span className={isCheapest ? 'text-emerald-400 text-base font-bold' : 'text-white'}>
+                                    ${priceObj.price.toFixed(2)}
+                                  </span>
+                                  {isCheapest && (
+                                    <span className="text-[9px] font-extrabold uppercase bg-emerald-500 text-dark-950 px-1 py-0.5 rounded leading-none">
+                                      Cheapest
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <div className={`text-[11px] font-medium ${
+                                    priceObj.stock_qty <= 2 
+                                      ? 'text-rose-400 font-bold bg-rose-500/10 px-1 py-0.5 rounded inline-block' 
+                                      : 'text-dark-400'
+                                  }`}>
+                                    Stock: {priceObj.stock_qty} {priceObj.stock_unit}
+                                  </div>
+                                  {priceObj.updated_at && (
+                                    <div className="text-[10px] text-dark-500 font-medium group-hover/cell:text-dark-400 transition-colors">
+                                      Updated: {new Date(priceObj.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <Edit2 className="w-3.5 h-3.5 absolute right-0 top-0 opacity-0 group-hover/cell:opacity-60 transition-opacity text-primary-400" />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-dark-600 italic group-hover/cell:text-dark-400">
+                                No offer +
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={2 + suppliers.length} className="p-8 text-center text-dark-500 italic">
+                      No products found matching your filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Edit Price/Stock Dialog Modal */}
       {editingCell && createPortal(

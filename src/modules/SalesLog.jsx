@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Search, Calendar, Filter, Eye, Printer, Trash2, Download } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Search, Calendar, Filter, Eye, Printer, Trash2, Download, ImageIcon, Share2, X, RefreshCw } from 'lucide-react';
+import { toPng, toJpeg } from 'html-to-image';
 import { db } from '../services/db';
 
 export default function SalesLog({ orders, customers, orderItems, products, prices, onRefresh, showToast }) {
@@ -7,6 +8,11 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState(''); // YYYY-MM-DD
   const [activeOrderPreview, setActiveOrderPreview] = useState(null); // Order details to view
+
+  // Image Export States & Ref
+  const printableCardRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [imageExportModal, setImageExportModal] = useState(null);
 
   // Helper to retrieve the cost of an item at order-time with cascade lookup fallbacks
   const getItemCost = (oi) => {
@@ -137,6 +143,79 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadImage = async (format = 'png') => {
+    if (isExporting || !activeOrderPreview) return;
+
+    setIsExporting(true);
+    await new Promise(r => setTimeout(r, 120));
+
+    try {
+      const node = printableCardRef.current;
+      if (!node) {
+        throw new Error("Printable invoice element not found");
+      }
+
+      const options = {
+        quality: 0.95,
+        pixelRatio: 3,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          margin: '0',
+          transform: 'none',
+          boxShadow: 'none',
+          maxWidth: 'none',
+          width: '460px'
+        }
+      };
+
+      const dataUrl = format === 'jpeg' ? await toJpeg(node, options) : await toPng(node, options);
+      const custName = activeOrderPreview.customer ? activeOrderPreview.customer.name.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF\u1780-\u17FF]/g, '_') : 'Customer';
+      const orderIdStr = activeOrderPreview.order.id.slice(-6).toUpperCase();
+      const filename = `Invoice_${orderIdStr}_${custName}.${format}`;
+
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const file = new File([blob], filename, { type: mimeType });
+
+      setImageExportModal({
+        dataUrl,
+        blobUrl,
+        filename,
+        file,
+        format
+      });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: filename,
+            text: `Wholesale Invoice #${orderIdStr}`
+          });
+          showToast("Invoice image shared / saved to photos!", "success");
+        } catch (shareErr) {
+          if (shareErr.name !== 'AbortError') {
+            console.warn("Native share failed", shareErr);
+          }
+        }
+      } else {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = blobUrl;
+        link.click();
+        showToast(`Invoice image generated! Long-press to save to Photos.`, "success");
+      }
+    } catch (err) {
+      console.error("Export error:", err);
+      showToast("Error generating image: " + err.message, "error");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -321,6 +400,14 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
             <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
               <h3 className="font-semibold text-white">Invoice Details</h3>
               <div className="flex gap-2">
+                <button 
+                  onClick={() => handleDownloadImage('png')} 
+                  disabled={isExporting}
+                  className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs text-primary-300 border-primary-500/30 hover:border-primary-500/60"
+                >
+                  {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-primary-400" />}
+                  <span>Save Image</span>
+                </button>
                 <button onClick={handlePrint} className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs">
                   <Printer className="w-4 h-4" />
                   Print Invoice
@@ -396,8 +483,10 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                 </div>
               </div>
 
-              {/* Printable Invoice - Customer Copy */}
-              <div className="max-w-md mx-auto border border-gray-300 p-6 bg-white shadow-sm print-card text-black font-sans text-left">
+              {/* Printable Invoice Container Card */}
+              <div className="flex flex-col justify-center items-center overflow-x-auto w-full">
+                <div className="w-full max-w-md border border-gray-300 p-6 bg-white shadow-xl rounded-xl text-black font-sans text-left">
+                  <div ref={printableCardRef} className="bg-white p-2 text-black font-sans">
                 
                 {/* Receipt Header */}
                 <div className="text-center space-y-2 border-b pb-4 border-dashed border-gray-300">
@@ -469,6 +558,8 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                   <p className="font-mono">Wholesale Portal Invoice System</p>
                 </div>
 
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -549,6 +640,96 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
               <p>សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you!)</p>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Mobile-Optimized Save to Photos / Share Image Modal */}
+      {imageExportModal && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center no-print animate-in fade-in duration-200">
+          <div className="bg-dark-900 border border-dark-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            
+            {/* Modal Top Bar */}
+            <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/60">
+              <h3 className="font-bold text-white text-sm sm:text-base flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-primary-400" />
+                <span>Save Invoice to Photos</span>
+              </h3>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (imageExportModal.blobUrl) URL.revokeObjectURL(imageExportModal.blobUrl);
+                  setImageExportModal(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Helper Banner for Mobile Users */}
+            <div className="bg-primary-500/10 border-b border-primary-500/20 p-3 px-4 text-xs text-primary-300 flex items-start gap-2.5">
+              <Share2 className="w-4 h-4 text-primary-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-white">Save to Mobile Photos / Gallery:</span>
+                <span>Tap <strong>Share / Save</strong> below, or <strong>long-press (touch & hold)</strong> the image to save directly into your Photos app.</span>
+              </div>
+            </div>
+
+            {/* Rendered Invoice Image Preview Node */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center bg-dark-950/40 min-h-[260px]">
+              <img 
+                src={imageExportModal.dataUrl} 
+                alt="Generated Invoice" 
+                className="w-full h-auto max-w-sm rounded-xl shadow-2xl border border-dark-700 select-all"
+              />
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="p-4 border-t border-dark-800 bg-dark-950/60 flex flex-col sm:flex-row gap-2">
+              {navigator.canShare && imageExportModal.file && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.share({
+                        files: [imageExportModal.file],
+                        title: imageExportModal.filename,
+                        text: 'Wholesale Invoice'
+                      });
+                    } catch (err) {
+                      if (err.name !== 'AbortError') {
+                        console.warn("Share failed", err);
+                      }
+                    }
+                  }}
+                  className="flex-1 glass-button-primary py-2.5 text-xs font-bold min-h-[44px]"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share / Save to Photos</span>
+                </button>
+              )}
+
+              <a
+                href={imageExportModal.blobUrl || imageExportModal.dataUrl}
+                download={imageExportModal.filename}
+                className="flex-1 glass-button-secondary py-2.5 text-xs font-semibold min-h-[44px] text-center flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4 text-primary-400" />
+                <span>Download File</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (imageExportModal.blobUrl) URL.revokeObjectURL(imageExportModal.blobUrl);
+                  setImageExportModal(null);
+                }}
+                className="glass-button-secondary py-2.5 px-4 text-xs font-medium min-h-[44px]"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
