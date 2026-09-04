@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Package, AlertTriangle, Check, Layers, ListFilter, Search, Eye, EyeOff, ImageIcon } from 'lucide-react';
 import { db } from '../services/db';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 
 
 export default function StockTracker({ products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
@@ -182,19 +187,19 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
   return (
     <div className="space-y-6">
       {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
+      <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card/60 backdrop-blur-md border-border shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-wide">Stock Tracker</h2>
-          <p className="text-xs text-dark-400 mt-1">
+          <h2 className="text-xl font-bold text-foreground tracking-wide">Stock Tracker</h2>
+          <p className="text-xs text-muted-foreground mt-1">
             Monitor product availability, adjust threshold levels, and review inventory counts.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Alert Threshold:</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Threshold:</span>
           <select
             value={lowStockThreshold}
             onChange={(e) => setLowStockThreshold(Number(e.target.value))}
-            className="glass-input py-1.5 px-3 min-w-[70px] text-center"
+            className="flex h-8 w-14 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-center font-mono font-bold"
           >
             <option value="1">1</option>
             <option value="2">2</option>
@@ -202,31 +207,33 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
             <option value="10">10</option>
           </select>
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowLowStockAlerts(!showLowStockAlerts)}
-            className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold"
+            className="h-8 gap-1.5 text-xs font-medium"
             type="button"
           >
             {showLowStockAlerts ? (
               <>
-                <EyeOff className="w-4 h-4 text-dark-400" />
+                <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
                 Hide Alerts
               </>
             ) : (
               <>
-                <Eye className="w-4 h-4 text-primary-400" />
+                <Eye className="w-3.5 h-3.5 text-primary" />
                 Show Alerts ({lowStockItems.length})
               </>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Low Stock Alerts */}
       {showLowStockAlerts && lowStockItems.length > 0 && (
-        <div className="bg-rose-950/20 border border-rose-900/30 rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2 text-rose-400 font-bold text-sm sm:text-base">
-            <AlertTriangle className="w-5 h-5" />
+        <Card className="bg-destructive/5 border-destructive/20 p-6 space-y-4 shadow-xs">
+          <div className="flex items-center gap-2 text-destructive font-bold text-sm sm:text-base">
+            <AlertTriangle className="w-4.5 h-4.5" />
             <h3>Low Stock Warnings ({lowStockItems.length} items)</h3>
           </div>
 
@@ -237,70 +244,73 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
               if (!prod || !sup) return null;
 
               return (
-                <div 
+                <Card 
                   key={sp.id} 
-                  className="bg-dark-950/40 border border-rose-900/20 rounded-xl p-4 flex justify-between items-center"
+                  className="bg-card/80 border-destructive/20 p-3.5 flex justify-between items-center shadow-xs"
                 >
                   <div className="flex items-center gap-3">
                     {/* Thumbnail */}
-                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border">
                       {prod.image_url ? (
                         <img src={prod.image_url} alt={prod.name_en} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="w-4 h-4 text-dark-600" />
+                          <ImageIcon className="w-4 h-4 text-muted-foreground" />
                         </div>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      <span className="font-bold text-white text-sm block">{prod.name_kh}</span>
-                      <span className="text-xs text-dark-400 block">{prod.name_en}</span>
-                      <span className="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full inline-block font-semibold mt-1">
-                        {sup.name}: {sp.stock_qty} {sp.stock_unit} left
-                      </span>
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-foreground text-xs block">{prod.name_kh}</span>
+                      <span className="text-[11px] text-muted-foreground block truncate max-w-[130px]">{prod.name_en}</span>
+                      <Badge variant="destructive" className="text-[9px] px-1.5 py-0 mt-1">
+                        {sup.name}: {sp.stock_qty} {sp.stock_unit}
+                      </Badge>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <button
+                    <Button
+                      size="sm"
                       onClick={() => handleQuickRestock(sp, 12)}
-                      className="glass-button-primary py-1 px-2.5 text-[10px] bg-emerald-700/80 hover:bg-emerald-600 font-bold"
+                      className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-500 font-bold"
                     >
                       +12 ({sp.stock_unit === 'pcs' ? 'pcs' : sp.stock_unit})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleQuickRestock(sp, 24)}
-                      className="glass-button-secondary py-1 px-2.5 text-[10px] border-dark-700 font-bold"
+                      className="h-6 text-[10px] px-2 font-bold"
                     >
                       +24
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Main Inventory Log Section */}
       <div className="space-y-4">
         {/* Toggle & Search bar */}
         <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <Package className="w-4.5 h-4.5 text-primary-400" />
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Package className="w-4.5 h-4.5 text-primary" />
             Inventory Records
           </h3>
 
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-1 max-w-2xl justify-end">
             {/* Search Input */}
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-              <input
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
                 type="text"
                 placeholder="Search products or suppliers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 py-1.5 glass-input text-xs"
+                className="pl-9 h-9 text-xs bg-background/50 border-input"
               />
             </div>
 
@@ -308,7 +318,7 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
             <select
               value={selectedBrandFilter}
               onChange={(e) => setSelectedBrandFilter(e.target.value)}
-              className="glass-input py-1.5 px-3 text-xs min-w-[130px]"
+              className="flex h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground min-w-[130px]"
             >
               <option value="all">All Brands</option>
               <option value="none">No Brand</option>
@@ -321,7 +331,7 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
             <select
               value={selectedCategoryFilter}
               onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-              className="glass-input py-1.5 px-3 text-xs min-w-[130px]"
+              className="flex h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground min-w-[130px]"
             >
               <option value="all">All Categories</option>
               <option value="none">No Category</option>
@@ -331,31 +341,27 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
             </select>
 
             {/* View toggles */}
-            <div className="flex items-center gap-2 bg-dark-900/30 p-1 rounded-xl border border-dark-800 self-end sm:self-auto">
-              <button
+            <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-lg border border-border self-end sm:self-auto">
+              <Button
                 type="button"
+                variant={groupMode === 'product' ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setGroupMode('product')}
-                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  groupMode === 'product'
-                    ? 'bg-primary-500/10 text-primary-400'
-                    : 'text-dark-400 hover:text-white'
-                }`}
+                className="h-7 px-2.5 text-xs font-semibold gap-1.5"
               >
                 <Layers className="w-3.5 h-3.5" />
-                Group by Product
-              </button>
-              <button
+                By Product
+              </Button>
+              <Button
                 type="button"
+                variant={groupMode === 'supplier' ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setGroupMode('supplier')}
-                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  groupMode === 'supplier'
-                    ? 'bg-primary-500/10 text-primary-400'
-                    : 'text-dark-400 hover:text-white'
-                }`}
+                className="h-7 px-2.5 text-xs font-semibold gap-1.5"
               >
                 <ListFilter className="w-3.5 h-3.5" />
-                Group by Supplier
-              </button>
+                By Supplier
+              </Button>
             </div>
           </div>
         </div>
@@ -368,31 +374,31 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
               if (productPrices.length === 0) return null;
 
               return (
-                <div key={product.id} className="glass-panel p-5 rounded-2xl border border-dark-800 space-y-4">
+                <Card key={product.id} className="p-5 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4">
                   {/* Title with thumbnail */}
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-muted border border-border">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name_en} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="w-5 h-5 text-dark-600" />
+                          <ImageIcon className="w-5 h-5 text-muted-foreground" />
                         </div>
                       )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-base">{product.name_kh}</h4>
+                      <h4 className="font-bold text-foreground text-base">{product.name_kh}</h4>
                       <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span className="text-xs text-dark-400">{product.name_en}</span>
+                        <span className="text-xs text-muted-foreground">{product.name_en}</span>
                         {product.brand_id && brands.find(b => b.id === product.brand_id) && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/30 text-primary bg-primary/10">
                             {brands.find(b => b.id === product.brand_id).name}
-                          </span>
+                          </Badge>
                         )}
                         {product.category_id && categories.find(c => c.id === product.category_id) && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/30 text-violet-500 bg-violet-500/10">
                             {categories.find(c => c.id === product.category_id).name}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -408,38 +414,38 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                       return (
                         <div 
                           key={sp.id} 
-                          className={`p-4 rounded-xl border bg-dark-950/20 flex flex-col justify-between gap-3 transition-colors ${
-                            isLow ? 'border-rose-900/30 bg-rose-950/5' : 'border-dark-850'
+                          className={`p-4 rounded-xl border bg-card/70 flex flex-col justify-between gap-3 transition-colors ${
+                            isLow ? 'border-destructive/30 bg-destructive/5' : 'border-border'
                           }`}
                         >
                           <div className="flex justify-between items-start">
                             <div>
-                              <span className="font-semibold text-white text-sm block">{sup ? sup.name : 'Unknown'}</span>
-                              <span className="text-xs font-medium text-emerald-400">${sp.price.toFixed(2)}</span>
+                              <span className="font-semibold text-foreground text-sm block">{sup ? sup.name : 'Unknown'}</span>
+                              <span className="text-xs font-bold text-emerald-500">${sp.price.toFixed(2)}</span>
                             </div>
                             
                             {isLow && (
-                              <span className="bg-rose-500/10 text-rose-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-rose-900/20">
+                              <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
                                 LOW
-                              </span>
+                              </Badge>
                             )}
                           </div>
 
                           {isEditing ? (
                             <div className="space-y-2">
                               <div className="flex gap-2">
-                                <input
+                                <Input
                                   type="number"
                                   min="0"
                                   value={editQty}
                                   onChange={(e) => setEditQty(e.target.value)}
-                                  className="w-16 glass-input py-1 px-2 text-xs text-center"
+                                  className="w-16 h-7 text-xs text-center px-1"
                                   placeholder="Qty"
                                 />
                                 <select
                                   value={editUnit}
                                   onChange={(e) => setEditUnit(e.target.value)}
-                                  className="flex-1 glass-input py-1 px-2 text-xs"
+                                  className="flex-1 h-7 rounded-md border border-input bg-card px-2 text-xs text-foreground"
                                 >
                                   <option value="pcs">pcs</option>
                                   <option value="lo">lo</option>
@@ -447,64 +453,69 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                                 </select>
                               </div>
                               <div className="relative">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dark-500 text-xs">$</span>
-                                <input
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                <Input
                                   type="number"
                                   step="any"
                                   min="0"
                                   value={editPrice}
                                   onChange={(e) => setEditPrice(e.target.value)}
-                                  className="w-full pl-6 pr-2 py-1 glass-input text-xs"
+                                  className="w-full pl-6 pr-2 h-7 text-xs"
                                   placeholder="Supplier Price"
                                 />
                               </div>
                               <div className="flex gap-2">
-                                <button
+                                <Button
+                                  size="sm"
                                   onClick={() => saveInlineEdit(sp)}
                                   disabled={isSaving}
-                                  className="flex-1 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold flex items-center justify-center gap-1"
+                                  className="flex-1 h-7 text-[11px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-500 text-white"
                                 >
                                   <Check className="w-3.5 h-3.5" /> Save
-                                </button>
-                                <button
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() => setEditingPriceId(null)}
-                                  className="py-1 px-2 bg-dark-800 hover:bg-dark-700 text-dark-300 rounded text-[11px] font-bold"
+                                  className="h-7 px-2 text-[11px] font-bold"
                                 >
                                   Cancel
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           ) : (
                             <div className="flex justify-between items-center gap-2">
                               <div className="text-left space-y-0.5">
-                                <span className="text-xs font-semibold text-dark-300 block">
-                                  Stock: <strong className="text-white">{sp.stock_qty}</strong> {sp.stock_unit}
+                                <span className="text-xs font-semibold text-muted-foreground block">
+                                  Stock: <strong className="text-foreground">{sp.stock_qty}</strong> {sp.stock_unit}
                                 </span>
                                 {sp.updated_at && (
-                                  <span className="text-[10px] text-dark-500 block">
+                                  <span className="text-[10px] text-muted-foreground block">
                                     Updated: {new Date(sp.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 )}
                               </div>
-                              <button
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => startEditing(sp)}
-                                className="text-xs font-bold text-primary-400 hover:text-primary-300 underline self-center"
+                                className="h-6 text-xs font-bold text-primary hover:text-primary px-2"
                               >
                                 Edit
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                </Card>
               );
             })}
             {filteredProducts.length === 0 && (
-              <div className="glass-panel p-8 text-center text-dark-500 italic rounded-2xl border border-dark-800">
+              <Card className="p-8 text-center text-muted-foreground italic border-dashed">
                 No products found matching your search.
-              </div>
+              </Card>
             )}
           </div>
         )}
@@ -547,31 +558,31 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
               if (filteredSupplierPrices.length === 0) return null;
 
               return (
-                <div key={supplier.id} className="glass-panel p-5 rounded-2xl border border-dark-800 space-y-4">
+                <Card key={supplier.id} className="p-5 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4">
                   {/* Title */}
-                  <div className="border-b border-dark-850 pb-3 flex justify-between items-center">
+                  <div className="border-b border-border pb-3 flex justify-between items-center">
                     <div>
-                      <h4 className="font-bold text-white text-base">{supplier.name}</h4>
-                      <p className="text-xs text-dark-400">Phone: {supplier.contact_phone || 'N/A'}</p>
+                      <h4 className="font-bold text-foreground text-base">{supplier.name}</h4>
+                      <p className="text-xs text-muted-foreground">Phone: {supplier.contact_phone || 'N/A'}</p>
                     </div>
-                    <span className="text-xs font-bold bg-dark-850 text-dark-300 px-3 py-1 rounded-full border border-dark-800">
+                    <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-0.5">
                       {filteredSupplierPrices.length} products
-                    </span>
+                    </Badge>
                   </div>
 
                   {/* Products table for this supplier */}
-                  <div className="overflow-x-auto scrollbar-thin">
-                    <table className="w-full border-collapse text-left text-xs sm:text-sm">
-                      <thead>
-                        <tr className="text-dark-400 font-bold border-b border-dark-850 pb-2">
-                          <th className="py-2">Product Name</th>
-                          <th className="py-2 text-center">Supplier Price</th>
-                          <th className="py-2 text-center">Selling Price</th>
-                          <th className="py-2 text-center">Stock Level</th>
-                          <th className="py-2 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-dark-850">
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/40">
+                          <TableHead className="py-2.5 text-xs font-bold">Product Name</TableHead>
+                          <TableHead className="py-2.5 text-center text-xs font-bold">Supplier Price</TableHead>
+                          <TableHead className="py-2.5 text-center text-xs font-bold">Selling Price</TableHead>
+                          <TableHead className="py-2.5 text-center text-xs font-bold">Stock Level</TableHead>
+                          <TableHead className="py-2.5 text-center text-xs font-bold">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {filteredSupplierPrices.map(sp => {
                           const prod = productMap[sp.product_id];
                           if (!prod) return null;
@@ -580,58 +591,58 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                           const isLow = sp.stock_qty <= lowStockThreshold;
 
                           return (
-                            <tr key={sp.id} className="hover:bg-dark-900/20">
-                              <td className="py-3">
-                                <div className="font-bold text-white">{prod.name_kh}</div>
-                                <div className="text-[10px] text-dark-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <TableRow key={sp.id} className="hover:bg-muted/30">
+                              <TableCell className="py-3">
+                                <div className="font-bold text-foreground">{prod.name_kh}</div>
+                                <div className="text-[10px] text-muted-foreground flex flex-wrap items-center gap-1.5 mt-0.5">
                                   <span>{prod.name_en}</span>
                                   {prod.brand_id && brands.find(b => b.id === prod.brand_id) && (
-                                    <span className="px-1 py-0.2 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-primary/30 text-primary bg-primary/10 font-bold">
                                       {brands.find(b => b.id === prod.brand_id).name}
-                                    </span>
+                                    </Badge>
                                   )}
                                   {prod.category_id && categories.find(c => c.id === prod.category_id) && (
-                                    <span className="px-1 py-0.2 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-violet-500/30 text-violet-500 bg-violet-500/10 font-bold">
                                       {categories.find(c => c.id === prod.category_id).name}
-                                    </span>
+                                    </Badge>
                                   )}
                                 </div>
-                              </td>
-                              <td className="py-3 text-center">
+                              </TableCell>
+                              <TableCell className="py-3 text-center">
                                 {isEditing ? (
-                                  <div className="relative w-20 mx-auto">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-dark-500 text-xs">$</span>
-                                    <input
+                                  <div className="relative w-24 mx-auto">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                    <Input
                                       type="number"
                                       step="any"
                                       min="0"
                                       value={editPrice}
                                       onChange={(e) => setEditPrice(e.target.value)}
-                                      className="w-full pl-5 pr-1 py-1 glass-input text-xs text-center font-bold text-emerald-400"
+                                      className="w-full pl-5 pr-1 h-7 text-xs text-center font-bold text-emerald-500"
                                     />
                                   </div>
                                 ) : (
-                                  <span className="text-emerald-400 font-bold">${sp.price.toFixed(2)}</span>
+                                  <span className="text-emerald-500 font-bold">${sp.price.toFixed(2)}</span>
                                 )}
-                              </td>
-                              <td className="py-3 text-center text-dark-400">
+                              </TableCell>
+                              <TableCell className="py-3 text-center text-muted-foreground font-mono">
                                 ${getProductSellingPrice(sp.product_id).toFixed(2)}
-                              </td>
+                              </TableCell>
                               
-                              <td className="py-3 text-center">
+                              <TableCell className="py-3 text-center">
                                 {isEditing ? (
                                   <div className="flex gap-1 justify-center items-center">
-                                    <input
+                                    <Input
                                       type="number"
                                       min="0"
                                       value={editQty}
                                       onChange={(e) => setEditQty(e.target.value)}
-                                      className="w-14 glass-input py-1 px-1 text-xs text-center"
+                                      className="w-14 h-7 text-xs text-center px-1"
                                     />
                                     <select
                                       value={editUnit}
                                       onChange={(e) => setEditUnit(e.target.value)}
-                                      className="glass-input py-1 px-1 text-xs"
+                                      className="h-7 rounded-md border border-input bg-card px-1 text-xs text-foreground"
                                     >
                                       <option value="pcs">pcs</option>
                                       <option value="lo">lo</option>
@@ -640,59 +651,62 @@ export default function StockTracker({ products, suppliers, prices, brands = [],
                                   </div>
                                 ) : (
                                   <div className="space-y-0.5">
-                                    <span className={`font-bold px-2 py-0.5 rounded ${
-                                      isLow ? 'text-rose-400 bg-rose-500/10 font-black' : 'text-white'
-                                    }`}>
+                                    <Badge variant={isLow ? "destructive" : "secondary"} className="font-bold">
                                       {sp.stock_qty} {sp.stock_unit}
-                                    </span>
+                                    </Badge>
                                     {sp.updated_at && (
-                                      <span className="block text-[10px] text-dark-500 font-medium">
+                                      <span className="block text-[10px] text-muted-foreground font-medium">
                                         {new Date(sp.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                       </span>
                                     )}
                                   </div>
                                 )}
-                              </td>
+                              </TableCell>
 
-                              <td className="py-3 text-center">
+                              <TableCell className="py-3 text-center">
                                 {isEditing ? (
                                   <div className="flex gap-1 justify-center">
-                                    <button
+                                    <Button
+                                      size="sm"
                                       onClick={() => saveInlineEdit(sp)}
                                       disabled={isSaving}
-                                      className="p-1 bg-emerald-600 text-white rounded font-bold"
+                                      className="h-7 w-7 p-0 bg-emerald-600 hover:bg-emerald-500 text-white"
                                     >
                                       <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       onClick={() => setEditingPriceId(null)}
-                                      className="p-1 bg-dark-800 text-dark-300 rounded font-bold"
+                                      className="h-7 w-7 p-0"
                                     >
-                                      X
-                                    </button>
+                                      ✕
+                                    </Button>
                                   </div>
                                 ) : (
-                                  <button
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => startEditing(sp)}
-                                    className="text-xs font-bold text-primary-400 hover:text-primary-300 underline"
+                                    className="h-7 text-xs font-bold text-primary hover:text-primary"
                                   >
                                     Edit Stock
-                                  </button>
+                                  </Button>
                                 )}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
-                </div>
+                </Card>
               );
             })}
             {filteredSuppliers.length === 0 && (
-              <div className="glass-panel p-8 text-center text-dark-500 italic rounded-2xl border border-dark-800">
+              <Card className="p-8 text-center text-muted-foreground italic border-dashed">
                 No suppliers found matching your search.
-              </div>
+              </Card>
             )}
           </div>
         )}

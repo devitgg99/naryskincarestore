@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, MapPin, Phone, Calendar, ShoppingBag, Edit, Trash2, X } from 'lucide-react';
+import { Search, Plus, MapPin, Phone, Calendar, ShoppingBag, Edit, Trash2 } from 'lucide-react';
 import { db } from '../services/db';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export default function CustomerDirectory({ customers, orders, orderItems, products, onRefresh, showToast }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,41 +110,41 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
     const items = orderItems.filter(oi => oi.order_id === orderId);
     return items.map(oi => {
       const prod = products.find(p => p.id === oi.product_id);
-      const name = prod ? prod.name_kh : 'Product';
-      return `${name} (x${oi.quantity})`;
+      const prodName = prod ? prod.name_kh : 'Product';
+      return `${prodName} (x${oi.quantity})`;
     }).join(', ');
   };
 
   return (
     <div className="space-y-6">
       {/* Header Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
+      <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card/60 backdrop-blur-md border-border shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-wide">Customer Directory</h2>
-          <p className="text-xs text-dark-400 mt-1">
+          <h2 className="text-xl font-bold text-foreground tracking-wide">Customer Directory</h2>
+          <p className="text-xs text-muted-foreground mt-1">
             Manage customer records, map coordinates, and review purchase statistics.
           </p>
         </div>
-        <button 
+        <Button 
           onClick={() => handleOpenForm(null)}
-          className="glass-button-primary"
+          className="gap-2"
         >
           <Plus className="w-4 h-4" />
           Add Customer
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Side: Directory List (5 cols) */}
         <div className="lg:col-span-5 space-y-4 flex flex-col h-[calc(100vh-270px)]">
           <div className="relative">
-            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-            <input
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="text"
               placeholder="Search customers by name or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 glass-input"
+              className="pl-10"
             />
           </div>
 
@@ -143,56 +154,60 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
               const isSelected = activeCustomer && customer.id === activeCustomer.id;
 
               return (
-                <div
+                <Card
                   key={customer.id}
                   onClick={() => setSelectedCustomerId(customer.id)}
-                  className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer relative group flex items-start justify-between ${
+                  className={`p-4 border transition-all duration-150 cursor-pointer relative group flex items-start justify-between shadow-xs ${
                     isSelected 
-                      ? 'bg-primary-500/10 border-primary-500/40 shadow-md shadow-primary-500/5' 
-                      : 'bg-dark-900/30 border-dark-800/80 hover:bg-dark-900/60'
+                      ? 'bg-primary/10 border-primary/50 ring-1 ring-primary/20' 
+                      : 'hover:bg-accent/50 border-border'
                   }`}
                 >
                   <div className="space-y-1 flex-1">
-                    <h4 className="font-semibold text-white group-hover:text-primary-400 transition-colors text-sm sm:text-base">
+                    <h4 className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm sm:text-base">
                       {customer.name}
                     </h4>
-                    <div className="flex items-center gap-4 text-xs text-dark-400">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       {customer.phone && (
                         <span className="flex items-center gap-1">
-                          <Phone className="w-3.5 h-3.5 text-dark-500" />
+                          <Phone className="w-3 h-3 text-muted-foreground" />
                           {customer.phone}
                         </span>
                       )}
-                      <span className="bg-dark-800 text-dark-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      <Badge variant="secondary" className="text-[10px] font-mono px-2 py-0">
                         {count} orders
-                      </span>
+                      </Badge>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 opacity-80 hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity pl-2">
-                    <button 
+                  <div className="flex gap-1.5 opacity-90 hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity pl-2">
+                    <Button 
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => { e.stopPropagation(); handleOpenForm(customer); }}
-                      className="p-1.5 rounded bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white transition-colors"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       title="Edit Customer"
                     >
                       <Edit className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
+                    </Button>
+                    <Button 
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(customer.id); }}
-                      className="p-1.5 rounded bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/20 transition-colors"
+                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                       title="Delete Customer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Card>
               );
             })}
 
             {filteredCustomers.length === 0 && (
-              <div className="p-8 text-center text-dark-500 italic">
+              <Card className="p-8 text-center text-muted-foreground italic text-xs border-dashed">
                 No customers found.
-              </div>
+              </Card>
             )}
           </div>
         </div>
@@ -200,23 +215,23 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
         {/* Right Side: Profile & Invoices history (7 cols) */}
         <div className="lg:col-span-7">
           {activeCustomer ? (
-            <div className="glass-panel rounded-2xl border border-dark-800 p-6 space-y-6 h-[calc(100vh-270px)] overflow-y-auto scrollbar-thin">
+            <Card className="border-border p-6 space-y-6 h-[calc(100vh-270px)] overflow-y-auto scrollbar-thin shadow-xs">
               {/* Profile Card */}
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b border-dark-800/80">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b border-border">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary-600 to-violet-500 flex items-center justify-center font-bold text-white shadow-lg text-lg">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center font-bold text-white shadow-md text-lg">
                       {activeCustomer.name.charAt(0)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-white">{activeCustomer.name}</h3>
-                      <p className="text-xs text-dark-400">Created: {new Date(activeCustomer.created_at).toLocaleDateString()}</p>
+                      <h3 className="text-lg font-bold text-foreground">{activeCustomer.name}</h3>
+                      <p className="text-xs text-muted-foreground">Created: {new Date(activeCustomer.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   
                   {activeCustomer.location_note && (
-                    <div className="flex items-start gap-2 text-sm text-dark-300 bg-dark-950/40 p-3 rounded-xl border border-dark-850">
-                      <MapPin className="w-4 h-4 text-primary-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex items-start gap-2 text-sm text-foreground/80 bg-muted/40 p-3 rounded-xl border border-border">
+                      <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                       <span>{activeCustomer.location_note}</span>
                     </div>
                   )}
@@ -228,199 +243,195 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
                       href={activeCustomer.map_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="glass-button-primary py-2 px-3 flex items-center gap-1.5"
                     >
-                      <MapPin className="w-4 h-4" />
-                      Google Maps
+                      <Button size="sm" variant="default" className="gap-1.5 h-8 text-xs">
+                        <MapPin className="w-3.5 h-3.5" />
+                        Google Maps
+                      </Button>
                     </a>
                   ) : (
-                    <span className="text-[10px] text-dark-500 italic border border-dashed border-dark-800 p-2 rounded-xl flex items-center">
+                    <span className="text-[10px] text-muted-foreground italic border border-dashed border-border px-2.5 py-1 rounded-lg flex items-center">
                       No GPS location added
                     </span>
                   )}
                   
-                  <button 
+                  <Button 
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleOpenForm(activeCustomer)}
-                    className="glass-button-secondary py-2 px-3 flex items-center gap-1.5"
+                    className="gap-1.5 h-8 text-xs"
                   >
-                    <Edit className="w-4 h-4 text-primary-400" />
+                    <Edit className="w-3.5 h-3.5 text-primary" />
                     Edit Info
-                  </button>
+                  </Button>
                   
-                  <button 
+                  <Button 
+                    variant="destructive"
+                    size="sm"
                     onClick={() => handleDeleteCustomer(activeCustomer.id)}
-                    className="glass-button-danger py-2 px-3 flex items-center gap-1.5"
+                    className="gap-1.5 h-8 text-xs"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Customer
-                  </button>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </Button>
                 </div>
               </div>
 
               {/* Stats Block */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-dark-950/40 p-4 rounded-xl border border-dark-850 text-center">
-                  <span className="text-xs font-semibold text-dark-400 uppercase tracking-wider block">Total Spent</span>
-                  <span className="text-lg sm:text-2xl font-black text-emerald-400 block mt-1">${totalSpent.toFixed(2)}</span>
-                </div>
-                <div className="bg-dark-950/40 p-4 rounded-xl border border-dark-850 text-center">
-                  <span className="text-xs font-semibold text-dark-400 uppercase tracking-wider block">Orders</span>
-                  <span className="text-lg sm:text-2xl font-black text-primary-400 block mt-1">{customerOrders.length}</span>
-                </div>
-                <div className="bg-dark-950/40 p-4 rounded-xl border border-dark-850 text-center">
-                  <span className="text-xs font-semibold text-dark-400 uppercase tracking-wider block">Avg. Invoice</span>
-                  <span className="text-lg sm:text-2xl font-black text-violet-400 block mt-1">${avgOrderValue.toFixed(2)}</span>
-                </div>
+                <Card className="bg-muted/30 p-4 text-center border-border">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Total Spent</span>
+                  <span className="text-lg sm:text-2xl font-black text-emerald-400 block mt-1 font-mono">${totalSpent.toFixed(2)}</span>
+                </Card>
+                <Card className="bg-muted/30 p-4 text-center border-border">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Orders</span>
+                  <span className="text-lg sm:text-2xl font-black text-primary block mt-1 font-mono">{customerOrders.length}</span>
+                </Card>
+                <Card className="bg-muted/30 p-4 text-center border-border">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Avg. Invoice</span>
+                  <span className="text-lg sm:text-2xl font-black text-violet-400 block mt-1 font-mono">${avgOrderValue.toFixed(2)}</span>
+                </Card>
               </div>
 
               {/* Invoices History list */}
               <div className="space-y-3">
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-primary-400" />
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-primary" />
                   Invoice History
                 </h4>
 
                 <div className="space-y-2">
                   {customerOrders.map(order => (
-                    <div 
+                    <Card 
                       key={order.id}
-                      className="p-4 rounded-xl border border-dark-850 bg-dark-900/20 hover:bg-dark-900/50 transition-colors flex justify-between items-center group/order"
+                      className="p-3.5 border-border bg-card/60 hover:bg-accent/40 transition-colors flex justify-between items-center shadow-2xs"
                     >
                       <div className="space-y-1 pr-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-dark-400 bg-dark-800 px-1.5 py-0.5 rounded font-mono">
+                          <span className="text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
                             ID: {order.id.slice(-6).toUpperCase()}
                           </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                            order.status === 'paid' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-900/30'
-                              : order.status === 'delivered'
-                              ? 'bg-primary-500/10 text-primary-400 border border-primary-900/30'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-900/30'
-                          }`}>
+                          <Badge 
+                            variant={order.status === 'paid' ? 'success' : order.status === 'delivered' ? 'default' : 'warning'}
+                            className="text-[9px] uppercase px-1.5 py-0"
+                          >
                             {order.status}
-                          </span>
+                          </Badge>
                         </div>
-                        <p className="text-xs text-dark-300 font-medium truncate max-w-sm">
+                        <p className="text-xs text-foreground/80 font-medium truncate max-w-sm">
                           {getOrderSummaryText(order.id)}
                         </p>
-                        <div className="text-[10px] text-dark-500 flex items-center gap-1.5">
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                           <Calendar className="w-3 h-3" />
                           {new Date(order.ordered_at).toLocaleString()}
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <span className="text-sm font-bold text-white">${Number(order.total_amount).toFixed(2)}</span>
+                        <span className="text-sm font-bold text-foreground font-mono">${Number(order.total_amount).toFixed(2)}</span>
                         {Number(order.delivery_fee) > 0 && (
-                          <div className="text-[9px] text-dark-500">+$${Number(order.delivery_fee).toFixed(2)} delivery</div>
+                          <div className="text-[9px] text-muted-foreground">+$${Number(order.delivery_fee).toFixed(2)} delivery</div>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   ))}
 
                   {customerOrders.length === 0 && (
-                    <div className="p-6 text-center text-dark-500 italic text-xs">
+                    <Card className="p-6 text-center text-muted-foreground italic text-xs border-dashed">
                       No purchase records for this customer yet.
-                    </div>
+                    </Card>
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           ) : (
-            <div className="glass-panel rounded-2xl border border-dark-800 p-12 text-center text-dark-500 italic h-full flex flex-col justify-center items-center">
+            <Card className="border-border border-dashed p-12 text-center text-muted-foreground italic h-full flex flex-col justify-center items-center">
               Please select or create a customer to view their details.
-            </div>
+            </Card>
           )}
         </div>
       </div>
 
-      {/* Customer Form Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleSaveCustomer}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150"
-          >
-            <div className="p-6 border-b border-dark-800 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-white">
+      {/* Customer Form Dialog */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleSaveCustomer} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>
                 {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
-              </h3>
-              <button 
-                type="button" 
-                onClick={() => setIsFormOpen(false)}
-                className="p-1 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+              </DialogTitle>
+            </DialogHeader>
             
-            <div className="p-6 space-y-4">
+            <div className="space-y-3.5 py-2">
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Customer Name (Khmer or English) *</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Customer Name (Khmer or English) *
+                </label>
+                <Input 
                   type="text" 
                   required
                   placeholder="E.g. Zeii Pov Store, Sokha Grocery"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Contact Phone</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Contact Phone
+                </label>
+                <Input 
                   type="text" 
                   placeholder="E.g. 012 345 678"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Google Maps GPS Link</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Google Maps GPS Link
+                </label>
+                <Input 
                   type="url" 
                   placeholder="https://maps.google.com/?q=..."
                   value={mapUrl}
                   onChange={(e) => setMapUrl(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Location Notes / Landmarks</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Location Notes / Landmarks
+                </label>
                 <textarea 
                   placeholder="E.g. opposite Orussey Market, Blue House Gate..."
                   value={locationNote}
                   onChange={(e) => setLocationNote(e.target.value)}
                   rows="3"
-                  className="w-full glass-input resize-none"
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
-              <button 
+            <DialogFooter className="pt-2 border-t border-border">
+              <Button 
                 type="button" 
+                variant="ghost"
                 onClick={() => setIsFormOpen(false)} 
-                className="glass-button-secondary"
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
                 type="submit" 
                 disabled={isSaving}
-                className="glass-button-primary"
               >
                 {editingCustomer ? 'Update Customer' : 'Create Customer'}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

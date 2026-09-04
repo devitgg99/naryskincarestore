@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertTriangle, RefreshCw, Database } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw, Database } from 'lucide-react';
 import { getSupabaseConfig, saveSupabaseConfig } from '../services/db';
 import { createClient } from '@supabase/supabase-js';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange }) {
   const [url, setUrl] = useState('');
@@ -22,8 +33,6 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (!isOpen) return null;
-
   const handleTestConnection = async () => {
     if (!url || !key) {
       setTestResult({ success: false, message: 'Please enter both Supabase URL and Anon Key.' });
@@ -35,7 +44,6 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
 
     try {
       const testClient = createClient(url, key);
-      // Query a simple check
       const { error } = await testClient.from('products').select('id').limit(1);
       
       if (error) {
@@ -64,33 +72,28 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-dark-800">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary-500/10 text-primary-400">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg text-white">Database Settings</h3>
-              <p className="text-xs text-dark-400">Configure Supabase remote database</p>
+              <DialogTitle className="text-lg">Database Settings</DialogTitle>
+              <DialogDescription className="text-xs">
+                Configure connection to your live Supabase cloud database.
+              </DialogDescription>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-6 space-y-5">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-dark-950/40 border border-dark-800">
+        <div className="space-y-4 py-2">
+          {/* Active Mode Switch */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-muted/40 border border-border">
             <div>
-              <span className="text-sm font-medium text-white block">Use Live Supabase Database</span>
-              <span className="text-xs text-dark-400">Toggle off to use Local Storage (Offline Mode)</span>
+              <span className="text-sm font-medium text-foreground block">Use Live Supabase Database</span>
+              <span className="text-xs text-muted-foreground">Toggle off to use Local Storage (Offline Mode)</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input 
@@ -99,80 +102,86 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigChange 
                 onChange={(e) => setActive(e.target.checked)}
                 className="sr-only peer" 
               />
-              <div className="w-11 h-6 bg-dark-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dark-400 after:border-dark-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 peer-checked:after:bg-white"></div>
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-primary-foreground"></div>
             </label>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Supabase URL</label>
-              <input 
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Supabase URL
+              </label>
+              <Input 
                 type="text" 
                 placeholder="https://your-project-id.supabase.co"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={!active}
-                className="w-full glass-input disabled:opacity-50 disabled:cursor-not-allowed"
+                className="font-mono text-xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Supabase Anon Key</label>
-              <input 
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Supabase Anon Key
+              </label>
+              <Input 
                 type="password" 
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 disabled={!active}
-                className="w-full glass-input disabled:opacity-50 disabled:cursor-not-allowed"
+                className="font-mono text-xs"
               />
             </div>
           </div>
 
           {/* Connection Test Log */}
           {testResult && (
-            <div className={`p-4 rounded-xl border text-sm flex gap-3 ${
+            <div className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
               testResult.success 
-                ? 'bg-emerald-950/20 border-emerald-800/30 text-emerald-300' 
-                : 'bg-rose-950/20 border-rose-800/30 text-rose-300'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                : 'bg-destructive/10 border-destructive/30 text-destructive'
             }`}>
               {testResult.success ? (
-                <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+                <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-400" />
               ) : (
-                <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-destructive" />
               )}
-              <span>{testResult.message}</span>
+              <span className="font-medium leading-relaxed">{testResult.message}</span>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-dark-800 bg-dark-950/20">
-          <button
+        <DialogFooter className="flex-col sm:flex-row sm:justify-between items-center gap-2 pt-2 border-t border-border">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={handleTestConnection}
             disabled={testing || !active}
-            className="glass-button-secondary disabled:opacity-40"
+            className="w-full sm:w-auto h-9 gap-1.5"
           >
             {testing ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 Testing...
               </>
             ) : (
               'Test Connection'
             )}
-          </button>
+          </Button>
           
-          <div className="flex gap-3">
-            <button onClick={onClose} className="glass-button-secondary">
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} className="h-9">
               Cancel
-            </button>
-            <button onClick={handleSave} className="glass-button-primary">
+            </Button>
+            <Button type="button" size="sm" onClick={handleSave} className="h-9">
               Save Config
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

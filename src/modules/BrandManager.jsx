@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import { Tag, Search, Trash2, Edit2, CheckSquare, Square, X, Filter } from 'lucide-react';
 import { db } from '../services/db';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export default function BrandManager({ brands, categories = [], products, onRefresh, showToast }) {
   const [editingBrand, setEditingBrand] = useState(null); // null when creating
@@ -222,35 +233,35 @@ export default function BrandManager({ brands, categories = [], products, onRefr
     return bTime - aTime;
   });
 
+  const areAllFilteredSelected = sortedProducts.length > 0 && 
+    sortedProducts.every(p => selectedProductIds.includes(p.id));
+
   return (
     <div className="space-y-6">
-      {/* Title */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <Tag className="w-6 h-6 text-primary-400" />
-            Brand Management
-          </h2>
-          <p className="text-sm text-dark-400 mt-1">
-            Categorize products by brand and manage associations in bulk.
-          </p>
-        </div>
-      </div>
+      <Card className="p-6 bg-card/60 backdrop-blur-md border-border shadow-xs">
+        <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2.5">
+          <Tag className="w-5 h-5 text-primary" />
+          Brand Management
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Categorize products by brand and manage associations in bulk.
+        </p>
+      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Column: Brands List (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="glass-panel rounded-2xl p-6 border border-dark-800 space-y-4">
-            <h3 className="text-lg font-bold text-white flex items-center justify-between">
-              <span>Brands Catalog</span>
-              <span className="text-xs bg-dark-850 px-2.5 py-1 rounded-md text-dark-400 font-semibold border border-dark-800">
+          <Card className="p-6 border-border space-y-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-foreground">Brands Catalog</h3>
+              <Badge variant="secondary" className="text-xs font-semibold">
                 {brands.length} {brands.length === 1 ? 'brand' : 'brands'}
-              </span>
-            </h3>
+              </Badge>
+            </div>
 
             {brands.length === 0 ? (
-              <div className="text-center py-8 text-dark-500 italic text-sm">
+              <div className="text-center py-8 text-muted-foreground italic text-xs">
                 No brands created yet. Create one on the right to start.
               </div>
             ) : (
@@ -263,209 +274,220 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                     <div 
                       key={b.id}
                       onClick={() => handleEditClick(b)}
-                      className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer group ${
+                      className={`flex items-center justify-between p-3.5 rounded-lg border transition-all cursor-pointer group ${
                         isSelected 
-                          ? 'bg-primary-500/10 border-primary-500/40 text-primary-300 ring-1 ring-primary-500/20' 
-                          : 'bg-dark-900/40 border-dark-800/60 hover:bg-dark-900/80 hover:border-dark-700'
+                          ? 'bg-primary/10 border-primary/50 text-primary ring-1 ring-primary/20' 
+                          : 'bg-card border-border hover:bg-accent/50'
                       }`}
                     >
                       <div className="space-y-1">
-                        <div className="font-bold text-sm text-white group-hover:text-primary-400 transition-colors flex items-center gap-1.5">
+                        <div className="font-bold text-sm text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
                           <span>{b.name}</span>
                           {isSelected && (
-                            <span className="text-[9px] bg-primary-500 text-white font-extrabold uppercase px-1 py-0.5 rounded leading-none">
+                            <Badge variant="default" className="text-[9px] uppercase px-1 py-0 h-4">
                               Editing
-                            </span>
+                            </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-dark-400">
+                        <div className="text-xs text-muted-foreground">
                           {count} {count === 1 ? 'product' : 'products'} associated
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditClick(b);
                           }}
-                          className="p-1.5 text-dark-400 hover:text-white hover:bg-dark-800 rounded-lg transition-colors"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
                           title="Edit brand & products"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteBrand(b);
                           }}
-                          className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                           title="Delete Brand"
                           disabled={isDeleting}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
         {/* Right Column: Create/Edit and Bulk Associate (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          <form 
-            onSubmit={handleSaveBrand} 
-            className={`glass-panel rounded-2xl p-6 border transition-all duration-350 space-y-5 ${
-              editingBrand 
-                ? 'border-primary-500/40 shadow-lg shadow-primary-500/5 bg-dark-900/80' 
-                : 'border-dark-800'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-dark-800/50 pb-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Tag className="w-5 h-5 text-primary-400" />
-                {editingBrand ? `Edit Brand: ${editingBrand.name}` : 'Create New Brand'}
-              </h3>
-              {editingBrand && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="text-xs text-dark-400 hover:text-white flex items-center gap-1 px-2.5 py-1 bg-dark-900 border border-dark-800 rounded-lg transition-all"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Cancel Edit
-                </button>
-              )}
-            </div>
-
-            {/* Brand Name Input */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-dark-300 uppercase tracking-wider">Brand Name</label>
-              <input
-                type="text"
-                placeholder="e.g. EL, Yasaka, Kiss..."
-                value={brandName}
-                onChange={(e) => setBrandName(e.target.value)}
-                className="w-full glass-input"
-                required
-              />
-            </div>
-
-            {/* Bulk Product Assignment Section */}
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <label className="text-xs font-bold text-dark-300 uppercase tracking-wider block">
-                  Bulk Product Assignment ({selectedProductIds.length} selected)
-                </label>
-                
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Filter className="w-3.5 h-3.5 text-dark-400" />
-                  <span className="text-dark-400 font-medium">View:</span>
-                  <select
-                    value={filterCurrentBrandOnly}
-                    onChange={(e) => setFilterCurrentBrandOnly(e.target.value)}
-                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1 text-[11px] text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer"
+          <Card className={`p-6 border transition-all shadow-xs space-y-5 ${
+            editingBrand 
+              ? 'border-primary/50 shadow-md shadow-primary/5 bg-card' 
+              : 'border-border'
+          }`}>
+            <form onSubmit={handleSaveBrand} className="space-y-5">
+              <div className="flex items-center justify-between border-b border-border pb-4">
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-primary" />
+                  {editingBrand ? `Edit Brand: ${editingBrand.name}` : 'Create New Brand'}
+                </h3>
+                {editingBrand && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                    className="text-xs h-7 gap-1"
                   >
-                    <option value="all">All Products</option>
-                    <option value="none">No Brand Assigned</option>
-                    {editingBrand && <option value="current">Assigned to this Brand</option>}
-                    {brands.filter(b => !editingBrand || b.id !== editingBrand.id).map(b => (
-                      <option key={b.id} value={b.id}>Assigned to {b.name}</option>
-                    ))}
-                  </select>
-                </div>
+                    <X className="w-3 h-3" />
+                    Cancel Edit
+                  </Button>
+                )}
               </div>
 
-              {/* Search Inside Bulk Products list */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" />
-                <input
+              {/* Brand Name Input */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Brand Name</label>
+                <Input
                   type="text"
-                  placeholder="Filter products for bulk assignment..."
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-dark-950/80 border border-dark-850 rounded-lg text-xs text-dark-200 placeholder:text-dark-600 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  placeholder="e.g. EL, Yasaka, Kiss..."
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  required
                 />
               </div>
 
-              {/* Products Checklist Box */}
-              <div className="border border-dark-850 bg-dark-950/40 rounded-xl overflow-hidden">
-                {/* Select All row */}
-                <div className="flex items-center justify-between p-3 border-b border-dark-850/80 bg-dark-950/80 text-xs font-semibold text-dark-400">
-                  <span>Filtered Checklist ({filteredProducts.length} items)</span>
-                  {filteredProducts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAllFiltered(filteredProducts)}
-                      className="text-primary-400 hover:text-primary-300 hover:underline flex items-center gap-1.5 cursor-pointer"
+              {/* Bulk Product Assignment Section */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                    Bulk Product Assignment ({selectedProductIds.length} selected)
+                  </label>
+                  
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground font-medium">View:</span>
+                    <select
+                      value={filterCurrentBrandOnly}
+                      onChange={(e) => setFilterCurrentBrandOnly(e.target.value)}
+                      className="bg-card border border-border rounded-lg px-2.5 py-1 text-xs text-foreground outline-none focus:border-primary transition-all cursor-pointer"
                     >
-                      {allFilteredSelected ? 'Deselect All' : 'Select All Filtered'}
-                    </button>
-                  )}
+                      <option value="all">All Products</option>
+                      <option value="none">No Brand Assigned</option>
+                      {editingBrand && <option value="current">Assigned to this Brand</option>}
+                      {brands.filter(b => !editingBrand || b.id !== editingBrand.id).map(b => (
+                        <option key={b.id} value={b.id}>Assigned to {b.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* Checklist Scrolling Panel */}
-                <div className="max-h-[35vh] overflow-y-auto divide-y divide-dark-900/60 scrollbar-thin">
-                  {filteredProducts.length === 0 ? (
-                    <div className="p-8 text-center text-dark-600 italic text-xs">
-                      No products match your search/filters.
+                {/* Filter and Select-all Controls */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Filter products..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-9 h-8 text-xs"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSelectAllFiltered(sortedProducts)}
+                    className="text-xs h-8 whitespace-nowrap gap-1.5"
+                  >
+                    {areAllFilteredSelected ? (
+                      <>
+                        <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                        Deselect Filtered
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-3.5 h-3.5" />
+                        Select Filtered ({sortedProducts.length})
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Products Checkbox List */}
+                <div className="border border-border rounded-lg max-h-[35vh] overflow-y-auto p-2 space-y-1.5 bg-muted/20 scrollbar-thin">
+                  {sortedProducts.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground italic text-xs">
+                      No products match your filter.
                     </div>
                   ) : (
-                    sortedFilteredProducts.map(p => {
+                    sortedProducts.map(p => {
                       const isChecked = selectedProductIds.includes(p.id);
                       const currentBrandName = p.brand_id ? brandMap[p.brand_id] : null;
+                      const currentCategoryName = p.category_id ? categoryMap[p.category_id] : null;
 
                       return (
                         <div 
                           key={p.id}
                           onClick={() => handleProductToggle(p.id)}
-                          className={`flex items-center justify-between px-4 py-2.5 text-xs cursor-pointer select-none transition-colors ${
-                            isChecked 
-                              ? 'bg-primary-500/5 hover:bg-primary-500/10' 
-                              : 'hover:bg-dark-900/40'
+                          className={`flex items-center justify-between p-2.5 rounded-md border text-xs cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-primary/10 border-primary/40 text-foreground'
+                              : 'bg-card border-border hover:bg-accent/40 text-muted-foreground'
                           }`}
                         >
-                          <div className="flex items-center gap-3 pr-2 truncate">
-                            {isChecked ? (
-                              <CheckSquare className="w-4 h-4 text-primary-400 flex-shrink-0" />
-                            ) : (
-                              <Square className="w-4 h-4 text-dark-600 flex-shrink-0" />
-                            )}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}} 
+                              className="rounded border-border text-primary focus:ring-primary w-4 h-4"
+                            />
                             <div className="truncate">
-                              <span className="font-semibold text-white block truncate">{p.name_kh}</span>
-                              <span className="text-[10px] text-dark-400 block truncate">{p.name_en}</span>
+                              <span className="font-semibold text-foreground mr-1.5">{p.name_kh}</span>
+                              <span className="text-muted-foreground text-[11px]">({p.name_en})</span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-shrink-0 pl-2">
-                            {currentBrandName ? (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10">
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {currentCategoryName && (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                {currentCategoryName}
+                              </Badge>
+                            )}
+
+                            {currentBrandName && currentBrandName !== editingBrand?.name && (
+                              <Badge variant="secondary" className="text-[10px]">
                                 {currentBrandName}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] text-dark-500 bg-dark-900/80 border border-dark-850">
-                                Unbranded
-                              </span>
+                              </Badge>
                             )}
-                            {p.category_id && categoryMap[p.category_id] && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10">
-                                {categoryMap[p.category_id]}
-                              </span>
-                            )}
-                            <button
+
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleQuickEditProduct(p);
                               }}
-                              className="p-1 rounded bg-dark-800 hover:bg-dark-700 text-dark-300 hover:text-white transition-colors"
-                              title="Quick Edit Product Details"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              title="Quick edit product info"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                              <Edit2 className="w-3 h-3" />
+                            </Button>
                           </div>
                         </div>
                       );
@@ -473,92 +495,78 @@ export default function BrandManager({ brands, categories = [], products, onRefr
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="pt-2 flex items-center justify-end gap-3">
-              {editingBrand && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="glass-button-secondary py-2"
+              {/* Submit Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                {editingBrand && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button 
+                  type="submit" 
+                  size="sm"
                   disabled={isSaving}
                 >
-                  Cancel
-                </button>
-              )}
-              <button
-                type="submit"
-                className="glass-button-primary py-2 px-6"
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving...' : editingBrand ? 'Update Brand' : 'Create Brand'}
-              </button>
-            </div>
-          </form>
+                  {isSaving ? 'Saving...' : (editingBrand ? 'Save Brand & Associations' : 'Create Brand')}
+                </Button>
+              </div>
+            </form>
+          </Card>
         </div>
-        
       </div>
 
-      {/* Quick Edit Product Modal */}
-      {quickEditingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleSaveQuickEdit}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150"
-          >
-            <div className="p-6 border-b border-dark-800 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-white">Quick Edit Product Details</h3>
-              <button 
-                type="button" 
-                onClick={() => setQuickEditingProduct(null)}
-                className="p-1 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Quick Edit Product Dialog */}
+      <Dialog open={!!quickEditingProduct} onOpenChange={(open) => !open && setQuickEditingProduct(null)}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleSaveQuickEdit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Quick Edit Product</DialogTitle>
+            </DialogHeader>
             
-            <div className="p-6 space-y-4">
+            <div className="space-y-3 py-2">
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Name (Khmer)</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Name (Khmer) *</label>
+                <Input 
                   type="text" 
                   required
                   value={quickEditNameKh}
                   onChange={(e) => setQuickEditNameKh(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Name (English)</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Name (English) *</label>
+                <Input 
                   type="text" 
                   required
                   value={quickEditNameEn}
                   onChange={(e) => setQuickEditNameEn(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Base Price ($)</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Base Price ($)</label>
+                <Input 
                   type="number" 
                   step="0.01"
                   required
                   value={quickEditBasePrice}
                   onChange={(e) => setQuickEditBasePrice(e.target.value)}
-                  className="w-full glass-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Brand</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Brand</label>
                 <select
                   value={quickEditBrandId}
                   onChange={(e) => setQuickEditBrandId(e.target.value)}
-                  className="w-full glass-input"
+                  className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="">No Brand / General</option>
                   {brands.map(b => (
@@ -568,11 +576,11 @@ export default function BrandManager({ brands, categories = [], products, onRefr
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Category</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Category</label>
                 <select
                   value={quickEditCategoryId}
                   onChange={(e) => setQuickEditCategoryId(e.target.value)}
-                  className="w-full glass-input"
+                  className="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="">No Category</option>
                   {categories.map(c => (
@@ -582,25 +590,26 @@ export default function BrandManager({ brands, categories = [], products, onRefr
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
-              <button 
+            <DialogFooter className="pt-2 border-t border-border">
+              <Button 
                 type="button" 
+                variant="ghost" 
+                size="sm"
                 onClick={() => setQuickEditingProduct(null)} 
-                className="glass-button-secondary"
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
                 type="submit" 
+                size="sm"
                 disabled={isSavingQuickEdit}
-                className="glass-button-primary"
               >
                 {isSavingQuickEdit ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

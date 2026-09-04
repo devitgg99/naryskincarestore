@@ -16,6 +16,8 @@ import {
   Keyboard
 } from 'lucide-react';
 import { getSupabaseConfig, db } from '../services/db';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRefresh, theme, toggleTheme, isOpen, onClose }) {
   const config = getSupabaseConfig();
@@ -52,28 +54,33 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             <p className="text-[10px] font-semibold text-primary-400 tracking-widest uppercase font-sans">Portal System</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <button
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={toggleTheme}
-            className="p-2 rounded-xl hover:bg-dark-900 text-dark-400 hover:text-white border border-dark-800/40 transition-all active:scale-95 cursor-pointer"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-400" />}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-dark-900 text-dark-400 hover:text-white md:hidden transition-all active:scale-95 cursor-pointer"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground md:hidden"
             title="Close Menu"
           >
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Nav List */}
       <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto scrollbar-thin">
         {/* Command Palette Trigger Button */}
-        <button
+        <Button
+          variant="outline"
           onClick={() => {
             const event = new KeyboardEvent('keydown', {
               key: 'k',
@@ -83,14 +90,16 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             });
             window.dispatchEvent(event);
           }}
-          className="w-full flex items-center justify-between px-4 py-2.5 mb-4 rounded-xl border border-dark-850 hover:border-primary-500/25 bg-dark-900/40 hover:bg-dark-900/60 text-xs text-dark-400 hover:text-white cursor-pointer group transition-all"
+          className="w-full justify-between h-9 px-3 mb-4 bg-muted/30 hover:bg-muted/60 border-border text-muted-foreground hover:text-foreground font-normal"
         >
           <div className="flex items-center gap-2">
-            <Keyboard className="w-4 h-4 text-dark-500 group-hover:text-primary-400" />
-            <span>Command Menu</span>
+            <Keyboard className="w-3.5 h-3.5" />
+            <span className="text-xs">Command Menu</span>
           </div>
-          <span className="font-mono text-[9px] bg-dark-950 px-1.5 py-0.5 rounded text-dark-500 border border-dark-800">⌘K</span>
-        </button>
+          <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4 bg-background">
+            ⌘K
+          </Badge>
+        </Button>
 
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -102,13 +111,13 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
                 setActiveTab(item.id);
                 if (onClose) onClose();
               }}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium cursor-pointer ${
+              className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium cursor-pointer ${
                 isActive
-                  ? 'bg-primary-500/10 text-primary-400 border-l-2 border-primary-500 shadow-sm'
-                  : 'text-dark-400 hover:text-white hover:bg-dark-900/40 hover:translate-x-1'
+                  ? 'bg-primary/10 text-primary border-l-2 border-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:translate-x-0.5'
               }`}
             >
-              <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-primary-400' : 'text-dark-500 group-hover:text-dark-300'}`} />
+              <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
               {item.label}
             </button>
           );
@@ -116,36 +125,40 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
       </nav>
 
       {/* Database Status Block */}
-      <div className="p-4 border-t border-dark-800/40 space-y-3 bg-dark-950/20">
+      <div className="p-4 border-t border-border space-y-3 bg-card/20">
         <div 
           onClick={onOpenSettings}
-          className="w-full flex items-center justify-between p-3.5 rounded-xl bg-dark-900/40 border border-dark-800/60 hover:bg-dark-900/80 hover:border-primary-500/20 transition-all cursor-pointer group"
+          className="w-full flex items-center justify-between p-3 rounded-lg bg-card border border-border hover:border-primary/40 transition-all cursor-pointer group shadow-xs"
         >
           <div className="flex items-center gap-3">
             <Database className={`w-4 h-4 ${isSupabase ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`} />
             <div className="text-left">
-              <span className="text-[10px] font-semibold text-dark-500 block leading-none uppercase tracking-wider mb-0.5">DB STATUS</span>
-              <span className="text-xs font-bold text-white block">
+              <span className="text-[10px] font-semibold text-muted-foreground block leading-none uppercase tracking-wider mb-0.5">DB STATUS</span>
+              <span className="text-xs font-bold text-foreground block">
                 {isSupabase ? 'Supabase Live' : 'Offline Mock'}
               </span>
             </div>
           </div>
-          <div className={`w-2 h-2 rounded-full ${isSupabase ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-amber-400 shadow-sm shadow-amber-400'} animate-pulse`} />
+          <Badge variant={isSupabase ? "success" : "warning"} className="text-[10px] px-1.5 py-0">
+            {isSupabase ? 'Connected' : 'Local'}
+          </Badge>
         </div>
 
         {/* Local Reset */}
         {!isSupabase && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleResetMock}
-            className="w-full py-2.5 px-3 flex items-center justify-center gap-2 text-xs font-semibold text-dark-400 hover:text-white bg-dark-900/20 hover:bg-dark-900/60 border border-dashed border-dark-800 rounded-xl transition-all cursor-pointer"
+            className="w-full h-8 text-xs border-dashed text-muted-foreground hover:text-foreground"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3 h-3 mr-1.5" />
             Reset Local DB
-          </button>
+          </Button>
         )}
 
-        <div className="flex gap-2 text-[10px] text-dark-500 px-1 leading-normal">
-          <Info className="w-3.5 h-3.5 flex-shrink-0 text-dark-600 mt-0.5" />
+        <div className="flex gap-2 text-[10px] text-muted-foreground px-1 leading-normal">
+          <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>Click status panel to config Supabase credentials.</span>
         </div>
       </div>

@@ -22,6 +22,11 @@ import {
 import { toPng, toJpeg } from 'html-to-image';
 import { db } from '../services/db';
 import confetti from 'canvas-confetti';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 // Floating-point precision math helper for currency calculations
 const roundMoney = (num) => {
@@ -544,44 +549,46 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     <div className="space-y-6">
       <div className="no-print space-y-6">
         {/* Header Panel */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-5 sm:p-6 rounded-2xl border border-dark-800/40 shadow-sm">
+        <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 backdrop-blur-md p-5 sm:p-6 border-border shadow-xs">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white tracking-wide flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-wide flex items-center gap-2">
               Invoice Builder
             </h2>
-            <p className="text-xs text-dark-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Build wholesale invoices, compare suppliers, check stock levels, and print or export invoices as crisp images.
             </p>
           </div>
           
           {/* Quick Action Badges for Mobile & Desktop */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => handleDownloadImage('png')}
               disabled={isExporting}
-              className="flex-1 sm:flex-initial glass-button-secondary py-2 px-3 text-xs font-semibold flex items-center justify-center gap-1.5 min-h-[40px]"
+              className="flex-1 sm:flex-initial gap-1.5 text-xs font-semibold h-9"
               title="Download Invoice as high-resolution PNG image"
             >
               {isExporting ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary-400" />
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
               ) : (
-                <Download className="w-3.5 h-3.5 text-primary-400" />
+                <Download className="w-3.5 h-3.5 text-primary" />
               )}
               <span>Export Image</span>
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Side: Invoice Items Builder (2 cols) */}
           <form onSubmit={handleSaveInvoice} className="lg:col-span-2 space-y-6 min-w-0">
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-dark-800 space-y-4">
-              <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Invoice Header</h3>
+            <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4">
+              <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider">Invoice Header</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Customer *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Customer *</label>
                   <select
                     required
                     value={selectedCustomerId}
@@ -597,7 +604,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         }
                       }
                     }}
-                    className="w-full glass-input min-h-[44px] text-xs sm:text-sm"
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
                   >
                     <option value="">-- Choose Customer --</option>
                     {customers.map(c => (
@@ -607,16 +614,16 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Delivery Fee (USD)</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Delivery Fee (USD)</label>
                   <div className="relative">
-                    <Truck className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-                    <input
+                    <Truck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
                       type="number"
                       step="0.01"
                       min="0"
                       value={deliveryFee}
                       onChange={(e) => setDeliveryFee(e.target.value)}
-                      className="w-full pl-11 glass-input min-h-[44px] text-xs sm:text-sm"
+                      className="pl-9 h-9 text-xs"
                       placeholder="1.50"
                     />
                   </div>
@@ -624,52 +631,52 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider">Discount</label>
-                    <div className="flex items-center gap-1 bg-dark-950 rounded-lg p-0.5 border border-dark-800">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">Discount</label>
+                    <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border border-border">
                       <button
                         type="button"
                         onClick={() => setDiscountType('fixed')}
-                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'fixed' ? 'bg-primary-500 text-white' : 'text-dark-400 hover:text-white'}`}
+                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'fixed' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         $
                       </button>
                       <button
                         type="button"
                         onClick={() => setDiscountType('percent')}
-                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'percent' ? 'bg-primary-500 text-white' : 'text-dark-400 hover:text-white'}`}
+                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${discountType === 'percent' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         %
                       </button>
                     </div>
                   </div>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500 text-xs font-semibold">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-semibold">
                       {discountType === 'fixed' ? '$' : '%'}
                     </span>
-                    <input
+                    <Input
                       type="number"
                       step="any"
                       min="0"
                       value={discountValue}
                       onChange={(e) => setDiscountValue(e.target.value)}
-                      className="w-full pl-8 glass-input min-h-[44px] text-xs sm:text-sm font-semibold"
+                      className="pl-8 h-9 text-xs font-semibold"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {/* Line Items Grid */}
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-dark-800 space-y-4 min-w-0">
+            <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4 min-w-0">
               <div className="flex justify-between items-center flex-wrap gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">Line Items</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider">Line Items</h3>
                 
                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                   <select
                     value={selectedBrandFilter}
                     onChange={(e) => setSelectedBrandFilter(e.target.value)}
-                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1.5 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer flex-1 sm:flex-initial"
+                    className="flex h-8 rounded-md border border-input bg-card px-2.5 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground flex-1 sm:flex-initial"
                   >
                     <option value="all">All Brands</option>
                     <option value="none">No Brand</option>
@@ -681,7 +688,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <select
                     value={selectedCategoryFilter}
                     onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                    className="bg-dark-900 border border-dark-800/50 hover:border-dark-700/60 rounded-xl px-2.5 py-1.5 text-xs text-dark-200 outline-none focus:border-primary-500 transition-all cursor-pointer flex-1 sm:flex-initial"
+                    className="flex h-8 rounded-md border border-input bg-card px-2.5 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground flex-1 sm:flex-initial"
                   >
                     <option value="all">All Categories</option>
                     <option value="none">No Category</option>
@@ -690,8 +697,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     ))}
                   </select>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       const currentQties = {};
                       lineItems.forEach(item => {
@@ -703,20 +712,22 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       setBatchSearchQuery('');
                       setIsBatchModalOpen(true);
                     }}
-                    className="glass-button-secondary py-1.5 px-3 flex items-center justify-center gap-1.5 text-xs border-primary-500/10 hover:border-primary-500/30 flex-1 sm:flex-initial"
+                    className="h-8 text-xs gap-1.5 flex-1 sm:flex-initial"
                   >
-                    <Grid className="w-3.5 h-3.5 text-primary-400" />
+                    <Grid className="w-3.5 h-3.5 text-primary" />
                     <span>Batch Add</span>
-                  </button>
+                  </Button>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={addLineItem}
-                    className="glass-button-secondary py-1.5 px-3 flex items-center justify-center gap-1.5 text-xs flex-1 sm:flex-initial"
+                    className="h-8 text-xs gap-1.5 flex-1 sm:flex-initial"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Item</span>
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -827,19 +838,19 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   return (
                     <div 
                       key={item.id} 
-                      className="p-3.5 sm:p-4 rounded-xl border border-dark-850 bg-dark-950/40 space-y-3 transition-colors hover:border-dark-800"
+                      className="p-3.5 sm:p-4 rounded-xl border border-border bg-card/40 space-y-3 transition-colors hover:border-primary/30"
                     >
                       {/* Top Row: Thumbnail + Product Selector / Custom Name + Item Mode + Delete */}
                       <div className="flex items-center gap-3">
                         {/* Thumbnail */}
-                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-dark-800 flex items-center justify-center overflow-hidden bg-dark-900 flex-shrink-0 shadow-inner">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-border flex items-center justify-center overflow-hidden bg-muted flex-shrink-0 shadow-xs">
                           {item.isCustom ? (
-                            <span className="text-[10px] text-violet-400 font-bold bg-violet-500/10 w-full h-full flex items-center justify-center">Custom</span>
+                            <span className="text-[10px] text-violet-500 font-bold bg-violet-500/10 w-full h-full flex items-center justify-center">Custom</span>
                           ) : (
                             prod && prod.image_url ? (
                               <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
                             ) : (
-                              <ImageIcon className="w-5 h-5 text-dark-500" />
+                              <ImageIcon className="w-5 h-5 text-muted-foreground" />
                             )
                           )}
                         </div>
@@ -847,17 +858,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         {/* Search / Select Product Input */}
                         <div className="flex-1 relative min-w-0">
                           {item.isCustom ? (
-                            <input
+                            <Input
                               type="text"
                               required
                               placeholder="Custom item name..."
                               value={item.custom_name || ''}
                               onChange={(e) => updateLineItem(idx, 'custom_name', e.target.value)}
-                              className="w-full glass-input border-violet-500/30 focus:border-violet-500/60 text-xs sm:text-sm font-medium min-h-[40px]"
+                              className="w-full border-violet-500/30 focus-visible:border-violet-500/60 text-xs sm:text-sm font-medium h-10"
                             />
                           ) : (
                             <>
-                              <input
+                              <Input
                                 type="text"
                                 required
                                 placeholder="Search & select product..."
@@ -886,10 +897,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                   updated[idx].isDropdownOpen = true;
                                   setLineItems(updated);
                                 }}
-                                className="w-full glass-input text-xs sm:text-sm min-h-[40px]"
+                                className="w-full text-xs sm:text-sm h-10"
                               />
                               {item.isDropdownOpen && (
-                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin">
+                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-popover border border-border shadow-2xl divide-y divide-border scrollbar-thin">
                                   {getFilteredProducts(item.searchQuery || '').map(p => (
                                     <div
                                       key={p.id}
@@ -900,14 +911,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                         updated[idx].isDropdownOpen = false;
                                         setLineItems(updated);
                                       }}
-                                      className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors min-h-[44px]"
+                                      className="p-3 hover:bg-primary/10 cursor-pointer text-left transition-colors min-h-[44px]"
                                     >
-                                      <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
-                                      <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                                      <div className="font-semibold text-foreground text-xs sm:text-sm">{p.name_kh}</div>
+                                      <div className="text-[10px] text-muted-foreground mt-0.5">{p.name_en}</div>
                                     </div>
                                   ))}
                                   {getFilteredProducts(item.searchQuery || '').length === 0 && (
-                                    <div className="p-3 text-dark-500 text-xs italic text-center">No products found</div>
+                                    <div className="p-3 text-muted-foreground text-xs italic text-center">No products found</div>
                                   )}
                                 </div>
                               )}
@@ -916,39 +927,41 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         </div>
 
                         {/* Mode toggle button */}
-                        <button
+                        <Button
                           type="button"
+                          variant={item.isCustom ? "secondary" : "outline"}
+                          size="sm"
                           onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
-                          className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer shrink-0 min-h-[40px] ${
-                            item.isCustom 
-                              ? 'bg-violet-500/15 border-violet-500/30 text-violet-400 hover:bg-violet-500/20' 
-                              : 'bg-dark-900/60 border-dark-800 text-dark-400 hover:text-white hover:bg-dark-800'
+                          className={`h-10 px-2.5 text-[11px] font-bold shrink-0 ${
+                            item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
                           }`}
                           title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
                         >
                           {item.isCustom ? "Custom" : "Catalog"}
-                        </button>
+                        </Button>
 
                         {/* Remove button */}
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => removeLineItem(idx)}
-                          className="p-2.5 rounded-xl bg-dark-900 border border-dark-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-dark-400 hover:text-rose-400 transition-colors cursor-pointer shrink-0 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                          className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                           title="Remove row"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </Button>
                       </div>
 
                       {/* Controls Grid: Supplier, Unit Price, Decimal Quantity & Subtotal */}
                       <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 items-end pt-1">
                         {/* Supplier Selector (Mobile full width / Desktop 4 cols) */}
                         <div className="col-span-2 sm:col-span-4">
-                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
                             Supplier & Cost Price
                           </label>
                           {item.isCustom ? (
-                            <div className="w-full glass-input bg-dark-900/40 text-dark-400 text-xs italic flex items-center justify-center border-dashed border-dark-800 h-[40px]">
+                            <div className="w-full border border-dashed border-border rounded-lg bg-muted/30 text-muted-foreground text-xs italic flex items-center justify-center h-10">
                               No Supplier (Ad-hoc)
                             </div>
                           ) : (
@@ -957,7 +970,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                               disabled={!item.product_id}
                               value={item.supplier_id}
                               onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
-                              className="w-full glass-input text-xs disabled:opacity-40 h-[40px]"
+                              className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-xs disabled:opacity-40 h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
                             >
                               {sps.length === 0 ? (
                                 <option value="">No suppliers</option>
@@ -979,29 +992,29 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                         {/* Unit Price field */}
                         <div className="col-span-1 sm:col-span-3">
-                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
                             Unit Price ($)
                           </label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-xs font-semibold">$</span>
-                            <input
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-semibold">$</span>
+                            <Input
                               type="number"
                               step="0.01"
                               min="0"
                               required
                               value={item.unit_price}
                               onChange={(e) => updateLineItem(idx, 'unit_price', e.target.value)}
-                              className="w-full pl-6 pr-2 h-[40px] glass-input text-left text-white text-xs font-semibold focus:border-primary-500/50"
+                              className="w-full pl-6 pr-2 h-10 text-left text-foreground text-xs font-semibold"
                             />
                           </div>
                         </div>
 
                         {/* Quantity Field Supporting Integers and Floating Point Decimals (0.5, 1.5, 2.25) */}
                         <div className="col-span-1 sm:col-span-2">
-                          <label className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
                             Qty (Float)
                           </label>
-                          <input
+                          <Input
                             type="number"
                             step="any"
                             min="0"
@@ -1010,26 +1023,26 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             placeholder="1"
                             value={item.quantity}
                             onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
-                            className="w-full h-[40px] glass-input text-center text-xs font-semibold text-white focus:border-primary-500/50"
+                            className="w-full h-10 text-center text-xs font-semibold text-foreground"
                           />
                         </div>
 
                         {/* Line Subtotal & Profit Badge */}
                         <div className="col-span-2 sm:col-span-3 text-right flex sm:flex-col justify-between sm:justify-end items-center sm:items-end pt-1 sm:pt-0">
                           <div>
-                            <span className="block text-[10px] font-bold text-dark-400 uppercase tracking-wider sm:mb-1">Line Total</span>
-                            <span className="font-bold text-white text-sm sm:text-base font-mono">
+                            <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider sm:mb-1">Line Total</span>
+                            <span className="font-bold text-foreground text-sm sm:text-base font-mono">
                               ${roundMoney(Number(item.unit_price || 0) * numericQty).toFixed(2)}
                             </span>
                           </div>
 
                           {item.product_id && !item.isCustom && (
-                            <div className="text-[10px] text-emerald-400 font-medium truncate" title={`Cost: $${Number(item.supplier_price || 0).toFixed(2)} / unit`}>
+                            <div className="text-[10px] text-emerald-500 font-medium truncate" title={`Cost: $${Number(item.supplier_price || 0).toFixed(2)} / unit`}>
                               Profit: +${roundMoney((Number(item.unit_price || 0) - Number(item.supplier_price || 0)) * numericQty).toFixed(2)}
                             </div>
                           )}
                           {item.isCustom && (
-                            <div className="text-[10px] text-dark-500 font-medium">
+                            <div className="text-[10px] text-muted-foreground font-medium">
                               Ad-hoc item
                             </div>
                           )}
@@ -1038,8 +1051,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                       {/* Stock Warning alert */}
                       {!item.isCustom && isStockWarning && (
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold bg-amber-500/10 border border-amber-900/40 text-amber-400 px-3 py-1.5 rounded-lg mt-2">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-lg mt-2">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           <span>Stock Warning: Available stock is only {item.maxStock} {item.stockUnit}</span>
                         </div>
                       )}
@@ -1047,30 +1060,30 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   );
                 })}
               </div>
-            </div>
+            </Card>
           </form>
 
           {/* Right Side: Total Summary & Checkout Actions (1 col) */}
           <div className="space-y-6">
-            <div className="glass-panel p-6 rounded-2xl border border-dark-800 space-y-6">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Checkout Summary</h3>
+            <Card className="p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-6">
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Checkout Summary</h3>
               
-              <div className="space-y-3 text-sm border-b border-dark-800/80 pb-4">
-                <div className="flex justify-between text-dark-400">
+              <div className="space-y-3 text-sm border-b border-border pb-4">
+                <div className="flex justify-between text-muted-foreground">
                   <span>Items Subtotal</span>
-                  <span className="font-semibold text-dark-200 font-mono">${subtotal.toFixed(2)}</span>
+                  <span className="font-semibold text-foreground font-mono">${subtotal.toFixed(2)}</span>
                 </div>
                 {calculatedDiscount > 0 && (
-                  <div className="flex justify-between text-rose-400 font-medium">
+                  <div className="flex justify-between text-rose-500 font-medium">
                     <span>Discount {discountType === 'percent' ? `(${discountValue}%)` : ''}</span>
                     <span className="font-mono">-${calculatedDiscount.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-dark-400">
+                <div className="flex justify-between text-muted-foreground">
                   <span>Delivery Fee</span>
-                  <span className="font-semibold text-dark-200 font-mono">${Number(deliveryFee || 0).toFixed(2)}</span>
+                  <span className="font-semibold text-foreground font-mono">${Number(deliveryFee || 0).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-400 font-medium">
+                <div className="flex justify-between text-emerald-500 font-medium">
                   <span>Estimated Profit</span>
                   <span className="font-mono">${totalProfit.toFixed(2)}</span>
                 </div>
@@ -1078,31 +1091,33 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
               <div className="flex justify-between items-end">
                 <div>
-                  <span className="text-xs text-dark-400 font-bold uppercase tracking-wider block">Grand Total</span>
-                  <span className="text-2xl sm:text-3xl font-black text-white font-mono">${totalAmount.toFixed(2)}</span>
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Grand Total</span>
+                  <span className="text-2xl sm:text-3xl font-black text-foreground font-mono">${totalAmount.toFixed(2)}</span>
                 </div>
-                <span className="text-xs text-primary-400 font-semibold italic bg-primary-500/5 px-2.5 py-1 rounded border border-primary-500/15">
+                <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/10">
                   {lineItems.filter(item => item.product_id || (item.isCustom && item.custom_name)).length} Items
-                </span>
+                </Badge>
               </div>
 
               {/* Action Buttons Bar */}
               <div className="flex flex-col gap-3">
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={handlePreviewReceipt}
-                    className="flex-1 glass-button-secondary py-3 font-semibold text-xs sm:text-sm cursor-pointer min-h-[44px]"
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm"
                   >
-                    <Eye className="w-4 h-4 text-dark-300" />
+                    <Eye className="w-4 h-4 text-muted-foreground" />
                     <span>Preview</span>
-                  </button>
+                  </Button>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => handleDownloadImage('png')}
                     disabled={isExporting}
-                    className="flex-1 glass-button-secondary py-3 font-semibold text-xs sm:text-sm cursor-pointer border-primary-500/20 hover:border-primary-500/40 text-primary-300 min-h-[44px]"
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm text-primary border-primary/30 hover:border-primary/60"
                   >
                     {isExporting ? (
                       <>
@@ -1111,17 +1126,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       </>
                     ) : (
                       <>
-                        <Download className="w-4 h-4 text-primary-400" />
+                        <Download className="w-4 h-4" />
                         <span>Save Image</span>
                       </>
                     )}
-                  </button>
+                  </Button>
                 </div>
 
-                <button
+                <Button
                   onClick={handleSaveInvoice}
                   disabled={isSaving}
-                  className="w-full glass-button-primary py-3.5 font-bold text-sm cursor-pointer min-h-[44px]"
+                  className="w-full min-h-[44px] font-bold text-sm gap-2"
                 >
                   {isSaving ? (
                     <>
@@ -1134,14 +1149,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       <span>Save & Print Invoice</span>
                     </>
                   )}
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
 
-            <div className="p-4 bg-dark-900/30 rounded-2xl border border-dashed border-dark-800 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-primary-400 shrink-0" />
-              <div className="text-xs text-dark-400">
-                <span className="font-bold text-white block mb-0.5">Decimal Quantities Supported</span>
+            <div className="p-4 bg-muted/40 rounded-2xl border border-dashed border-border flex gap-3">
+              <AlertCircle className="w-5 h-5 text-primary shrink-0" />
+              <div className="text-xs text-muted-foreground">
+                <span className="font-bold text-foreground block mb-0.5">Decimal Quantities Supported</span>
                 Enter values like 0.5, 1.5, or 2.25. Use "Save Image" to export high-definition PNG invoice pictures ready for Telegram & WhatsApp sharing.
               </div>
             </div>
@@ -1155,110 +1170,115 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
         return (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center no-print">
-            <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-xs p-3 sm:p-6 flex items-center justify-center no-print">
+            <div className="bg-card border border-border w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
               
               {/* Top Bar controls */}
-              <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40 flex-wrap gap-2">
-                <h3 className="font-semibold text-white text-sm sm:text-base flex items-center gap-2">
+              <div className="p-4 border-b border-border flex justify-between items-center bg-card/60 flex-wrap gap-2">
+                <h3 className="font-semibold text-foreground text-sm sm:text-base flex items-center gap-2">
                   <span>{isDraft ? 'Receipt Preview (Draft)' : 'Invoice Preview'}</span>
                 </h3>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button 
+                  <Button 
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleDownloadImage('png')} 
                     disabled={isExporting}
-                    className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs text-primary-300 border-primary-500/30 hover:border-primary-500/60"
+                    className="gap-1.5 text-xs text-primary border-primary/30 hover:border-primary/60"
                   >
-                    {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-primary-400" />}
+                    {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                     <span>Save Image (PNG)</span>
-                  </button>
+                  </Button>
 
-                  <button 
+                  <Button 
                     type="button"
+                    size="sm"
                     onClick={handlePrint} 
-                    className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs"
+                    className="gap-1.5 text-xs"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>{isDraft ? 'Print Draft' : 'Print Invoice'}</span>
-                  </button>
+                  </Button>
 
-                  <button 
+                  <Button 
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { setSavedOrder(null); setPreviewOrder(null); }} 
-                    className="glass-button-secondary py-1.5 px-3 text-xs"
+                    className="text-xs"
                   >
                     Close
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {/* Modal Body container (two-column split on md sizes) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-dark-950/20">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-muted/20">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
                   
                   {/* Left Column: Receipt Customization & Profit Card (5 cols) */}
                   <div className="md:col-span-5 space-y-6 no-print order-2 md:order-1">
                     
                     {/* Header Customization Form */}
-                    <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-dark-800 bg-dark-900/60 space-y-4 shadow-lg text-left">
-                      <h4 className="text-xs font-bold text-primary-400 uppercase tracking-widest border-b border-dark-800 pb-2">
+                    <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card/80 space-y-4 shadow-sm text-left">
+                      <h4 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-2">
                         Edit Receipt Header
                       </h4>
                       <div className="space-y-3 text-xs">
                         <div>
-                          <label className="block font-semibold text-dark-300 uppercase mb-1">Shop/Vendor Name</label>
-                          <input 
+                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop/Vendor Name</label>
+                          <Input 
                             type="text" 
                             value={shopName} 
                             onChange={(e) => setShopName(e.target.value)} 
-                            className="w-full glass-input py-1.5 px-3 text-xs" 
+                            className="h-8 text-xs" 
                           />
                         </div>
                         <div>
-                          <label className="block font-semibold text-dark-300 uppercase mb-1">Shop Address / Landmark</label>
-                          <input 
+                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop Address / Landmark</label>
+                          <Input 
                             type="text" 
                             value={shopAddress} 
                             onChange={(e) => setShopAddress(e.target.value)} 
-                            className="w-full glass-input py-1.5 px-3 text-xs" 
+                            className="h-8 text-xs" 
                           />
                         </div>
                         <div>
-                          <label className="block font-semibold text-dark-300 uppercase mb-1">Phone Number</label>
-                          <input 
+                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
+                          <Input 
                             type="text" 
                             value={shopPhone} 
                             onChange={(e) => setShopPhone(e.target.value)} 
-                            className="w-full glass-input py-1.5 px-3 text-xs" 
+                            className="h-8 text-xs" 
                           />
                         </div>
                         <div>
-                          <label className="block font-semibold text-dark-300 uppercase mb-1">Footer Message</label>
+                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Footer Message</label>
                           <textarea 
                             value={customFooter} 
                             onChange={(e) => setCustomFooter(e.target.value)} 
                             rows="2"
-                            className="w-full glass-input py-1.5 px-3 text-xs resize-none" 
+                            className="w-full border border-input bg-background rounded-md px-3 py-1.5 text-xs text-foreground focus:ring-2 focus:ring-ring focus:outline-hidden resize-none" 
                           />
                         </div>
                       </div>
                     </div>
 
                     {/* Internal Profit Analysis Card (Owner Only) */}
-                    <div className="glass-panel p-4 sm:p-5 rounded-2xl border border-dark-850 bg-dark-900/60 space-y-4 shadow-lg text-left">
-                      <div className="flex justify-between items-center border-b border-dark-800 pb-3">
-                        <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card/80 space-y-4 shadow-sm text-left">
+                      <div className="flex justify-between items-center border-b border-border pb-3">
+                        <h4 className="text-xs font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                           Internal Profit Analysis
                         </h4>
-                        <span className="text-xs text-dark-400 font-mono">
+                        <span className="text-xs text-muted-foreground font-mono">
                           {isDraft ? 'DRAFT' : `#${receiptData.order.id.slice(-6).toUpperCase()}`}
                         </span>
                       </div>
                       
-                      <div className="divide-y divide-dark-850 max-h-48 overflow-y-auto scrollbar-thin">
+                      <div className="divide-y divide-border max-h-48 overflow-y-auto scrollbar-thin">
                         {receiptData.items.map((item, idx) => {
                           const prod = products.find(p => p.id === item.product_id);
                           const isCustom = !item.product_id;
@@ -1271,10 +1291,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           return (
                             <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
                               <div className="space-y-1">
-                                <div className="font-semibold text-white">
+                                <div className="font-semibold text-foreground">
                                   {prod ? `${prod.name_kh} (${prod.name_en})` : (item.custom_name || 'Custom Item')}
                                 </div>
-                                <div className="text-[10px] text-dark-400 flex items-center gap-1.5">
+                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                                   {!isCustom && <span>Cost: ${cost.toFixed(2)}</span>}
                                   {!isCustom && <span>•</span>}
                                   <span>Sell: ${selling.toFixed(2)}</span>
@@ -1284,11 +1304,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                               </div>
                               <div className="text-right font-mono">
                                 {isCustom ? (
-                                  <span className="font-semibold text-dark-400 block">$0.00</span>
+                                  <span className="font-semibold text-muted-foreground block">$0.00</span>
                                 ) : (
                                   <>
-                                    <span className="font-bold text-emerald-400 block">+${itemProfit.toFixed(2)}</span>
-                                    <span className="text-[9px] text-dark-500">(${profitPerUnit.toFixed(2)}/unit)</span>
+                                    <span className="font-bold text-emerald-500 block">+${itemProfit.toFixed(2)}</span>
+                                    <span className="text-[9px] text-muted-foreground">(${profitPerUnit.toFixed(2)}/unit)</span>
                                   </>
                                 )}
                               </div>
@@ -1297,9 +1317,9 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         })}
                       </div>
                       
-                      <div className="border-t border-dark-800 pt-3 flex justify-between items-center text-sm font-bold">
-                        <span className="text-dark-300">Total Order Profit:</span>
-                        <span className="text-lg text-emerald-400 font-mono">
+                      <div className="border-t border-border pt-3 flex justify-between items-center text-sm font-bold">
+                        <span className="text-foreground">Total Order Profit:</span>
+                        <span className="text-lg text-emerald-500 font-mono">
                           ${roundMoney(receiptData.items.reduce((sum, item) => {
                             if (!item.product_id) return sum;
                             return sum + (Number(item.unit_price) - Number(item.supplier_price || 0)) * parseQuantity(item.quantity);
@@ -1505,45 +1525,47 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       {/* Batch Add Catalog Modal */}
       {isBatchModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center no-print">
-          <div className="bg-dark-900 border border-dark-800 w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-xs p-4 flex items-center justify-center no-print">
+          <div className="bg-card border border-border w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
-            <div className="p-5 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
+            <div className="p-5 border-b border-border flex justify-between items-center bg-card/60">
               <div>
-                <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">
-                  <Grid className="w-5 h-5 text-primary-400" />
+                <h3 className="font-bold text-foreground text-base sm:text-lg flex items-center gap-2">
+                  <Grid className="w-5 h-5 text-primary" />
                   Batch Add Products from Catalog
                 </h3>
-                <p className="text-xs text-dark-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Adjust quantities for multiple products (including decimals like 0.5 or 1.5) and apply them in one batch.
                 </p>
               </div>
-              <button 
+              <Button 
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setIsBatchModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-dark-800 text-dark-400 hover:text-white transition-colors"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
 
             {/* Modal Search Bar */}
-            <div className="p-4 border-b border-dark-850 bg-dark-900/40 flex flex-col sm:flex-row gap-3">
+            <div className="p-4 border-b border-border bg-card/40 flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-                <input
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
                   type="text"
                   placeholder="Search catalog by product name (English or Khmer)..."
                   value={batchSearchQuery}
                   onChange={(e) => setBatchSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 glass-input text-sm"
+                  className="w-full pl-11 pr-4 text-sm h-10"
                 />
               </div>
               <select
                 value={selectedBrandFilter}
                 onChange={(e) => setSelectedBrandFilter(e.target.value)}
-                className="glass-input text-sm min-w-[160px]"
+                className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm min-w-[160px] h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
               >
                 <option value="all">All Brands</option>
                 <option value="none">No Brand</option>
@@ -1555,7 +1577,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               <select
                 value={selectedCategoryFilter}
                 onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                className="glass-input text-sm min-w-[160px]"
+                className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm min-w-[160px] h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
               >
                 <option value="all">All Categories</option>
                 <option value="none">No Category</option>
@@ -1566,7 +1588,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             {/* Modal Product Grid */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-dark-950/10">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-muted/20">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {getFilteredProducts(batchSearchQuery).map(p => {
                   const sps = productSupplierPrices[p.id] || [];
@@ -1616,65 +1638,67 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       key={p.id} 
                       className={`p-4 rounded-xl border transition-all ${
                         qtyVal > 0 
-                          ? 'border-primary-500/40 bg-primary-500/5 shadow-md shadow-primary-500/5' 
-                          : 'border-dark-850 bg-dark-900/20 hover:border-dark-800'
+                          ? 'border-primary/40 bg-primary/5 shadow-xs' 
+                          : 'border-border bg-card/60 hover:border-primary/30'
                       }`}
                     >
                       <div className="flex items-start gap-3.5 min-h-[5rem]">
                         {/* Interactive Image */}
                         <div 
                           onClick={increment}
-                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 cursor-pointer hover:border-primary-500/50 hover:scale-105 active:scale-95 transition-all select-none"
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-muted border border-border cursor-pointer hover:border-primary/50 hover:scale-105 active:scale-95 transition-all select-none"
                           title="Click to increase quantity"
                         >
                           {p.image_url ? (
                             <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-dark-600 text-lg">📦</div>
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-lg">📦</div>
                           )}
                         </div>
 
                         {/* Product Info */}
                         <div className="flex-1 min-w-0 text-left space-y-1">
                           <div className="flex justify-between items-start gap-1.5">
-                            <h4 className="font-semibold text-white text-xs sm:text-sm line-clamp-2">{p.name_kh}</h4>
-                            <span className="text-xs font-bold text-primary-400 shrink-0 font-mono">
+                            <h4 className="font-semibold text-foreground text-xs sm:text-sm line-clamp-2">{p.name_kh}</h4>
+                            <span className="text-xs font-bold text-primary shrink-0 font-mono">
                               ${cheapestPrice.toFixed(2)}
                             </span>
                           </div>
-                          <div className="text-[10px] text-dark-400 flex flex-wrap items-center gap-1.5">
+                          <div className="text-[10px] text-muted-foreground flex flex-wrap items-center gap-1.5">
                             <span className="line-clamp-1 block w-full">{p.name_en}</span>
                             {p.brand_id && brands.find(b => b.id === p.brand_id) && (
-                              <span className="px-1.5 py-0.5 rounded bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[8px] font-bold">
+                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] border-primary/30 text-primary bg-primary/10">
                                 {brands.find(b => b.id === p.brand_id).name}
-                              </span>
+                              </Badge>
                             )}
                             {p.category_id && categories.find(c => c.id === p.category_id) && (
-                              <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[8px] font-bold">
+                              <Badge variant="outline" className="px-1.5 py-0 text-[9px] border-violet-500/30 text-violet-500 bg-violet-500/10">
                                 {categories.find(c => c.id === p.category_id).name}
-                              </span>
+                              </Badge>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-dark-850/60">
-                        <div className="text-[10px] text-dark-500 text-left">
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
+                        <div className="text-[10px] text-muted-foreground text-left">
                           <span className="block font-mono">Cost: ${cheapestPrice.toFixed(2)}</span>
-                          <span className={`${totalStock <= 2 ? 'text-rose-400 font-semibold' : 'text-dark-400'}`}>
+                          <span className={`${totalStock <= 2 ? 'text-rose-500 font-semibold' : 'text-muted-foreground'}`}>
                             Stock: {totalStock}
                           </span>
                         </div>
 
                         {/* Qty Input Supporting Decimals */}
-                        <div className="flex items-center gap-1 bg-dark-950/80 rounded-lg p-0.5 border border-dark-800">
-                          <button
+                        <div className="flex items-center gap-1 bg-background rounded-lg p-0.5 border border-input">
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={decrement}
-                            className="p-1.5 rounded text-dark-400 hover:text-white hover:bg-dark-800 active:scale-90 transition-all cursor-pointer"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground active:scale-90 transition-all cursor-pointer"
                           >
                             <Minus className="w-3.5 h-3.5" />
-                          </button>
+                          </Button>
                           <input
                             type="number"
                             step="any"
@@ -1683,22 +1707,24 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             value={qtyRaw !== undefined ? qtyRaw : ''}
                             placeholder="0"
                             onChange={(e) => handleQtyChange(e.target.value)}
-                            className="w-12 text-center bg-transparent border-0 outline-none text-xs font-bold text-white p-0 font-mono"
+                            className="w-12 text-center bg-transparent border-0 outline-none text-xs font-bold text-foreground p-0 font-mono"
                           />
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={increment}
-                            className="p-1.5 rounded text-dark-400 hover:text-white hover:bg-dark-800 active:scale-90 transition-all cursor-pointer"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground active:scale-90 transition-all cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
                   );
                 })}
                 {getFilteredProducts(batchSearchQuery).length === 0 && (
-                  <div className="col-span-full py-12 text-center text-dark-500 italic text-sm">
+                  <div className="col-span-full py-12 text-center text-muted-foreground italic text-sm">
                     No products found matching your search.
                   </div>
                 )}
@@ -1706,19 +1732,20 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-dark-800 flex flex-col sm:flex-row justify-between items-center gap-3 bg-dark-950/40">
-              <div className="text-xs text-dark-400 text-center sm:text-left">
-                Selected: <strong className="text-white">{Object.values(batchQuantities).filter(q => parseQuantity(q) > 0).length}</strong> products
+            <div className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-3 bg-card/60">
+              <div className="text-xs text-muted-foreground text-center sm:text-left">
+                Selected: <strong className="text-foreground">{Object.values(batchQuantities).filter(q => parseQuantity(q) > 0).length}</strong> products
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setIsBatchModalOpen(false)}
-                  className="w-full sm:w-auto glass-button-secondary py-2 px-4 cursor-pointer"
+                  className="w-full sm:w-auto"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => {
                     const itemsToApply = Object.entries(batchQuantities)
@@ -1790,10 +1817,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                     setIsBatchModalOpen(false);
                   }}
-                  className="w-full sm:w-auto glass-button-primary py-2 px-4 cursor-pointer"
+                  className="w-full sm:w-auto"
                 >
                   Apply to Invoice
-                </button>
+                </Button>
               </div>
             </div>
 

@@ -2,6 +2,18 @@ import { useState, useRef } from 'react';
 import { Search, Calendar, Filter, Eye, Printer, Trash2, Download, ImageIcon, Share2, X, RefreshCw } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
 import { db } from '../services/db';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function SalesLog({ orders, customers, orderItems, products, prices, onRefresh, showToast }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -222,49 +234,49 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
     <div className="space-y-6">
       <div className="no-print space-y-6">
         {/* Header Panel */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-dark-900/40 p-6 rounded-2xl border border-dark-800/40 shadow-sm">
+        <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 backdrop-blur-md p-6 border-border shadow-xs">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide">Sales Log</h2>
-            <p className="text-xs text-dark-400 mt-1">
+            <h2 className="text-xl font-bold text-foreground tracking-wide">Sales Log</h2>
+            <p className="text-xs text-muted-foreground mt-1">
               Browse full sales records, update delivery and payment statuses, and review invoices.
             </p>
           </div>
-          <button
+          <Button
             onClick={handleExportCSV}
-            className="glass-button-primary py-2 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+            className="gap-2 text-xs font-bold"
           >
             <Download className="w-4 h-4" />
             Export Ledger CSV
-          </button>
-        </div>
+          </Button>
+        </Card>
 
         {/* Filter Toolbar */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="relative">
-            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-            <input
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="text"
               placeholder="Filter by customer name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 glass-input"
+              className="pl-9 h-9 text-xs bg-background/50 border-input"
             />
           </div>
           <div className="relative">
-            <Calendar className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-            <input
+            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full pl-11 glass-input text-dark-300"
+              className="pl-9 h-9 text-xs bg-background/50 border-input text-foreground"
             />
           </div>
           <div className="relative">
-            <Filter className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
+            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full pl-11 glass-input"
+              className="flex h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -275,22 +287,22 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
         </div>
 
         {/* Sales Log Table */}
-        <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-dark-800">
+        <Card className="rounded-xl overflow-hidden border-border shadow-xs">
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="bg-dark-950/60 border-b border-dark-800/80 text-dark-300 font-semibold">
-                  <th className="p-4">Invoice ID</th>
-                  <th className="p-4">Customer</th>
-                  <th className="p-4">Order Date</th>
-                  <th className="p-4 min-w-[200px]">Items Purchased</th>
-                  <th className="p-4 text-right">Total Amount</th>
-                  <th className="p-4 text-right text-emerald-405 text-emerald-400 font-bold">Profit</th>
-                  <th className="p-4 text-center">Status</th>
-                  <th className="p-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-850">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="p-4 text-xs font-bold uppercase">Invoice ID</TableHead>
+                  <TableHead className="p-4 text-xs font-bold uppercase">Customer</TableHead>
+                  <TableHead className="p-4 text-xs font-bold uppercase">Order Date</TableHead>
+                  <TableHead className="p-4 min-w-[200px] text-xs font-bold uppercase">Items Purchased</TableHead>
+                  <TableHead className="p-4 text-right text-xs font-bold uppercase">Total Amount</TableHead>
+                  <TableHead className="p-4 text-right text-emerald-500 text-xs font-bold uppercase">Profit</TableHead>
+                  <TableHead className="p-4 text-center text-xs font-bold uppercase">Status</TableHead>
+                  <TableHead className="p-4 text-center text-xs font-bold uppercase">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredOrders.map(order => {
                   const cust = customers.find(c => c.id === order.customer_id);
                   const itemsSummary = getOrderItemsSummary(order.id);
@@ -305,116 +317,131 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                   }, 0);
 
                   return (
-                    <tr key={order.id} className="hover:bg-dark-900/30 transition-colors">
+                    <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
                       {/* ID */}
-                      <td className="p-4 font-mono font-bold text-xs text-primary-400">
+                      <TableCell className="p-4 font-mono font-bold text-xs text-primary">
                         #{order.id.slice(-6).toUpperCase()}
-                      </td>
+                      </TableCell>
                       
                       {/* Customer */}
-                      <td className="p-4 font-semibold text-white">
+                      <TableCell className="p-4 font-semibold text-foreground">
                         {cust ? cust.name : 'Unknown Customer'}
-                      </td>
+                      </TableCell>
                       
                       {/* Date */}
-                      <td className="p-4 text-dark-300">
+                      <TableCell className="p-4 text-muted-foreground text-xs">
                         {new Date(order.ordered_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                      </td>
+                      </TableCell>
                       
                       {/* Items */}
-                      <td className="p-4 text-xs text-dark-400 max-w-sm truncate" title={itemsSummary}>
+                      <TableCell className="p-4 text-xs text-muted-foreground max-w-sm truncate" title={itemsSummary}>
                         {itemsSummary || 'No items'}
-                      </td>
+                      </TableCell>
                       
                       {/* Price */}
-                      <td className="p-4 text-right font-bold text-white">
+                      <TableCell className="p-4 text-right font-bold font-mono text-foreground">
                         ${Number(order.total_amount).toFixed(2)}
-                      </td>
+                      </TableCell>
                       
                       {/* Profit */}
-                      <td className="p-4 text-right font-bold text-emerald-400">
+                      <TableCell className="p-4 text-right font-bold font-mono text-emerald-500">
                         ${orderProfit.toFixed(2)}
-                      </td>
+                      </TableCell>
                       
                       {/* Status interactive selector */}
-                      <td className="p-4 text-center">
+                      <TableCell className="p-4 text-center">
                         <select
                           value={order.status}
                           onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                           className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase outline-none cursor-pointer border ${
                             order.status === 'paid' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-900/30'
+                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
                               : order.status === 'delivered'
-                              ? 'bg-primary-500/10 text-primary-400 border-primary-900/30'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-900/30'
+                              ? 'bg-primary/10 text-primary border-primary/30'
+                              : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
                           }`}
                         >
                           <option value="pending">Pending</option>
                           <option value="delivered">Delivered</option>
                           <option value="paid">Paid</option>
                         </select>
-                      </td>
+                      </TableCell>
 
                       {/* Actions */}
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
+                      <TableCell className="p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleOpenPreview(order)}
-                            className="p-1.5 rounded bg-dark-900 hover:bg-dark-800 text-dark-300 hover:text-white"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
                             title="View Invoice Details"
                           >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDeleteOrder(order.id)}
-                            className="p-1.5 rounded bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/20"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
                             title="Delete / Cancel Order"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
 
                 {filteredOrders.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-dark-500 italic">
+                  <TableRow>
+                    <TableCell colSpan={8} className="p-8 text-center text-muted-foreground italic">
                       No orders logged matching your search filters.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Invoice Details Overlay Modal (Zeii Pov Format) */}
       {activeOrderPreview && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center no-print">
-          <div className="bg-dark-900 border border-dark-800 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             
             {/* Header controls */}
-            <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/40">
-              <h3 className="font-semibold text-white">Invoice Details</h3>
+            <div className="p-4 border-b border-border flex justify-between items-center bg-muted/40">
+              <h3 className="font-semibold text-foreground">Invoice Details</h3>
               <div className="flex gap-2">
-                <button 
+                <Button 
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleDownloadImage('png')} 
                   disabled={isExporting}
-                  className="glass-button-secondary py-1.5 px-3 flex items-center gap-1.5 text-xs text-primary-300 border-primary-500/30 hover:border-primary-500/60"
+                  className="gap-1.5 text-xs text-primary border-primary/30 hover:border-primary/60"
                 >
-                  {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-primary-400" />}
+                  {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                   <span>Save Image</span>
-                </button>
-                <button onClick={handlePrint} className="glass-button-primary py-1.5 px-3 flex items-center gap-1.5 text-xs">
-                  <Printer className="w-4 h-4" />
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={handlePrint} 
+                  className="gap-1.5 text-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
                   Print Invoice
-                </button>
-                <button onClick={() => setActiveOrderPreview(null)} className="glass-button-secondary py-1.5 px-3 text-xs">
+                </Button>
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveOrderPreview(null)} 
+                  className="text-xs"
+                >
                   Close
-                </button>
+                </Button>
               </div>
             </div>
 

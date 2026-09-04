@@ -11,6 +11,8 @@ import CategoryManager from './modules/CategoryManager';
 import Dashboard from './modules/Dashboard';
 import CommandPalette from './components/CommandPalette';
 import { db } from './services/db';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   RefreshCw, 
   LayoutDashboard, 
@@ -333,48 +335,52 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden bg-dark-950/20">
         {/* Top Header Bar */}
-        <header className="h-16 border-b border-dark-800/40 bg-dark-950/50 backdrop-blur-md flex items-center justify-between px-8 flex-shrink-0 no-print">
+        <header className="h-16 border-b border-border bg-card/60 backdrop-blur-md flex items-center justify-between px-8 flex-shrink-0 no-print">
           <div className="flex items-center gap-4">
-            <button 
+            <Button 
+              variant="ghost" 
+              size="icon"
               onClick={() => setIsSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-dark-900 text-dark-400 hover:text-white md:hidden transition-all active:scale-95 cursor-pointer"
+              className="md:hidden"
               title="Open Menu"
             >
               <Menu className="w-5 h-5" />
-            </button>
+            </Button>
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-dark-900/60 border border-dark-800/50">
+              <div className="p-2 rounded-xl bg-muted/60 border border-border">
                 {getTabIcon()}
               </div>
-              <span className="text-sm font-bold text-white uppercase tracking-wider font-sans">
+              <span className="text-sm font-bold text-foreground uppercase tracking-wider font-sans">
                 {getTabLabel()}
               </span>
             </div>
           </div>
 
           {/* Quick Info Badges */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dark-900/60 border border-dark-800/40 text-xs shadow-sm">
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="hidden md:flex items-center gap-2 py-1.5 px-3 bg-muted/40 font-normal">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-dark-400 font-medium">Total Volume:</span>
-              <strong className="text-white font-bold font-mono">${totalSales.toFixed(2)}</strong>
-            </div>
+              <span className="text-muted-foreground font-medium">Total Volume:</span>
+              <strong className="text-foreground font-bold font-mono">${totalSales.toFixed(2)}</strong>
+            </Badge>
 
             {lowStockCount > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-900/20 text-xs text-rose-300 shadow-sm">
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+              <Badge variant="destructive" className="flex items-center gap-1.5 py-1 px-2.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
                 <span className="font-semibold">{lowStockCount} Low Stock Alerts</span>
-              </div>
+              </Badge>
             )}
 
-            <button 
+            <Button 
+              variant="outline"
+              size="icon"
               onClick={loadData}
               disabled={loading || syncing}
-              className="p-2 rounded-xl hover:bg-dark-900 text-dark-400 hover:text-white border border-dark-800/40 hover:border-dark-700/60 bg-dark-900/20 transition-all active:scale-95 cursor-pointer"
+              className="h-9 w-9 bg-card/40"
               title="Sync Database"
             >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-primary-400' : ''}`} />
-            </button>
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-primary' : ''}`} />
+            </Button>
           </div>
         </header>
 

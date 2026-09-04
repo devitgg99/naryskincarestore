@@ -3,6 +3,26 @@ import { createPortal } from 'react-dom';
 import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop, LayoutGrid, List } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 
 
@@ -327,41 +347,61 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
         onDrop={handleDrop}
         className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed transition-all duration-200 relative ${
           isDragActive 
-            ? 'border-primary-500 bg-primary-500/10 shadow-lg shadow-primary-500/5' 
-            : 'border-dark-800 bg-dark-900/20 hover:border-dark-700/60'
+            ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5' 
+            : 'border-border bg-card/40 hover:border-border/80'
         }`}
       >
         {/* Preview */}
-        <div className="w-[72px] h-[72px] rounded-xl border border-dark-850 flex items-center justify-center overflow-hidden bg-dark-950/60 flex-shrink-0 shadow-inner">
+        <div className="w-[72px] h-[72px] rounded-xl border border-border flex items-center justify-center overflow-hidden bg-muted/60 flex-shrink-0 shadow-inner">
           {displayUrl ? (
             <img src={displayUrl} alt="Product" className="w-full h-full object-cover rounded-xl" />
           ) : (
-            <ImageIcon className="w-6 h-6 text-dark-600" />
+            <ImageIcon className="w-6 h-6 text-muted-foreground" />
           )}
         </div>
 
         {/* Controls */}
         <div className="flex flex-col gap-2 flex-1">
           <div className="flex gap-2">
-            <button type="button" onClick={() => cameraInputRef.current?.click()}
-              className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
-              <Camera className="w-3.5 h-3.5 text-primary-400" /> Camera
-            </button>
-            <button type="button" onClick={() => fileInputRef.current?.click()}
-              className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
-              <ImageIcon className="w-3.5 h-3.5 text-violet-400" /> Upload
-            </button>
+            <Button 
+              type="button" 
+              variant="outline"
+              size="sm"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex-1 h-8 text-xs gap-1.5"
+            >
+              <Camera className="w-3.5 h-3.5 text-primary" /> Camera
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 h-8 text-xs gap-1.5"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-violet-500" /> Upload
+            </Button>
           </div>
           {hasImage && (
             <div className="flex gap-2">
-              <button type="button" onClick={handleOpenCropper}
-                className="flex-1 glass-button-secondary py-1.5 px-2 text-xs gap-1.5 cursor-pointer border border-primary-500/30 hover:border-primary-500/60">
-                <Crop className="w-3.5 h-3.5 text-primary-400" /> Crop
-              </button>
-              <button type="button" onClick={handleRemove}
-                className="flex-1 glass-button-danger py-1.5 px-2 text-xs gap-1.5 cursor-pointer">
+              <Button 
+                type="button" 
+                variant="outline"
+                size="sm"
+                onClick={handleOpenCropper}
+                className="flex-1 h-8 text-xs gap-1.5 border-primary/30 hover:border-primary/60 text-primary"
+              >
+                <Crop className="w-3.5 h-3.5" /> Crop
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline"
+                size="sm"
+                onClick={handleRemove}
+                className="flex-1 h-8 text-xs gap-1.5 border-destructive/30 hover:border-destructive/60 text-destructive hover:bg-destructive/10"
+              >
                 <X className="w-3.5 h-3.5" /> Remove
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -861,54 +901,55 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   return (
     <div className="space-y-6">
       {/* Header Panel */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-dark-900/30 p-6 rounded-2xl border border-dark-800">
+      <Card className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-card/60 backdrop-blur-md p-6 border-border shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-wide">Product + Supplier Pricing Table</h2>
-          <p className="text-xs text-dark-400 mt-1">
+          <h2 className="text-xl font-bold text-foreground tracking-wide">Product + Supplier Pricing Table</h2>
+          <p className="text-xs text-muted-foreground mt-1">
             Compare prices across all suppliers and manage stock levels side-by-side.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
+          <Button
             onClick={() => setIsAddProductOpen(true)}
-            className="glass-button-primary py-2 px-4 flex items-center gap-2 text-xs font-bold"
+            className="gap-2 text-xs font-bold"
           >
             <Plus className="w-4 h-4" />
             Add Product
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setIsAddSupplierOpen(true)}
-            className="glass-button-secondary py-2 px-4 flex items-center gap-2 text-xs font-bold"
+            className="gap-2 text-xs font-bold"
           >
             <Plus className="w-4 h-4" />
             Add Supplier
-          </button>
-          <div className="flex items-center gap-2 text-xs text-dark-400 bg-dark-950/60 px-3.5 py-2 rounded-xl border border-dark-800">
-            <Info className="w-4 h-4 text-primary-400 flex-shrink-0" />
+          </Button>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3.5 py-2 rounded-xl border border-border">
+            <Info className="w-4 h-4 text-primary flex-shrink-0" />
             <span>Click any supplier cell in the table to edit pricing and stock levels.</span>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Filters bar */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="flex-1 relative">
-          <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-          <input
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
             type="text"
             placeholder="Search by English or Khmer product name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 glass-input"
+            className="w-full pl-10 h-9 text-xs bg-background/50 border-input"
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <SlidersHorizontal className="w-5 h-5 text-dark-400" />
+          <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
           
           <select
             value={selectedBrandFilter}
             onChange={(e) => setSelectedBrandFilter(e.target.value)}
-            className="glass-input min-w-[180px]"
+            className="flex h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground min-w-[150px]"
           >
             <option value="all">All Brands</option>
             <option value="none">No Brand</option>
@@ -920,7 +961,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           <select
             value={selectedCategoryFilter}
             onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-            className="glass-input min-w-[180px]"
+            className="flex h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground min-w-[150px]"
           >
             <option value="all">All Categories</option>
             <option value="none">No Category</option>
@@ -932,7 +973,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           <select
             value={selectedSupplierFilter}
             onChange={(e) => setSelectedSupplierFilter(e.target.value)}
-            className="glass-input min-w-[200px]"
+            className="flex h-9 rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground min-w-[180px]"
           >
             <option value="all">All Suppliers (Show Grid)</option>
             {suppliers.map(s => (
@@ -941,29 +982,29 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           </select>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-dark-950/60 p-1 rounded-xl border border-dark-800">
-            <button
+          <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-lg border border-border">
+            <Button
               type="button"
+              variant={viewLayoutMode === 'matrix' ? 'secondary' : 'ghost'}
+              size="sm"
               onClick={() => setViewLayoutMode('matrix')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                viewLayoutMode === 'matrix' ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20' : 'text-dark-400 hover:text-white'
-              }`}
+              className="h-7 px-2.5 text-xs font-semibold gap-1.5"
               title="Matrix Table View"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Matrix View</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant={viewLayoutMode === 'cards' ? 'secondary' : 'ghost'}
+              size="sm"
               onClick={() => setViewLayoutMode('cards')}
-              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                viewLayoutMode === 'cards' ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20' : 'text-dark-400 hover:text-white'
-              }`}
+              className="h-7 px-2.5 text-xs font-semibold gap-1.5"
               title="Mobile Card List View"
             >
               <List className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Mobile Cards</span>
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -978,37 +1019,37 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
 
             return (
-              <div key={product.id} className="glass-panel p-5 rounded-2xl border border-dark-800 space-y-4 shadow-lg">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-dark-850 pb-3">
+              <Card key={product.id} className="p-5 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-border pb-3">
                   <div 
                     onClick={() => handleProductClick(product)}
                     className="flex items-center gap-3 cursor-pointer group"
                   >
-                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-muted border border-border">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name_en} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="w-5 h-5 text-dark-600" />
+                          <ImageIcon className="w-5 h-5 text-muted-foreground" />
                         </div>
                       )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-base group-hover:text-primary-400 transition-colors flex items-center gap-1.5">
+                      <h4 className="font-bold text-foreground text-base group-hover:text-primary transition-colors flex items-center gap-1.5">
                         {product.name_kh}
-                        <Edit2 className="w-3.5 h-3.5 opacity-60 text-primary-400" />
+                        <Edit2 className="w-3.5 h-3.5 opacity-60 text-primary" />
                       </h4>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-dark-400">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
                         <span>{product.name_en}</span>
                         {product.brand_id && brandMap[product.brand_id] && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/30 text-primary bg-primary/10">
                             {brandMap[product.brand_id]}
-                          </span>
+                          </Badge>
                         )}
                         {product.category_id && categoryMap[product.category_id] && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/30 text-violet-500 bg-violet-500/10">
                             {categoryMap[product.category_id]}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -1016,15 +1057,15 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
                   <div className="flex items-center gap-3 self-start sm:self-auto">
                     <div className="text-left sm:text-right">
-                      <span className="text-[10px] text-dark-400 block font-semibold uppercase">Selling Price</span>
-                      <span className="text-base font-bold text-white">${sellingPrice.toFixed(2)}</span>
+                      <span className="text-[10px] text-muted-foreground block font-semibold uppercase">Selling Price</span>
+                      <span className="text-base font-bold text-foreground font-mono">${sellingPrice.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Supplier Offers List for Card */}
                 <div className="space-y-2">
-                  <h5 className="text-[11px] font-bold text-dark-400 uppercase tracking-wider">Supplier Offers</h5>
+                  <h5 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Supplier Offers</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {suppliers.map(supplier => {
                       if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
@@ -1037,75 +1078,77 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                           onClick={() => handleCellClick(product, supplier)}
                           className={`p-3.5 rounded-xl border cursor-pointer transition-colors flex justify-between items-center ${
                             isCheapest 
-                              ? 'bg-emerald-950/30 border-emerald-800/60 shadow-sm' 
-                              : 'bg-dark-950/40 border-dark-850 hover:bg-dark-900/60'
+                              ? 'bg-emerald-500/10 border-emerald-500/30' 
+                              : 'bg-card/70 border-border hover:bg-muted/50'
                           }`}
                         >
                           <div className="space-y-0.5">
-                            <span className="font-semibold text-xs text-white block">{supplier.name}</span>
+                            <span className="font-semibold text-xs text-foreground block">{supplier.name}</span>
                             {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className={`font-bold text-sm ${isCheapest ? 'text-emerald-400' : 'text-white'}`}>
+                                <span className={`font-bold text-sm ${isCheapest ? 'text-emerald-500' : 'text-foreground'}`}>
                                   ${priceObj.price.toFixed(2)}
                                 </span>
-                                <span className={`text-[10px] ${priceObj.stock_qty <= 2 ? 'text-rose-400 font-bold' : 'text-dark-400'}`}>
+                                <span className={`text-[10px] ${priceObj.stock_qty <= 2 ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
                                   (Stock: {priceObj.stock_qty} {priceObj.stock_unit})
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-dark-500 italic">No offer +</span>
+                              <span className="text-[11px] text-muted-foreground italic">No offer +</span>
                             )}
                           </div>
 
                           {isCheapest && (
-                            <span className="text-[9px] font-extrabold uppercase bg-emerald-500 text-dark-950 px-1.5 py-0.5 rounded leading-none shrink-0">
+                            <Badge className="text-[9px] font-extrabold uppercase bg-emerald-600 text-white leading-none shrink-0">
                               Cheapest ★
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })}
 
           {filteredProducts.length === 0 && (
-            <div className="glass-panel p-8 text-center text-dark-500 italic rounded-2xl border border-dark-800">
+            <Card className="p-8 text-center text-muted-foreground italic border-dashed">
               No products found matching your filters.
-            </div>
+            </Card>
           )}
         </div>
       ) : (
-        <div className="glass-panel rounded-2xl overflow-hidden border border-dark-800/40 shadow-xl">
+        <Card className="rounded-xl overflow-hidden border-border shadow-xs">
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="bg-dark-900/60 border-b border-dark-800/40 text-dark-400 text-[11px] font-semibold tracking-wider uppercase">
-                  <th className="p-4 min-w-[260px]">Product Details</th>
-                  <th className="p-4 text-center">Selling Price</th>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="p-4 min-w-[260px] text-xs font-bold uppercase">Product Details</TableHead>
+                  <TableHead className="p-4 text-center text-xs font-bold uppercase">Selling Price</TableHead>
                   {suppliers.map(supplier => {
                     if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
                     return (
-                      <th key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-dark-800/40 relative group">
+                      <TableHead key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-border relative group text-xs font-bold uppercase">
                         <span className="inline-block">{supplier.name}</span>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteSupplier(supplier);
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200 cursor-pointer"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 h-6 w-6 text-destructive hover:bg-destructive/10"
                           title={`Delete ${supplier.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </th>
+                        </Button>
+                      </TableHead>
                     );
                   })}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-850">
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredProducts.map(product => {
                   const cheapestPrice = getCheapestPrice(product.id);
                   const highestPrice = getHighestPrice(product.id);
@@ -1114,13 +1157,13 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                     : (highestPrice ? (highestPrice.price + 0.20) : (product.base_price + 0.20));
 
                   return (
-                    <tr key={product.id} className="hover:bg-dark-900/30 transition-colors group">
-                      <td 
+                    <TableRow key={product.id} className="hover:bg-muted/30 transition-colors group">
+                      <TableCell 
                         onClick={() => handleProductClick(product)}
-                        className="p-4 cursor-pointer hover:bg-primary-500/5 transition-colors relative group/prod-name"
+                        className="p-4 cursor-pointer hover:bg-primary/5 transition-colors relative group/prod-name"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border">
                             {product.image_url ? (
                               <img
                                 src={product.image_url}
@@ -1130,35 +1173,35 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="w-4 h-4 text-dark-600" />
+                                <ImageIcon className="w-4 h-4 text-muted-foreground" />
                               </div>
                             )}
                           </div>
                           <div>
-                            <div className="font-semibold text-white group-hover/prod-name:text-primary-400 flex items-center gap-1.5 transition-colors">
+                            <div className="font-semibold text-foreground group-hover/prod-name:text-primary flex items-center gap-1.5 transition-colors">
                               <span>{product.name_kh}</span>
-                              <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary-400" />
+                              <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary" />
                             </div>
-                            <div className="text-xs text-dark-400 mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5">
                               <span>{product.name_en}</span>
                               {product.brand_id && brandMap[product.brand_id] && (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-primary-500/20 text-primary-400 bg-primary-500/10 leading-none">
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/30 text-primary bg-primary/10">
                                   {brandMap[product.brand_id]}
-                                </span>
+                                </Badge>
                               )}
                               {product.category_id && categoryMap[product.category_id] && (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold border border-violet-500/20 text-violet-400 bg-violet-500/10 leading-none">
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/30 text-violet-500 bg-violet-500/10">
                                   {categoryMap[product.category_id]}
-                                </span>
+                                </Badge>
                               )}
                             </div>
                           </div>
                         </div>
-                      </td>
+                      </TableCell>
                       
-                      <td className="p-4 text-center font-medium text-dark-300">
+                      <TableCell className="p-4 text-center font-medium font-mono text-foreground">
                         ${sellingPrice.toFixed(2)}
-                      </td>
+                      </TableCell>
 
                       {suppliers.map(supplier => {
                         if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
@@ -1167,182 +1210,186 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                         const isCheapest = cheapestPrice && priceObj && priceObj.id === cheapestPrice.id;
                         
                         return (
-                          <td 
+                          <TableCell 
                             key={supplier.id}
                             onClick={() => handleCellClick(product, supplier)}
-                            className={`p-4 text-center border-l border-dark-850 cursor-pointer transition-all duration-150 group/cell hover:bg-primary-500/5 ${
+                            className={`p-4 text-center border-l border-border cursor-pointer transition-all duration-150 group/cell hover:bg-primary/5 ${
                               isCheapest 
-                                ? 'bg-emerald-950/20 text-emerald-300 border-x border-emerald-900/40' 
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold' 
                                 : ''
                             }`}
                           >
                             {priceObj && (priceObj.price > 0 || priceObj.stock_qty > 0) ? (
                               <div className="space-y-1 relative">
                                 <div className="font-semibold flex items-center justify-center gap-1.5">
-                                  <span className={isCheapest ? 'text-emerald-400 text-base font-bold' : 'text-white'}>
+                                  <span className={isCheapest ? 'text-emerald-500 text-base font-bold' : 'text-foreground font-mono'}>
                                     ${priceObj.price.toFixed(2)}
                                   </span>
                                   {isCheapest && (
-                                    <span className="text-[9px] font-extrabold uppercase bg-emerald-500 text-dark-950 px-1 py-0.5 rounded leading-none">
+                                    <Badge className="text-[9px] font-extrabold uppercase bg-emerald-600 text-white px-1 py-0 leading-none">
                                       Cheapest
-                                    </span>
+                                    </Badge>
                                   )}
                                 </div>
                                 <div className="space-y-0.5">
                                   <div className={`text-[11px] font-medium ${
                                     priceObj.stock_qty <= 2 
-                                      ? 'text-rose-400 font-bold bg-rose-500/10 px-1 py-0.5 rounded inline-block' 
-                                      : 'text-dark-400'
+                                      ? 'text-destructive font-bold bg-destructive/10 px-1 py-0.5 rounded inline-block' 
+                                      : 'text-muted-foreground'
                                   }`}>
                                     Stock: {priceObj.stock_qty} {priceObj.stock_unit}
                                   </div>
                                   {priceObj.updated_at && (
-                                    <div className="text-[10px] text-dark-500 font-medium group-hover/cell:text-dark-400 transition-colors">
+                                    <div className="text-[10px] text-muted-foreground font-medium group-hover/cell:text-foreground transition-colors">
                                       Updated: {new Date(priceObj.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                     </div>
                                   )}
                                 </div>
                                 
-                                <Edit2 className="w-3.5 h-3.5 absolute right-0 top-0 opacity-0 group-hover/cell:opacity-60 transition-opacity text-primary-400" />
+                                <Edit2 className="w-3.5 h-3.5 absolute right-0 top-0 opacity-0 group-hover/cell:opacity-60 transition-opacity text-primary" />
                               </div>
                             ) : (
-                              <span className="text-xs text-dark-600 italic group-hover/cell:text-dark-400">
+                              <span className="text-xs text-muted-foreground italic group-hover/cell:text-foreground">
                                 No offer +
                               </span>
                             )}
-                          </td>
+                          </TableCell>
                         );
                       })}
-                    </tr>
+                    </TableRow>
                   );
                 })}
 
                 {filteredProducts.length === 0 && (
-                  <tr>
-                    <td colSpan={2 + suppliers.length} className="p-8 text-center text-dark-500 italic">
+                  <TableRow>
+                    <TableCell colSpan={2 + suppliers.length} className="p-8 text-center text-muted-foreground italic">
                       No products found matching your filters.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Edit Price/Stock Dialog Modal */}
-      {editingCell && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleSavePrice}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150"
-          >
-            <div className="p-6 border-b border-dark-800">
-              <h3 className="font-bold text-lg text-white">Edit Price & Stock</h3>
-              <p className="text-xs text-dark-400 mt-1">
-                For {editingCell.product.name_kh} from supplier <strong>{editingCell.supplier.name}</strong>
-              </p>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Price (USD)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="Enter supplier unit price"
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full glass-input"
-                />
-                <p className="text-[10px] text-dark-500 mt-1">
-                  {editingCell.product.selling_price && Number(editingCell.product.selling_price) > 0
-                    ? `Selling Price (Manual Override): $${Number(editingCell.product.selling_price).toFixed(2)}`
-                    : `Expected Selling Price (Max Cost + $0.20): $${getExpectedSellingPrice(editingCell.product.id, editingCell.priceObj.id, editPrice).toFixed(2)}`}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+      <Dialog open={!!editingCell} onOpenChange={(open) => !open && setEditingCell(null)}>
+        <DialogContent className="max-w-md">
+          {editingCell && (
+            <form onSubmit={handleSavePrice} className="space-y-4">
+              <DialogHeader>
+                <DialogTitle>Edit Price & Stock</DialogTitle>
+                <DialogDescription>
+                  For {editingCell.product.name_kh} from supplier <strong className="text-foreground">{editingCell.supplier.name}</strong>
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-2">
                 <div>
-                  <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Stock Quantity</label>
-                  <input 
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Price (USD)</label>
+                  <Input 
                     type="number" 
+                    step="0.01"
                     min="0"
                     required
-                    placeholder="E.g. 10, 24"
-                    value={editStock}
-                    onChange={(e) => setEditStock(e.target.value)}
-                    className="w-full glass-input"
+                    placeholder="Enter supplier unit price"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="h-9 text-xs"
                   />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {editingCell.product.selling_price && Number(editingCell.product.selling_price) > 0
+                      ? `Selling Price (Manual Override): $${Number(editingCell.product.selling_price).toFixed(2)}`
+                      : `Expected Selling Price (Max Cost + $0.20): $${getExpectedSellingPrice(editingCell.product.id, editingCell.priceObj.id, editPrice).toFixed(2)}`}
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Stock Unit</label>
-                  <select 
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                    className="w-full glass-input"
-                  >
-                    <option value="pcs">Pieces (pcs)</option>
-                    <option value="lo">Dozens (lo)</option>
-                    <option value="cs">Cases (cs)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 w-full">
-              {editingCell.priceObj.id ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteOffer}
-                  disabled={isSaving}
-                  className="px-4 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 border border-red-500/20 cursor-pointer"
-                >
-                  Delete Offer
-                </button>
-              ) : (
-                <div></div>
-              )}
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingCell(null)} 
-                  className="glass-button-secondary"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSaving}
-                  className="glass-button-primary"
-                >
-                  Save Price
-                </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Stock Quantity</label>
+                    <Input 
+                      type="number" 
+                      min="0"
+                      required
+                      placeholder="E.g. 10, 24"
+                      value={editStock}
+                      onChange={(e) => setEditStock(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Stock Unit</label>
+                    <select 
+                      value={editUnit}
+                      onChange={(e) => setEditUnit(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                    >
+                      <option value="pcs">Pieces (pcs)</option>
+                      <option value="lo">Dozens (lo)</option>
+                      <option value="cs">Cases (cs)</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>,
-        document.body
-      )}
+
+              <DialogFooter className="flex justify-between items-center sm:justify-between w-full pt-2">
+                {editingCell.priceObj.id ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteOffer}
+                    disabled={isSaving}
+                    className="text-xs"
+                  >
+                    Delete Offer
+                  </Button>
+                ) : (
+                  <div></div>
+                )}
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingCell(null)} 
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save Price'}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Product Modal */}
-      {isAddProductOpen && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleAddProduct}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 text-left flex flex-col max-h-[90vh]"
-          >
-            <div className="p-6 border-b border-dark-800 flex-shrink-0">
-              <h3 className="font-bold text-lg text-white">Add New Product</h3>
-              <p className="text-xs text-dark-400 mt-1">Create a new product in the system catalog.</p>
-            </div>
+      <Dialog 
+        open={isAddProductOpen} 
+        onOpenChange={(open) => {
+          setIsAddProductOpen(open);
+          if (!open) setNewProductImageState({ file: null, removed: false });
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleAddProduct} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Add New Product</DialogTitle>
+              <DialogDescription>Create a new product in the system catalog.</DialogDescription>
+            </DialogHeader>
             
-            <div className="p-6 space-y-4 overflow-y-auto scrollbar-thin flex-1">
+            <div className="space-y-4 py-2">
               {/* Product Image */}
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Image</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Product Image</label>
                 <ImageUploadWidget
                   existingImageUrl={null}
                   onStateChange={setNewProductImageState}
@@ -1350,32 +1397,32 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Khmer Name (ឈ្មោះទំនិញ) *</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Khmer Name (ឈ្មោះទំនិញ) *</label>
+                <Input 
                   type="text" 
                   required
                   placeholder="E.g. កូកាកូឡា កំប៉ុង"
                   value={newProductNameKh}
                   onChange={(e) => setNewProductNameKh(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">English Name *</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">English Name *</label>
+                <Input 
                   type="text" 
                   required
                   placeholder="E.g. Coca Cola (330ml)"
                   value={newProductNameEn}
                   onChange={(e) => setNewProductNameEn(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Reference Base Price ($) *</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reference Base Price ($) *</label>
+                <Input 
                   type="number" 
                   step="0.01"
                   min="0"
@@ -1383,29 +1430,29 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   placeholder="E.g. 13.50"
                   value={newProductBasePrice}
                   onChange={(e) => setNewProductBasePrice(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
+                <Input 
                   type="number" 
                   step="0.01"
                   min="0"
                   placeholder="Leave blank for automatic base+0.20"
                   value={newProductSellingPrice}
                   onChange={(e) => setNewProductSellingPrice(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Brand</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Brand</label>
                 <select
                   value={newProductBrandId}
                   onChange={(e) => setNewProductBrandId(e.target.value)}
-                  className="w-full glass-input"
+                  className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
                 >
                   <option value="">No Brand / General</option>
                   {brands.map(b => (
@@ -1415,11 +1462,11 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
  
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Category</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Category</label>
                 <select
                   value={newProductCategoryId}
                   onChange={(e) => setNewProductCategoryId(e.target.value)}
-                  className="w-full glass-input"
+                  className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
                 >
                   <option value="">No Category</option>
                   {categories.map(c => (
@@ -1429,223 +1476,220 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20 flex-shrink-0">
-              <button 
+            <DialogFooter className="flex justify-end gap-2 pt-2">
+              <Button 
                 type="button" 
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setIsAddProductOpen(false);
                   setNewProductImageState({ file: null, removed: false });
-
                 }}
-                className="glass-button-secondary"
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
                 type="submit" 
+                size="sm"
                 disabled={isSavingProduct}
-                className="glass-button-primary"
               >
                 {isSavingProduct ? 'Adding...' : 'Add Product'}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
-        </div>,
-        document.body
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Supplier Modal */}
-      {isAddSupplierOpen && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleAddSupplier}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 text-left"
-          >
-            <div className="p-6 border-b border-dark-800">
-              <h3 className="font-bold text-lg text-white">Add New Supplier</h3>
-              <p className="text-xs text-dark-400 mt-1">Create a new supplier profile in the system.</p>
-            </div>
+      <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
+        <DialogContent className="max-w-md">
+          <form onSubmit={handleAddSupplier} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Add New Supplier</DialogTitle>
+              <DialogDescription>Create a new supplier profile in the system.</DialogDescription>
+            </DialogHeader>
             
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 py-2">
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Supplier Name *</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Supplier Name *</label>
+                <Input 
                   type="text" 
                   required
                   placeholder="E.g. Keo Pich Trading"
                   value={newSupplierName}
                   onChange={(e) => setNewSupplierName(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Contact Phone</label>
-                <input 
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Contact Phone</label>
+                <Input 
                   type="text" 
                   placeholder="E.g. 012 345 678"
                   value={newSupplierPhone}
                   onChange={(e) => setNewSupplierPhone(e.target.value)}
-                  className="w-full glass-input"
+                  className="h-9 text-xs"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-dark-800 bg-dark-950/20">
-              <button 
+            <DialogFooter className="flex justify-end gap-2 pt-2">
+              <Button 
                 type="button" 
+                variant="outline"
+                size="sm"
                 onClick={() => setIsAddSupplierOpen(false)} 
-                className="glass-button-secondary"
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
                 type="submit" 
+                size="sm"
                 disabled={isSavingSupplier}
-                className="glass-button-primary"
               >
                 {isSavingSupplier ? 'Adding...' : 'Add Supplier'}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
-        </div>,
-        document.body
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Product Modal */}
-      {editingProduct && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <form 
-            onSubmit={handleSaveProductEdit}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]"
-          >
-            <div className="p-6 border-b border-dark-800 flex-shrink-0">
-              <h3 className="font-bold text-lg text-white">Edit Product Details</h3>
-              <p className="text-xs text-dark-400 mt-1">
-                Modify product name, image, or pricing details, or delete from portal.
-              </p>
-            </div>
-            
-            <div className="p-6 space-y-4 overflow-y-auto scrollbar-thin flex-1">
-              {/* Product Image */}
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Product Image</label>
-                <ImageUploadWidget
-                  existingImageUrl={editingProduct.image_url || null}
-                  onStateChange={setEditProductImageState}
-                />
+      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          {editingProduct && (
+            <form onSubmit={handleSaveProductEdit} className="space-y-4">
+              <DialogHeader>
+                <DialogTitle>Edit Product Details</DialogTitle>
+                <DialogDescription>
+                  Modify product name, image, or pricing details, or delete from portal.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-2">
+                {/* Product Image */}
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Product Image</label>
+                  <ImageUploadWidget
+                    existingImageUrl={editingProduct.image_url || null}
+                    onStateChange={setEditProductImageState}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Khmer Name *</label>
+                  <Input 
+                    type="text" 
+                    required
+                    placeholder="Khmer Product Name"
+                    value={editProductNameKh}
+                    onChange={(e) => setEditProductNameKh(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">English Name *</label>
+                  <Input 
+                    type="text" 
+                    required
+                    placeholder="English Product Name"
+                    value={editProductNameEn}
+                    onChange={(e) => setEditProductNameEn(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Base Price (USD) *</label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    required
+                    placeholder="Base Price"
+                    value={editProductBasePrice}
+                    onChange={(e) => setEditProductBasePrice(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    placeholder="Leave blank for automatic base+0.20"
+                    value={editProductSellingPrice}
+                    onChange={(e) => setEditProductSellingPrice(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Brand</label>
+                  <select
+                    value={editProductBrandId}
+                    onChange={(e) => setEditProductBrandId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                  >
+                    <option value="">No Brand / General</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+   
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Category</label>
+                  <select
+                    value={editProductCategoryId}
+                    onChange={(e) => setEditProductCategoryId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                  >
+                    <option value="">No Category</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Khmer Name *</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Khmer Product Name"
-                  value={editProductNameKh}
-                  onChange={(e) => setEditProductNameKh(e.target.value)}
-                  className="w-full glass-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">English Name *</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="English Product Name"
-                  value={editProductNameEn}
-                  onChange={(e) => setEditProductNameEn(e.target.value)}
-                  className="w-full glass-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Base Price (USD) *</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="Base Price"
-                  value={editProductBasePrice}
-                  onChange={(e) => setEditProductBasePrice(e.target.value)}
-                  className="w-full glass-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  placeholder="Leave blank for automatic base+0.20"
-                  value={editProductSellingPrice}
-                  onChange={(e) => setEditProductSellingPrice(e.target.value)}
-                  className="w-full glass-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Brand</label>
-                <select
-                  value={editProductBrandId}
-                  onChange={(e) => setEditProductBrandId(e.target.value)}
-                  className="w-full glass-input"
-                >
-                  <option value="">No Brand / General</option>
-                  {brands.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
- 
-              <div>
-                <label className="block text-xs font-semibold text-dark-300 uppercase tracking-wider mb-2">Category</label>
-                <select
-                  value={editProductCategoryId}
-                  onChange={(e) => setEditProductCategoryId(e.target.value)}
-                  className="w-full glass-input"
-                >
-                  <option value="">No Category</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center p-6 border-t border-dark-800 bg-dark-950/20 flex-shrink-0 w-full">
-              <button
-                type="button"
-                onClick={handleDeleteProduct}
-                disabled={isSaving}
-                className="px-4 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200 border border-red-500/20 cursor-pointer"
-              >
-                Delete Product
-              </button>
-              <div className="flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingProduct(null)} 
-                  className="glass-button-secondary"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
+              <DialogFooter className="flex justify-between items-center sm:justify-between w-full pt-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteProduct}
                   disabled={isSaving}
-                  className="glass-button-primary"
+                  className="text-xs"
                 >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>,
-        document.body
-      )}
+                  Delete Product
+                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingProduct(null)} 
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
