@@ -48,6 +48,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
     return localStorage.getItem('wsp_draft_customer') || '';
   });
+  const [hasDelivery, setHasDelivery] = useState(() => {
+    const saved = localStorage.getItem('wsp_has_delivery');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [deliveryFee, setDeliveryFee] = useState(() => {
     return localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
   });
@@ -116,6 +120,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   useEffect(() => {
     localStorage.setItem('wsp_draft_customer', selectedCustomerId);
   }, [selectedCustomerId]);
+
+  useEffect(() => {
+    localStorage.setItem('wsp_has_delivery', hasDelivery ? 'true' : 'false');
+  }, [hasDelivery]);
 
   useEffect(() => {
     localStorage.setItem('wsp_draft_delivery_fee', deliveryFee);
@@ -325,7 +333,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     ? roundMoney((subtotal * Math.min(100, parsedDiscountVal)) / 100)
     : roundMoney(Math.min(subtotal, parsedDiscountVal));
 
-  const totalAmount = roundMoney(Math.max(0, subtotal - calculatedDiscount) + Number(deliveryFee || 0));
+  const effectiveDeliveryFee = hasDelivery ? Number(deliveryFee || 0) : 0;
+  const totalAmount = roundMoney(Math.max(0, subtotal - calculatedDiscount) + effectiveDeliveryFee);
 
   const totalProfit = roundMoney(lineItems.reduce((sum, item) => {
     if (item.isCustom || !item.product_id) return sum;
@@ -351,7 +360,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     try {
       const orderObj = {
         customer_id: selectedCustomerId,
-        delivery_fee: Number(deliveryFee),
+        delivery_fee: effectiveDeliveryFee,
         discount: calculatedDiscount,
         total_amount: totalAmount,
         status: 'pending'
@@ -377,14 +386,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       // Show print modal
       setSavedOrder({
-        order: { ...result, discount: calculatedDiscount, delivery_fee: Number(deliveryFee) },
+        order: { ...result, discount: calculatedDiscount, delivery_fee: effectiveDeliveryFee },
         items: sanitizedItems,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
 
-      // Clear form and drafts
+      // Clear customer & line item drafts, but preserve remembered delivery choice
       localStorage.removeItem('wsp_draft_customer');
-      localStorage.removeItem('wsp_draft_delivery_fee');
       localStorage.removeItem('wsp_draft_line_items');
 
       setSelectedCustomerId('');
@@ -403,7 +411,6 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         isCustom: false,
         custom_name: ''
       }]);
-      setDeliveryFee('1.50');
       showToast("Invoice saved successfully!", "success");
     } catch (err) {
       showToast("Error creating order: " + err.message, "error");
@@ -426,12 +433,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
 
     const calcSubtotal = activeItems.reduce((sum, item) => sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity)), 0);
-    const calcTotalAmount = roundMoney(Math.max(0, calcSubtotal - calculatedDiscount) + Number(deliveryFee || 0));
+    const calcTotalAmount = roundMoney(Math.max(0, calcSubtotal - calculatedDiscount) + effectiveDeliveryFee);
 
     const draftOrder = {
       order: {
         id: 'DRAFT_PREVIEW_' + Date.now().toString().slice(-4),
-        delivery_fee: Number(deliveryFee || 0),
+        delivery_fee: effectiveDeliveryFee,
         discount: calculatedDiscount,
         total_amount: calcTotalAmount,
         ordered_at: new Date().toISOString()
@@ -614,19 +621,63 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Delivery Fee (USD)</label>
-                  <div className="relative">
-                    <Truck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={deliveryFee}
-                      onChange={(e) => setDeliveryFee(e.target.value)}
-                      className="pl-9 h-9 text-xs"
-                      placeholder="1.50"
-                    />
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Delivery
+                    </label>
+                    <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border border-border">
+                      <button
+                        type="button"
+                        onClick={() => setHasDelivery(false)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${
+                          !hasDelivery 
+                            ? 'bg-primary text-primary-foreground shadow-xs' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="No delivery fee (Pickup / In-store)"
+                      >
+                        No Delivery
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHasDelivery(true)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${
+                          hasDelivery 
+                            ? 'bg-primary text-primary-foreground shadow-xs' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Include delivery fee"
+                      >
+                        Delivery
+                      </button>
+                    </div>
                   </div>
+                  {hasDelivery ? (
+                    <div className="relative animate-in fade-in duration-150">
+                      <Truck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={deliveryFee}
+                        onChange={(e) => setDeliveryFee(e.target.value)}
+                        className="pl-9 h-9 text-xs"
+                        placeholder="1.50"
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      onClick={() => setHasDelivery(true)}
+                      className="h-9 px-3 border border-dashed border-border rounded-md bg-muted/30 text-muted-foreground text-xs flex items-center justify-between cursor-pointer hover:border-primary/40 hover:text-foreground transition-colors select-none"
+                      title="Click to enable delivery option"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 opacity-40" />
+                        <span>Pickup / In-Store</span>
+                      </span>
+                      <span className="font-mono text-[11px] font-semibold text-emerald-500">$0.00</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1080,8 +1131,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   </div>
                 )}
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Delivery Fee</span>
-                  <span className="font-semibold text-foreground font-mono">${Number(deliveryFee || 0).toFixed(2)}</span>
+                  <span>Delivery Fee {!hasDelivery && '(Pickup)'}</span>
+                  <span className="font-semibold text-foreground font-mono">${effectiveDeliveryFee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-500 font-medium">
                   <span>Estimated Profit</span>
@@ -1406,7 +1457,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           )}
                           <div className="flex justify-between text-gray-700">
                             <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
-                            <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                            <span>{Number(receiptData.order.delivery_fee) > 0 ? `$${Number(receiptData.order.delivery_fee).toFixed(2)}` : 'Free / Pickup'}</span>
                           </div>
                           <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
                             <span>Grand Total / សរុបរួម:</span>
@@ -1505,7 +1556,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 )}
                 <div className="flex justify-between">
                   <span>Delivery:</span>
-                  <span>${Number(receiptData.order.delivery_fee).toFixed(2)}</span>
+                  <span>{Number(receiptData.order.delivery_fee) > 0 ? `$${Number(receiptData.order.delivery_fee).toFixed(2)}` : 'Free / Pickup'}</span>
                 </div>
                 <div className="flex justify-between border-t border-double pt-1 font-bold">
                   <span>Grand Total:</span>
