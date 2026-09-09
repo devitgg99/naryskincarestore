@@ -220,10 +220,7 @@ export default function BrandManager({ brands, categories = [], products, onRefr
     return true;
   });
 
-  const allFilteredSelected = filteredProducts.length > 0 && 
-    filteredProducts.every(p => selectedProductIds.includes(p.id));
-
-  const sortedFilteredProducts = [...filteredProducts].sort((a, b) => {
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     const aChecked = selectedProductIds.includes(a.id);
     const bChecked = selectedProductIds.includes(b.id);
     if (aChecked && !bChecked) return -1;

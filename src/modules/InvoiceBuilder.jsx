@@ -15,18 +15,18 @@ import {
   Eye, 
   ImageIcon, 
   Download, 
-  FileImage, 
-  Check, 
-  Share2 
+  Share2,
+  Cloud,
+  FileText,
+  PauseCircle
 } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
-import { db } from '../services/db';
+import { db, getSupabaseConfig, generateDraftId } from '../services/db';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 // Floating-point precision math helper for currency calculations
 const roundMoney = (num) => {
@@ -42,25 +42,58 @@ const parseQuantity = (val) => {
   return isNaN(parsed) || parsed < 0 ? 0 : parsed;
 };
 
+const createEmptyLineItem = () => ({
+  id: generateDraftId(),
+  product_id: '',
+  supplier_id: '',
+  supplier_price: 0,
+  unit_price: 0,
+  quantity: 1,
+  subtotal: 0,
+  maxStock: 0,
+  stockUnit: 'pcs',
+  searchQuery: '',
+  isDropdownOpen: false,
+  isCustom: false,
+  custom_name: ''
+});
+
+const createEmptyDraft = (name = 'Order #1') => {
+  const now = new Date().toISOString();
+  return {
+    id: generateDraftId(),
+    name,
+    customer_id: '',
+    has_delivery: true,
+    delivery_fee: '1.50',
+    discount_type: 'fixed',
+    discount_value: '0',
+    line_items: [createEmptyLineItem()],
+    created_at: now,
+    updated_at: now
+  };
+};
+
 export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
+  // Multi-draft & cross-device state
+  const [drafts, setDrafts] = useState([]);
+  const [activeDraftId, setActiveDraftId] = useState('');
+  const [draftName, setDraftName] = useState('Order #1');
+  const [isSyncingDraft, setIsSyncingDraft] = useState(false);
+  const [isCloudActive] = useState(() => {
+    const config = getSupabaseConfig();
+    return !!(config.active && config.url && config.key);
+  });
+  const isInitialLoadRef = useRef(true);
+  const saveTimerRef = useRef(null);
+
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
-  const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
-    return localStorage.getItem('wsp_draft_customer') || '';
-  });
-  const [hasDelivery, setHasDelivery] = useState(() => {
-    const saved = localStorage.getItem('wsp_has_delivery');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [deliveryFee, setDeliveryFee] = useState(() => {
-    return localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
-  });
-  const [discountType, setDiscountType] = useState(() => {
-    return localStorage.getItem('wsp_draft_discount_type') || 'fixed';
-  });
-  const [discountValue, setDiscountValue] = useState(() => {
-    return localStorage.getItem('wsp_draft_discount') || '0';
-  });
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [hasDelivery, setHasDelivery] = useState(true);
+  const [deliveryFee, setDeliveryFee] = useState('1.50');
+  const [discountType, setDiscountType] = useState('fixed');
+  const [discountValue, setDiscountValue] = useState('0');
 
   // Receipt custom header states
   const [shopName, setShopName] = useState(() => localStorage.getItem('wsp_shop_name') || 'ស្រីពៅ លក់ចាប់ហួយ (Zeii Pov Shop)');
@@ -81,21 +114,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     localStorage.setItem('wsp_custom_footer', customFooter);
   }, [customFooter]);
 
-  const [lineItems, setLineItems] = useState(() => {
-    const saved = localStorage.getItem('wsp_draft_line_items');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // Ignored
-      }
-    }
-
-    return [
-      { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false, isCustom: false, custom_name: '' }
-    ];
-  });
+  const [lineItems, setLineItems] = useState([createEmptyLineItem()]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedOrder, setSavedOrder] = useState(null); // Saved order details for print receipt preview modal
@@ -116,34 +135,268 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [batchQuantities, setBatchQuantities] = useState({}); // { product_id: quantity }
 
-  // Auto-save draft inputs to localStorage to prevent data loss on tab changes
-  useEffect(() => {
-    localStorage.setItem('wsp_draft_customer', selectedCustomerId);
-  }, [selectedCustomerId]);
+  const applyDraftToForm = (draft) => {
+    setDraftName(draft.name || 'Order #1');
+    setSelectedCustomerId(draft.customer_id || '');
+    setHasDelivery(draft.has_delivery !== false);
+    setDeliveryFee(draft.delivery_fee !== undefined && draft.delivery_fee !== null ? String(draft.delivery_fee) : '1.50');
+    setDiscountType(draft.discount_type || 'fixed');
+    setDiscountValue(draft.discount_value !== undefined && draft.discount_value !== null ? String(draft.discount_value) : '0');
+    setLineItems(
+      Array.isArray(draft.line_items) && draft.line_items.length > 0
+        ? draft.line_items
+        : [createEmptyLineItem()]
+    );
+  };
 
+  // 1. Initial load of drafts from Supabase (or LocalStorage fallback)
   useEffect(() => {
-    localStorage.setItem('wsp_has_delivery', hasDelivery ? 'true' : 'false');
-  }, [hasDelivery]);
+    let isMounted = true;
+    const initDrafts = async () => {
+      try {
+        const fetched = await db.getDrafts();
+        if (!isMounted) return;
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setDrafts(fetched);
+          const savedActiveId = localStorage.getItem('wsp_active_draft_id');
+          const target = fetched.find(d => d.id === savedActiveId) || fetched[0];
+          setActiveDraftId(target.id);
+          applyDraftToForm(target);
+        }
+      } catch (err) {
+        console.error("Failed to load drafts:", err);
+      } finally {
+        if (isMounted) {
+          setTimeout(() => {
+            isInitialLoadRef.current = false;
+          }, 200);
+        }
+      }
+    };
 
-  useEffect(() => {
-    localStorage.setItem('wsp_draft_delivery_fee', deliveryFee);
-  }, [deliveryFee]);
+    initDrafts();
 
-  useEffect(() => {
-    localStorage.setItem('wsp_draft_discount_type', discountType);
-  }, [discountType]);
+    // Listen to tab storage sync on same device
+    const handleStorage = (e) => {
+      if (e.key === 'wsp_invoice_drafts') {
+        try {
+          const updated = JSON.parse(e.newValue);
+          if (Array.isArray(updated) && updated.length > 0) {
+            setDrafts(updated);
+          }
+        } catch (err) {
+          console.debug(err);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
 
-  useEffect(() => {
-    localStorage.setItem('wsp_draft_discount', discountValue);
-  }, [discountValue]);
+    // Listen to window focus for cross-device updates
+    const handleFocus = async () => {
+      try {
+        const updated = await db.getDrafts();
+        if (Array.isArray(updated) && updated.length > 0) {
+          setDrafts(updated);
+        }
+      } catch (err) {
+        console.debug(err);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
 
+    // Supabase Realtime channel subscription
+    const channel = db.subscribeDrafts(async () => {
+      try {
+        const updated = await db.getDrafts();
+        if (Array.isArray(updated) && updated.length > 0) {
+          setDrafts(updated);
+        }
+      } catch (err) {
+        console.debug(err);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      if (channel) {
+        db.unsubscribeChannel(channel);
+      }
+    };
+  }, []);
+
+  // 2. Debounced auto-save active draft on any form changes
   useEffect(() => {
-    const cleanItems = lineItems.map(item => ({
-      ...item,
-      isDropdownOpen: false
-    }));
-    localStorage.setItem('wsp_draft_line_items', JSON.stringify(cleanItems));
-  }, [lineItems]);
+    if (isInitialLoadRef.current || !activeDraftId) return;
+
+    const currentPayload = {
+      id: activeDraftId,
+      name: draftName,
+      customer_id: selectedCustomerId,
+      has_delivery: hasDelivery,
+      delivery_fee: deliveryFee,
+      discount_type: discountType,
+      discount_value: discountValue,
+      line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
+    };
+
+    // Update in-memory draft immediately so tab labels/totals update smoothly
+    setDrafts(prev => {
+      const idx = prev.findIndex(d => d.id === activeDraftId);
+      if (idx !== -1) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], ...currentPayload };
+        return copy;
+      }
+      return [currentPayload, ...prev];
+    });
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    setIsSyncingDraft(true);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await db.saveDraft(currentPayload);
+      } catch (e) {
+        console.warn("Auto-save draft error:", e);
+      } finally {
+        setIsSyncingDraft(false);
+      }
+    }, 600);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [activeDraftId, draftName, selectedCustomerId, hasDelivery, deliveryFee, discountType, discountValue, lineItems]);
+
+  // Draft Management Handlers
+  const handleSwitchDraft = async (targetDraftId) => {
+    if (targetDraftId === activeDraftId) return;
+
+    // Save current active draft immediately before switching
+    if (activeDraftId) {
+      const currentPayload = {
+        id: activeDraftId,
+        name: draftName,
+        customer_id: selectedCustomerId,
+        has_delivery: hasDelivery,
+        delivery_fee: deliveryFee,
+        discount_type: discountType,
+        discount_value: discountValue,
+        line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
+      };
+      try {
+        await db.saveDraft(currentPayload);
+      } catch (err) {
+        console.debug(err);
+      }
+    }
+
+    const target = drafts.find(d => d.id === targetDraftId);
+    if (target) {
+      setActiveDraftId(targetDraftId);
+      localStorage.setItem('wsp_active_draft_id', targetDraftId);
+      applyDraftToForm(target);
+      showToast(`Switched to "${target.name || 'Draft Order'}"`, "info");
+    }
+  };
+
+  const handleNewDraft = async () => {
+    // Save current active draft first
+    if (activeDraftId) {
+      const currentPayload = {
+        id: activeDraftId,
+        name: draftName,
+        customer_id: selectedCustomerId,
+        has_delivery: hasDelivery,
+        delivery_fee: deliveryFee,
+        discount_type: discountType,
+        discount_value: discountValue,
+        line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
+      };
+      try {
+        await db.saveDraft(currentPayload);
+      } catch (err) {
+        console.debug(err);
+      }
+    }
+
+    const newDraft = createEmptyDraft(`Order #${drafts.length + 1}`);
+
+    try {
+      setIsSyncingDraft(true);
+      await db.saveDraft(newDraft);
+      setDrafts(prev => [newDraft, ...prev]);
+      setActiveDraftId(newDraft.id);
+      localStorage.setItem('wsp_active_draft_id', newDraft.id);
+      applyDraftToForm(newDraft);
+      showToast(`Started new draft "${newDraft.name}"`, "success");
+    } catch (err) {
+      showToast("Error creating draft: " + err.message, "error");
+    } finally {
+      setIsSyncingDraft(false);
+    }
+  };
+
+  const handleDeleteDraft = async (draftIdToDelete) => {
+    const draftToDelete = drafts.find(d => d.id === draftIdToDelete);
+    const itemsInDraft = draftToDelete?.line_items?.filter(i => (i.product_id || (i.isCustom && i.custom_name)) && parseQuantity(i.quantity) > 0) || [];
+    
+    if (itemsInDraft.length > 0) {
+      const confirmDelete = window.confirm(`Discard "${draftToDelete?.name || 'this draft'}" with ${itemsInDraft.length} items?`);
+      if (!confirmDelete) return;
+    }
+
+    try {
+      await db.deleteDraft(draftIdToDelete);
+      const remainingDrafts = drafts.filter(d => d.id !== draftIdToDelete);
+
+      if (remainingDrafts.length > 0) {
+        setDrafts(remainingDrafts);
+        if (draftIdToDelete === activeDraftId) {
+          const nextDraft = remainingDrafts[0];
+          setActiveDraftId(nextDraft.id);
+          localStorage.setItem('wsp_active_draft_id', nextDraft.id);
+          applyDraftToForm(nextDraft);
+        }
+      } else {
+        const freshDraft = createEmptyDraft('Order #1');
+        await db.saveDraft(freshDraft);
+        setDrafts([freshDraft]);
+        setActiveDraftId(freshDraft.id);
+        localStorage.setItem('wsp_active_draft_id', freshDraft.id);
+        applyDraftToForm(freshDraft);
+      }
+      showToast("Draft removed", "info");
+    } catch (err) {
+      showToast("Error deleting draft: " + err.message, "error");
+    }
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncingDraft(true);
+    try {
+      const updated = await db.getDrafts();
+      if (Array.isArray(updated) && updated.length > 0) {
+        setDrafts(updated);
+        const current = updated.find(d => d.id === activeDraftId) || updated[0];
+        if (current && current.id !== activeDraftId) {
+          setActiveDraftId(current.id);
+          applyDraftToForm(current);
+        }
+        showToast("Drafts synchronized!", "success");
+      }
+    } catch (err) {
+      showToast("Sync failed: " + err.message, "error");
+    } finally {
+      setIsSyncingDraft(false);
+    }
+  };
+
   
   // Group prices by product_id (only including active offers with non-zero price or stock)
   const productSupplierPrices = {};
@@ -391,26 +644,30 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
 
-      // Clear customer & line item drafts, but preserve remembered delivery choice
-      localStorage.removeItem('wsp_draft_customer');
-      localStorage.removeItem('wsp_draft_line_items');
+      // Delete completed draft from database & localStorage
+      if (activeDraftId) {
+        try {
+          await db.deleteDraft(activeDraftId);
+        } catch (delErr) {
+          console.warn("Could not delete completed draft:", delErr);
+        }
+      }
 
-      setSelectedCustomerId('');
-      setLineItems([{ 
-        id: Date.now().toString(), 
-        product_id: '', 
-        supplier_id: '', 
-        supplier_price: 0,
-        unit_price: 0, 
-        quantity: 1, 
-        subtotal: 0, 
-        maxStock: 0,
-        stockUnit: 'pcs',
-        searchQuery: '',
-        isDropdownOpen: false,
-        isCustom: false,
-        custom_name: ''
-      }]);
+      const remainingDrafts = drafts.filter(d => d.id !== activeDraftId);
+      if (remainingDrafts.length > 0) {
+        setDrafts(remainingDrafts);
+        const next = remainingDrafts[0];
+        setActiveDraftId(next.id);
+        localStorage.setItem('wsp_active_draft_id', next.id);
+        applyDraftToForm(next);
+      } else {
+        const freshDraft = createEmptyDraft('Order #1');
+        await db.saveDraft(freshDraft);
+        setDrafts([freshDraft]);
+        setActiveDraftId(freshDraft.id);
+        localStorage.setItem('wsp_active_draft_id', freshDraft.id);
+        applyDraftToForm(freshDraft);
+      }
       showToast("Invoice saved successfully!", "success");
     } catch (err) {
       showToast("Error creating order: " + err.message, "error");
@@ -587,11 +844,154 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           </div>
         </Card>
 
+        {/* Multi-Draft & Multi-Device Order Bar */}
+        <Card className="p-3.5 sm:p-4 bg-card/70 backdrop-blur-md border-border shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
+                <FileText className="w-4 h-4 text-primary" />
+                <span>Open Drafts ({drafts.length})</span>
+              </div>
+              
+              {/* Cloud Sync Status Badge */}
+              {isCloudActive ? (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 gap-1.5 text-[11px] py-0.5 px-2 font-medium">
+                  {isSyncingDraft ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                      <span>Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Cloud className="w-3 h-3 text-emerald-400" />
+                      <span className="hidden sm:inline">Cloud Synced (Multi-Device)</span>
+                      <span className="sm:hidden">Online</span>
+                    </>
+                  )}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 gap-1 text-[11px] py-0.5 px-2 font-medium">
+                  <span>Local Drafts</span>
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleManualSync}
+                disabled={isSyncingDraft}
+                className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                title="Refresh drafts from cloud and other devices"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDraft ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={handleNewDraft}
+                className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
+                title="Hold current order and start a new blank draft"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ New Order / Draft</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Draft Tabs Strip */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-muted">
+            {drafts.map((d, index) => {
+              const isActive = d.id === activeDraftId;
+              const cust = customers.find(c => c.id === d.customer_id);
+              const itemCount = (d.line_items || []).filter(i => (i.product_id || (i.isCustom && i.custom_name)) && parseQuantity(i.quantity) > 0).length;
+              const draftSubtotal = (d.line_items || []).reduce((sum, i) => sum + roundMoney(Number(i.unit_price || 0) * parseQuantity(i.quantity)), 0);
+              const displayLabel = d.name || (cust ? cust.name : `Order #${index + 1}`);
+
+              return (
+                <div
+                  key={d.id}
+                  className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all border shrink-0 ${
+                    isActive
+                      ? 'bg-primary/15 border-primary/60 text-foreground shadow-xs ring-1 ring-primary/30'
+                      : 'bg-muted/40 hover:bg-muted/80 border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => {
+                    if (!isActive) handleSwitchDraft(d.id);
+                  }}
+                  title={`Switch to ${displayLabel} (${itemCount} items • $${draftSubtotal.toFixed(2)})`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                    <span className="font-semibold max-w-[130px] truncate">{displayLabel}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <span>•</span>
+                    <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
+                    <span>•</span>
+                    <span className="font-semibold text-foreground">${draftSubtotal.toFixed(2)}</span>
+                  </div>
+
+                  {drafts.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteDraft(d.id);
+                      }}
+                      className="ml-1 p-0.5 rounded text-muted-foreground/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      title="Discard this draft"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Side: Invoice Items Builder (2 cols) */}
           <form onSubmit={handleSaveInvoice} className="lg:col-span-2 space-y-6 min-w-0">
             <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4">
-              <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider">Invoice Header</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider">Invoice Header</h3>
+                  <Badge variant="outline" className="text-[11px] text-muted-foreground border-border bg-muted/30">
+                    {draftName || 'Order'}
+                  </Badge>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground">Draft Label:</span>
+                  <Input
+                    type="text"
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    placeholder="e.g. Table 2, Phone order..."
+                    className="h-7 text-xs w-36 sm:w-44 bg-card border-input"
+                    title="Customize label for this draft order"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNewDraft}
+                    className="h-7 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground"
+                    title="Park current order and start another"
+                  >
+                    <PauseCircle className="w-3 h-3 text-amber-400" />
+                    <span className="hidden sm:inline">Hold & New</span>
+                  </Button>
+                </div>
+              </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
@@ -1655,8 +2055,6 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       setBatchQuantities(prev => ({ ...prev, [p.id]: '' }));
                       return;
                     }
-                    const parsed = parseFloat(val);
-                    const newQty = isNaN(parsed) || parsed < 0 ? 0 : parsed;
                     setBatchQuantities(prev => ({
                       ...prev,
                       [p.id]: val

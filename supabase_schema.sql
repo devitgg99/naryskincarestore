@@ -142,6 +142,19 @@ alter table order_items add column if not exists custom_name text;
 alter table order_items alter column quantity type numeric(10, 2);
 alter table supplier_prices alter column stock_qty type numeric(10, 2);
 
+-- Table 9: invoice_drafts (Multi-order & cross-device drafts)
+create table if not exists invoice_drafts (
+  id text primary key default gen_random_uuid()::text,
+  name text,
+  customer_id uuid references customers(id) on delete set null,
+  has_delivery boolean not null default true,
+  delivery_fee numeric(10, 2) not null default 1.50,
+  discount_type text not null default 'fixed',
+  discount_value numeric(10, 2) not null default 0.00,
+  line_items jsonb not null default '[]'::jsonb,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
 
-
-
+create index if not exists idx_invoice_drafts_updated_at on invoice_drafts(updated_at desc);
+alter table invoice_drafts disable row level security;

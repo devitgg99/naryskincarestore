@@ -138,6 +138,9 @@ export const db = {
     localStorage.removeItem('wsp_customers');
     localStorage.removeItem('wsp_orders');
     localStorage.removeItem('wsp_order_items');
+    localStorage.removeItem('wsp_invoice_drafts');
+    localStorage.removeItem('wsp_draft_customer');
+    localStorage.removeItem('wsp_draft_line_items');
     initMockDB();
   },
 
@@ -419,7 +422,11 @@ export const db = {
       
       // Fallback: If Supabase schema does not have custom_name column yet, retry insert without custom_name
       if (itemsErr && itemsErr.message && itemsErr.message.includes('custom_name')) {
-        const fallbackItems = itemsToInsert.map(({ custom_name, ...rest }) => rest);
+        const fallbackItems = itemsToInsert.map(item => {
+          const copy = { ...item };
+          delete copy.custom_name;
+          return copy;
+        });
         const retryRes = await client.from('order_items').insert(fallbackItems);
         itemsErr = retryRes.error;
       }
@@ -706,5 +713,207 @@ export const db = {
 
     setLocal('wsp_products', updatedProducts);
     return true;
+  },
+
+  // Invoice Drafts (Online Supabase + LocalStorage fallback with cross-device sync)
+  getDrafts: async () => {
+    const client = getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('invoice_drafts')
+          .select('*')
+          .order('updated_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          const formatted = data.map(d => ({
+            id: String(d.id),
+            name: d.name || 'Draft Order',
+            customer_id: d.customer_id ? String(d.customer_id) : '',
+            has_delivery: d.has_delivery !== false,
+            delivery_fee: d.delivery_fee !== null && d.delivery_fee !== undefined ? String(d.delivery_fee) : '1.50',
+            discount_type: d.discount_type || 'fixed',
+            discount_value: d.discount_value !== null && d.discount_value !== undefined ? String(d.discount_value) : '0',
+            line_items: Array.isArray(d.line_items) ? d.line_items : [],
+            created_at: d.created_at,
+            updated_at: d.updated_at
+          }));
+          setLocal('wsp_invoice_drafts', formatted);
+          return formatted;
+        }
+        if (error) {
+          console.warn("Could not load drafts from Supabase (using local):", error.message);
+        }
+      } catch (err) {
+        console.warn("Error fetching drafts from Supabase:", err);
+      }
+    }
+
+    // Local fallback & legacy single-draft migration
+    const localDrafts = getLocal('wsp_invoice_drafts', null);
+    if (localDrafts !== null && Array.isArray(localDrafts) && localDrafts.length > 0) {
+      return localDrafts.sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    }
+
+    // Check if legacy single draft exists in localStorage
+    const legacyCustomer = localStorage.getItem('wsp_draft_customer') || '';
+    const legacyDeliveryFee = localStorage.getItem('wsp_draft_delivery_fee') || '1.50';
+    const legacyHasDelivery = localStorage.getItem('wsp_has_delivery') !== 'false';
+    const legacyDiscountType = localStorage.getItem('wsp_draft_discount_type') || 'fixed';
+    const legacyDiscount = localStorage.getItem('wsp_draft_discount') || '0';
+    const legacyItemsRaw = localStorage.getItem('wsp_draft_line_items');
+    let legacyItems = [];
+    if (legacyItemsRaw) {
+      try {
+        legacyItems = JSON.parse(legacyItemsRaw);
+      } catch {
+        // Ignored
+      }
+    }
+
+    const defaultDraft = {
+      id: generateDraftId(),
+      name: 'Order #1',
+      customer_id: legacyCustomer,
+      has_delivery: legacyHasDelivery,
+      delivery_fee: legacyDeliveryFee,
+      discount_type: legacyDiscountType,
+      discount_value: legacyDiscount,
+      line_items: Array.isArray(legacyItems) && legacyItems.length > 0 ? legacyItems : [
+        { id: '1', product_id: '', supplier_id: '', supplier_price: 0, unit_price: 0, quantity: 1, subtotal: 0, maxStock: 0, stockUnit: 'pcs', searchQuery: '', isDropdownOpen: false, isCustom: false, custom_name: '' }
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const initial = [defaultDraft];
+    setLocal('wsp_invoice_drafts', initial);
+    return initial;
+  },
+
+  saveDraft: async (draft) => {
+    const now = new Date().toISOString();
+    const draftId = draft.id || generateDraftId();
+    const draftPayload = {
+      ...draft,
+      id: String(draftId),
+      updated_at: now,
+      created_at: draft.created_at || now,
+      name: draft.name || 'Draft Order',
+      customer_id: draft.customer_id || '',
+      has_delivery: draft.has_delivery !== false,
+      delivery_fee: draft.delivery_fee !== undefined && draft.delivery_fee !== null ? String(draft.delivery_fee) : '1.50',
+      discount_type: draft.discount_type || 'fixed',
+      discount_value: draft.discount_value !== undefined && draft.discount_value !== null ? String(draft.discount_value) : '0',
+      line_items: Array.isArray(draft.line_items) ? draft.line_items.map(item => ({
+        ...item,
+        isDropdownOpen: false
+      })) : []
+    };
+
+    // 1. Instant LocalStorage update
+    const localDrafts = getLocal('wsp_invoice_drafts', []);
+    const idx = localDrafts.findIndex(d => d.id === draftPayload.id);
+    if (idx !== -1) {
+      localDrafts[idx] = draftPayload;
+    } else {
+      localDrafts.unshift(draftPayload);
+    }
+    setLocal('wsp_invoice_drafts', localDrafts);
+
+    // 2. Persist to Supabase if connected
+    const client = getClient();
+    if (client) {
+      try {
+        const supabaseRecord = {
+          id: draftPayload.id,
+          name: draftPayload.name,
+          customer_id: isValidUUID(draftPayload.customer_id) ? draftPayload.customer_id : null,
+          has_delivery: draftPayload.has_delivery,
+          delivery_fee: Number(draftPayload.delivery_fee || 0),
+          discount_type: draftPayload.discount_type,
+          discount_value: Number(draftPayload.discount_value || 0),
+          line_items: draftPayload.line_items,
+          created_at: draftPayload.created_at,
+          updated_at: draftPayload.updated_at
+        };
+
+        const { error } = await client
+          .from('invoice_drafts')
+          .upsert(supabaseRecord);
+
+        if (error) {
+          console.warn("Could not upsert draft to Supabase (using local):", error.message);
+        }
+      } catch (err) {
+        console.warn("Supabase saveDraft error (using local):", err);
+      }
+    }
+
+    return draftPayload;
+  },
+
+  deleteDraft: async (id) => {
+    // Delete from local cache
+    const localDrafts = getLocal('wsp_invoice_drafts', []);
+    const filtered = localDrafts.filter(d => d.id !== id);
+    setLocal('wsp_invoice_drafts', filtered);
+
+    const client = getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('invoice_drafts').delete().eq('id', id);
+        if (error) {
+          console.warn("Could not delete draft from Supabase:", error.message);
+        }
+      } catch (err) {
+        console.warn("Error deleting draft in Supabase:", err);
+      }
+    }
+    return true;
+  },
+
+  subscribeDrafts: (callback) => {
+    const client = getClient();
+    if (!client) return null;
+    try {
+      const channel = client
+        .channel('invoice_drafts_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'invoice_drafts' },
+          () => {
+            callback();
+          }
+        )
+        .subscribe();
+      return channel;
+    } catch (e) {
+      console.warn("Realtime subscription failed:", e);
+      return null;
+    }
+  },
+
+  unsubscribeChannel: (channel) => {
+    const client = getClient();
+    if (client && channel) {
+      try {
+        client.removeChannel(channel);
+      } catch (e) {
+        console.warn("Error removing channel:", e);
+      }
+    }
   }
 };
+
+const isValidUUID = (str) => {
+  return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+};
+
+export const generateDraftId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'draft_' + Date.now().toString() + '_' + Math.random().toString(36).substring(2, 7);
+};
+
