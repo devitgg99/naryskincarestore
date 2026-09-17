@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Khmer:wght@400;600;700&family=Noto+Serif+Khmer:wght@400;600;700&display=swap');
 
 :root {
   /* Slate-themed dark mode palette (Simple SaaS) */
@@ -349,8 +349,20 @@ body {
   }
 }
 
+/* Khmer-capable text for invoice templates (screen + html-to-image capture) */
+.invoice-khmer-text {
+  font-family: 'Noto Sans Khmer', 'Noto Serif Khmer', 'Noto Sans', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
 /* Custom styles for printing */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
   html, body, #root, #root > div {
     background: white !important;
     color: black !important;
@@ -376,6 +388,12 @@ body {
 
   .print-only {
     display: block !important;
+  }
+
+  .print-only.print-a4 {
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
   }
 
   .print-card {

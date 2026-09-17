@@ -1,24 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  Printer, 
-  ShoppingCart, 
-  Truck, 
-  AlertTriangle, 
-  AlertCircle, 
-  RefreshCw, 
-  Search, 
-  Grid, 
-  Minus, 
-  X, 
-  Eye, 
-  ImageIcon, 
-  Download, 
+import {
+  Plus,
+  Trash2,
+  Printer,
+  ShoppingCart,
+  Truck,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  Search,
+  Grid,
+  Minus,
+  X,
+  Eye,
+  ImageIcon,
+  Download,
   Share2,
   Cloud,
   FileText,
-  PauseCircle
+  PauseCircle,
+  ChevronUp,
+  ChevronDown,
+  FileDown
 } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
 import { db, getSupabaseConfig, generateDraftId } from '../services/db';
@@ -27,20 +30,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-
-// Floating-point precision math helper for currency calculations
-const roundMoney = (num) => {
-  const n = Number(num);
-  if (isNaN(n)) return 0;
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-};
-
-// Safe quantity parsing supporting floats/decimals
-const parseQuantity = (val) => {
-  if (val === '' || val === null || val === undefined) return 0;
-  const parsed = parseFloat(val);
-  return isNaN(parsed) || parsed < 0 ? 0 : parsed;
-};
+import { OldReceiptTemplate, KhmerInvoiceTemplate } from './invoice/templates';
+import {
+  roundMoney,
+  parseQuantity,
+  TEMPLATE_IDS,
+  TEMPLATE_OPTIONS,
+  KHMER_FONTS,
+  ENGLISH_FONTS,
+  PAGE_SIZES,
+  DEFAULT_INVOICE_SETTINGS,
+  createSampleCustomLineItems,
+  downloadPdfFromJpeg,
+} from './invoice/invoiceUtils';
 
 const createEmptyLineItem = () => ({
   id: generateDraftId(),
@@ -101,6 +103,36 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [shopPhone, setShopPhone] = useState(() => localStorage.getItem('wsp_shop_phone') || '012 345 678');
   const [customFooter, setCustomFooter] = useState(() => localStorage.getItem('wsp_custom_footer') || 'សូមអរគុណ ចំពោះការគាំទ្រ! (Thank you for your support!)');
 
+  // Template + Khmer invoice meta / formatting (persisted)
+  const [receiptTemplate, setReceiptTemplate] = useState(() => {
+    return localStorage.getItem('wsp_receipt_template') || DEFAULT_INVOICE_SETTINGS.template;
+  });
+  const [invoiceNumber, setInvoiceNumber] = useState(() => localStorage.getItem('wsp_invoice_number') || '02901');
+  const [invoiceDate, setInvoiceDate] = useState(() => {
+    const saved = localStorage.getItem('wsp_invoice_date');
+    if (saved) return saved;
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [invoiceCustomerName, setInvoiceCustomerName] = useState('');
+  const [invoicePhone, setInvoicePhone] = useState('');
+  const [invoiceFontSize, setInvoiceFontSize] = useState(() => Number(localStorage.getItem('wsp_invoice_font_size')) || DEFAULT_INVOICE_SETTINGS.fontSize);
+  const [invoiceKhmerFont, setInvoiceKhmerFont] = useState(() => localStorage.getItem('wsp_invoice_khmer_font') || DEFAULT_INVOICE_SETTINGS.khmerFont);
+  const [invoiceEnglishFont, setInvoiceEnglishFont] = useState(() => localStorage.getItem('wsp_invoice_english_font') || DEFAULT_INVOICE_SETTINGS.englishFont);
+  const [invoiceBorderThickness, setInvoiceBorderThickness] = useState(() => Number(localStorage.getItem('wsp_invoice_border')) || DEFAULT_INVOICE_SETTINGS.borderThickness);
+  const [invoiceWidth, setInvoiceWidth] = useState(() => Number(localStorage.getItem('wsp_invoice_width')) || DEFAULT_INVOICE_SETTINGS.invoiceWidth);
+  const [invoicePageSize, setInvoicePageSize] = useState(() => localStorage.getItem('wsp_invoice_page_size') || DEFAULT_INVOICE_SETTINGS.pageSize);
+  const [currencySymbol, setCurrencySymbol] = useState(() => localStorage.getItem('wsp_currency_symbol') || DEFAULT_INVOICE_SETTINGS.currencySymbol);
+
+  const invoiceSettings = {
+    fontSize: invoiceFontSize,
+    khmerFont: invoiceKhmerFont,
+    englishFont: invoiceEnglishFont,
+    borderThickness: invoiceBorderThickness,
+    invoiceWidth,
+    pageSize: invoicePageSize,
+    currencySymbol
+  };
+
   useEffect(() => {
     localStorage.setItem('wsp_shop_name', shopName);
   }, [shopName]);
@@ -113,6 +145,36 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   useEffect(() => {
     localStorage.setItem('wsp_custom_footer', customFooter);
   }, [customFooter]);
+  useEffect(() => {
+    localStorage.setItem('wsp_receipt_template', receiptTemplate);
+  }, [receiptTemplate]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_number', invoiceNumber);
+  }, [invoiceNumber]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_date', invoiceDate);
+  }, [invoiceDate]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_font_size', String(invoiceFontSize));
+  }, [invoiceFontSize]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_khmer_font', invoiceKhmerFont);
+  }, [invoiceKhmerFont]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_english_font', invoiceEnglishFont);
+  }, [invoiceEnglishFont]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_border', String(invoiceBorderThickness));
+  }, [invoiceBorderThickness]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_width', String(invoiceWidth));
+  }, [invoiceWidth]);
+  useEffect(() => {
+    localStorage.setItem('wsp_invoice_page_size', invoicePageSize);
+  }, [invoicePageSize]);
+  useEffect(() => {
+    localStorage.setItem('wsp_currency_symbol', currencySymbol);
+  }, [currencySymbol]);
 
   const [lineItems, setLineItems] = useState([createEmptyLineItem()]);
 
@@ -345,7 +407,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const handleDeleteDraft = async (draftIdToDelete) => {
     const draftToDelete = drafts.find(d => d.id === draftIdToDelete);
     const itemsInDraft = draftToDelete?.line_items?.filter(i => (i.product_id || (i.isCustom && i.custom_name)) && parseQuantity(i.quantity) > 0) || [];
-    
+
     if (itemsInDraft.length > 0) {
       const confirmDelete = window.confirm(`Discard "${draftToDelete?.name || 'this draft'}" with ${itemsInDraft.length} items?`);
       if (!confirmDelete) return;
@@ -397,7 +459,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
   };
 
-  
+
   // Group prices by product_id (only including active offers with non-zero price or stock)
   const productSupplierPrices = {};
   prices.forEach(sp => {
@@ -449,11 +511,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         // Sort to find cheapest for inventory choice
         const sortedSpsCheapest = [...sps].sort((a, b) => a.price - b.price);
         const cheapest = sortedSpsCheapest[0];
-        
+
         // Sort to find highest for selling price calculation
         const sortedSpsHighest = [...sps].sort((a, b) => b.price - a.price);
         const highest = sortedSpsHighest[0];
-        
+
         item.supplier_id = cheapest.supplier_id;
         item.supplier_price = cheapest.price; // Set initial supplier price (cost price)
         item.unit_price = customSellingPrice !== null ? customSellingPrice : roundMoney(highest.price + 0.20);
@@ -473,7 +535,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         item.maxStock = match.stock_qty;
         item.stockUnit = match.stock_unit;
         item.supplier_price = match.price; // Update supplier price (cost price)
-        
+
         // Update the selling price (unit_price) based on the new supplier cost
         const prod = products.find(p => p.id === item.product_id);
         const customSellingPrice = prod && prod.selling_price && Number(prod.selling_price) > 0 ? Number(prod.selling_price) : null;
@@ -487,14 +549,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   };
 
   const addLineItem = () => {
-    setLineItems([...lineItems, { 
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5), 
-      product_id: '', 
-      supplier_id: '', 
+    setLineItems([...lineItems, {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      product_id: '',
+      supplier_id: '',
       supplier_price: 0,
-      unit_price: 0, 
-      quantity: 1, 
-      subtotal: 0, 
+      unit_price: 0,
+      quantity: 1,
+      subtotal: 0,
       maxStock: 0,
       stockUnit: 'pcs',
       searchQuery: '',
@@ -506,14 +568,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const removeLineItem = (index) => {
     const updated = lineItems.filter((_, idx) => idx !== index);
-    setLineItems(updated.length > 0 ? updated : [{ 
-      id: Date.now().toString(), 
-      product_id: '', 
-      supplier_id: '', 
+    setLineItems(updated.length > 0 ? updated : [{
+      id: Date.now().toString(),
+      product_id: '',
+      supplier_id: '',
       supplier_price: 0,
-      unit_price: 0, 
-      quantity: 1, 
-      subtotal: 0, 
+      unit_price: 0,
+      quantity: 1,
+      subtotal: 0,
       maxStock: 0,
       stockUnit: 'pcs',
       searchQuery: '',
@@ -523,11 +585,34 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }]);
   };
 
+  const moveLineItem = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= lineItems.length) return;
+    setLineItems((prev) => {
+      const next = [...prev];
+      const tmp = next[index];
+      next[index] = next[target];
+      next[target] = tmp;
+      return next;
+    });
+  };
+
+  const loadSampleKhmerInvoice = () => {
+    const samples = createSampleCustomLineItems(generateDraftId);
+    setLineItems(samples);
+    setInvoiceCustomerName((prev) => prev || 'Yean Devit');
+    setInvoicePhone((prev) => prev || '0884577039');
+    setInvoiceNumber((prev) => prev || '02901');
+    if (!invoiceDate) setInvoiceDate(new Date().toISOString().slice(0, 10));
+    setReceiptTemplate(TEMPLATE_IDS.KHMER);
+    showToast('Loaded sample Khmer invoice items. Edit freely.', 'success');
+  };
+
   const addProductToInvoice = (productId, qtyToAdd = 1) => {
     setLineItems(prevItems => {
       // Check if product is already in the invoice
       const existingIdx = prevItems.findIndex(item => item.product_id === productId && !item.isCustom);
-      
+
       if (existingIdx > -1) {
         const updated = [...prevItems];
         const item = { ...updated[existingIdx] };
@@ -545,8 +630,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
         const supplier_id = cheapest ? cheapest.supplier_id : '';
         const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
-        const unit_price = customSellingPrice !== null 
-          ? customSellingPrice 
+        const unit_price = customSellingPrice !== null
+          ? customSellingPrice
           : (cheapest && highest
             ? roundMoney(highest.price + 0.20)
             : (prod ? roundMoney(prod.base_price + 0.20) : 0));
@@ -566,11 +651,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
           isDropdownOpen: false
         };
-        
+
         if (prevItems.length === 1 && !prevItems[0].product_id && !prevItems[0].isCustom) {
           return [newItem];
         }
-        
+
         return [...prevItems, newItem];
       }
     });
@@ -626,7 +711,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       }));
 
       const result = await db.createOrder(orderObj, sanitizedItems);
-      
+
       // Trigger canvas confetti celebration
       confetti({
         particleCount: 100,
@@ -676,14 +761,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handlePreviewReceipt = () => {
     const customer = customers.find(c => c.id === selectedCustomerId);
     const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
-    
+
     if (activeItems.length === 0) {
       showToast("Please add at least one item with valid quantity to preview.", "warning");
       return;
@@ -692,16 +773,28 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     const calcSubtotal = activeItems.reduce((sum, item) => sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity)), 0);
     const calcTotalAmount = roundMoney(Math.max(0, calcSubtotal - calculatedDiscount) + effectiveDeliveryFee);
 
+    const resolvedCustomer = {
+      name: invoiceCustomerName || customer?.name || 'Walk-in Customer',
+      location_note: customer?.location_note || 'General Delivery',
+      phone: invoicePhone || customer?.phone || ''
+    };
+
+    const orderedAt = invoiceDate
+      ? new Date(`${invoiceDate}T12:00:00`).toISOString()
+      : new Date().toISOString();
+
     const draftOrder = {
       order: {
         id: 'DRAFT_PREVIEW_' + Date.now().toString().slice(-4),
         delivery_fee: effectiveDeliveryFee,
         discount: calculatedDiscount,
         total_amount: calcTotalAmount,
-        ordered_at: new Date().toISOString()
+        ordered_at: orderedAt,
+        invoice_number: invoiceNumber
       },
-      customer: customer || { name: 'Walk-in Customer', location_note: 'General Delivery', phone: '' },
+      customer: resolvedCustomer,
       items: activeItems.map(item => ({
+        id: item.id,
         product_id: item.product_id || null,
         custom_name: item.custom_name || null,
         supplier_id: item.supplier_id || null,
@@ -715,12 +808,52 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setPreviewOrder(draftOrder);
   };
 
-  // Image Export Handler (PNG or JPEG) with Mobile Save to Photos & Native Share API
+  const handlePrint = () => {
+    if (!savedOrder && !previewOrder) {
+      const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
+      if (activeItems.length === 0) {
+        showToast("Please add at least one item with valid quantity to print.", "warning");
+        return;
+      }
+      handlePreviewReceipt();
+      setTimeout(() => window.print(), 250);
+      return;
+    }
+    window.print();
+  };
+
+  const getExportWidth = () => {
+    if (receiptTemplate === TEMPLATE_IDS.KHMER) {
+      return Math.max(480, Number(invoiceWidth) || PAGE_SIZES.A4.widthPx);
+    }
+    return 460;
+  };
+
+  const buildExportFilename = (ext) => {
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    const nameSource = invoiceCustomerName || customer?.name || 'Customer';
+    const safeName = nameSource.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF\u1780-\u17FF]/g, '_');
+    const timestamp = new Date().toISOString().slice(0, 10);
+    return `Invoice_${safeName}_${timestamp}.${ext}`;
+  };
+
+  // Wait for Google Fonts to be ready so Khmer glyphs render in captures
+  const waitForFonts = async () => {
+    try {
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+    } catch {
+      /* ignore */
+    }
+    await new Promise((r) => setTimeout(r, 80));
+  };
+
   const handleDownloadImage = async (format = 'png') => {
     if (isExporting) return;
 
     const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
-    
+
     if (activeItems.length === 0 && !savedOrder && !previewOrder) {
       showToast("Please add at least one valid product or item to export.", "warning");
       return;
@@ -734,7 +867,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setIsExporting(true);
 
     // Allow state to settle and DOM element to render
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 150));
+    await waitForFonts();
 
     try {
       const node = printableCardRef.current;
@@ -742,9 +876,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         throw new Error("Invoice template container element not found");
       }
 
+      const exportWidth = getExportWidth();
       const options = {
-        quality: 0.95,
-        pixelRatio: 3, // Crisp 3x DPI high resolution suitable for Telegram / WhatsApp sharing
+        quality: 0.98,
+        pixelRatio: 3,
         backgroundColor: '#ffffff',
         cacheBust: true,
         style: {
@@ -752,16 +887,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           transform: 'none',
           boxShadow: 'none',
           maxWidth: 'none',
-          width: '460px' // Optimal crisp standard receipt dimension
+          width: `${exportWidth}px`
         }
       };
 
       const dataUrl = format === 'jpeg' ? await toJpeg(node, options) : await toPng(node, options);
-
-      const customer = customers.find(c => c.id === selectedCustomerId);
-      const safeName = customer ? customer.name.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF\u1780-\u17FF]/g, '_') : 'Customer';
-      const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = `Invoice_${safeName}_${timestamp}.${format}`;
+      const filename = buildExportFilename(format);
 
       // Convert data URL to Blob and File for Mobile Native Share API & Blob Download
       const response = await fetch(dataUrl);
@@ -785,7 +916,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           await navigator.share({
             files: [file],
             title: filename,
-            text: `Wholesale Invoice - ${safeName}`
+            text: `Wholesale Invoice - ${filename}`
           });
           showToast("Invoice image shared / saved to photos!", "success");
         } catch (shareErr) {
@@ -809,6 +940,54 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (isExporting) return;
+
+    const activeItems = lineItems.filter(item => (item.product_id || (item.isCustom && item.custom_name)) && parseQuantity(item.quantity) > 0);
+    if (activeItems.length === 0 && !savedOrder && !previewOrder) {
+      showToast("Please add at least one valid product or item to export.", "warning");
+      return;
+    }
+
+    if (!savedOrder && !previewOrder) {
+      handlePreviewReceipt();
+    }
+
+    setIsExporting(true);
+    await new Promise((r) => setTimeout(r, 150));
+    await waitForFonts();
+
+    try {
+      const node = printableCardRef.current;
+      if (!node) throw new Error("Invoice template container element not found");
+
+      const exportWidth = getExportWidth();
+      const jpegUrl = await toJpeg(node, {
+        quality: 0.95,
+        pixelRatio: 3,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          margin: '0',
+          transform: 'none',
+          boxShadow: 'none',
+          maxWidth: 'none',
+          width: `${exportWidth}px`
+        }
+      });
+
+      const page = PAGE_SIZES[invoicePageSize] || PAGE_SIZES.A4;
+      const filename = buildExportFilename('pdf');
+      await downloadPdfFromJpeg(jpegUrl, filename, page);
+      showToast("Invoice PDF downloaded.", "success");
+    } catch (err) {
+      console.error("Export PDF error:", err);
+      showToast("Failed to generate PDF: " + err.message, "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="no-print space-y-6">
@@ -822,9 +1001,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               Build wholesale invoices, compare suppliers, check stock levels, and print or export invoices as crisp images.
             </p>
           </div>
-          
-          {/* Quick Action Badges for Mobile & Desktop */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+
+          {/* Template picker + export */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Template</label>
+              <select
+                value={receiptTemplate}
+                onChange={(e) => setReceiptTemplate(e.target.value)}
+                className="flex h-9 min-w-[160px] rounded-md border border-input bg-card px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+              >
+                {TEMPLATE_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -852,7 +1043,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 <FileText className="w-4 h-4 text-primary" />
                 <span>Open Drafts ({drafts.length})</span>
               </div>
-              
+
               {/* Cloud Sync Status Badge */}
               {isCloudActive ? (
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 gap-1.5 text-[11px] py-0.5 px-2 font-medium">
@@ -916,11 +1107,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               return (
                 <div
                   key={d.id}
-                  className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all border shrink-0 ${
-                    isActive
+                  className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all border shrink-0 ${isActive
                       ? 'bg-primary/15 border-primary/60 text-foreground shadow-xs ring-1 ring-primary/30'
                       : 'bg-muted/40 hover:bg-muted/80 border-border text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                   onClick={() => {
                     if (!isActive) handleSwitchDraft(d.id);
                   }}
@@ -968,7 +1158,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     {draftName || 'Order'}
                   </Badge>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-muted-foreground">Draft Label:</span>
                   <Input
@@ -992,7 +1182,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   </Button>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Customer *</label>
@@ -1008,6 +1198,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           setShopName(customer.name);
                           setShopAddress(customer.location_note || '');
                           setShopPhone(customer.phone || '');
+                          setInvoiceCustomerName(customer.name || '');
+                          setInvoicePhone(customer.phone || '');
                         }
                       }
                     }}
@@ -1020,6 +1212,50 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   </select>
                 </div>
 
+                {receiptTemplate === TEMPLATE_IDS.KHMER && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Customer Name (Invoice)</label>
+                      <Input
+                        type="text"
+                        value={invoiceCustomerName}
+                        onChange={(e) => setInvoiceCustomerName(e.target.value)}
+                        placeholder="អតិថិជន"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Phone (Invoice)</label>
+                      <Input
+                        type="text"
+                        value={invoicePhone}
+                        onChange={(e) => setInvoicePhone(e.target.value)}
+                        placeholder="លេខទូរស័ព្ទ"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Invoice Number</label>
+                      <Input
+                        type="text"
+                        value={invoiceNumber}
+                        onChange={(e) => setInvoiceNumber(e.target.value)}
+                        placeholder="វិក្កយបត្រលេខ"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Invoice Date</label>
+                      <Input
+                        type="date"
+                        value={invoiceDate}
+                        onChange={(e) => setInvoiceDate(e.target.value)}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1029,11 +1265,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       <button
                         type="button"
                         onClick={() => setHasDelivery(false)}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${
-                          !hasDelivery 
-                            ? 'bg-primary text-primary-foreground shadow-xs' 
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${!hasDelivery
+                            ? 'bg-primary text-primary-foreground shadow-xs'
                             : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                          }`}
                         title="No delivery fee (Pickup / In-store)"
                       >
                         No Delivery
@@ -1041,11 +1276,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       <button
                         type="button"
                         onClick={() => setHasDelivery(true)}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${
-                          hasDelivery 
-                            ? 'bg-primary text-primary-foreground shadow-xs' 
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${hasDelivery
+                            ? 'bg-primary text-primary-foreground shadow-xs'
                             : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                          }`}
                         title="Include delivery fee"
                       >
                         Delivery
@@ -1066,7 +1300,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       />
                     </div>
                   ) : (
-                    <div 
+                    <div
                       onClick={() => setHasDelivery(true)}
                       className="h-9 px-3 border border-dashed border-border rounded-md bg-muted/30 text-muted-foreground text-xs flex items-center justify-between cursor-pointer hover:border-primary/40 hover:text-foreground transition-colors select-none"
                       title="Click to enable delivery option"
@@ -1122,7 +1356,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-4 min-w-0">
               <div className="flex justify-between items-center flex-wrap gap-2">
                 <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider">Line Items</h3>
-                
+
                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                   <select
                     value={selectedBrandFilter}
@@ -1135,7 +1369,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
- 
+
                   <select
                     value={selectedCategoryFilter}
                     onChange={(e) => setSelectedCategoryFilter(e.target.value)}
@@ -1179,6 +1413,20 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Item</span>
                   </Button>
+
+                  {receiptTemplate === TEMPLATE_IDS.KHMER && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={loadSampleKhmerInvoice}
+                      className="h-8 text-xs gap-1.5 flex-1 sm:flex-initial"
+                      title="Load sample items matching the Khmer invoice reference"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Sample Data</span>
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -1219,8 +1467,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin animate-in slide-in-from-top-2 duration-150">
                     {getFilteredProducts(quickSearchQuery).map(p => {
                       const sps = productSupplierPrices[p.id] || [];
-                      const cheapestPrice = sps.length > 0 
-                        ? Math.min(...sps.map(sp => sp.price)) 
+                      const cheapestPrice = sps.length > 0
+                        ? Math.min(...sps.map(sp => sp.price))
                         : p.base_price;
                       const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
                       const existingQty = lineItems
@@ -1287,8 +1535,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   const prod = products.find(p => p.id === item.product_id);
 
                   return (
-                    <div 
-                      key={item.id} 
+                    <div
+                      key={item.id}
                       className="p-3.5 sm:p-4 rounded-xl border border-border bg-card/40 space-y-3 transition-colors hover:border-primary/30"
                     >
                       {/* Top Row: Thumbnail + Product Selector / Custom Name + Item Mode + Delete */}
@@ -1383,13 +1631,38 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           variant={item.isCustom ? "secondary" : "outline"}
                           size="sm"
                           onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
-                          className={`h-10 px-2.5 text-[11px] font-bold shrink-0 ${
-                            item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
-                          }`}
+                          className={`h-10 px-2.5 text-[11px] font-bold shrink-0 ${item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
+                            }`}
                           title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
                         >
                           {item.isCustom ? "Custom" : "Catalog"}
                         </Button>
+
+                        {/* Reorder */}
+                        <div className="flex flex-col gap-0.5 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveLineItem(idx, -1)}
+                            disabled={idx === 0}
+                            className="h-5 w-8 text-muted-foreground hover:text-foreground"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveLineItem(idx, 1)}
+                            disabled={idx === lineItems.length - 1}
+                            className="h-5 w-8 text-muted-foreground hover:text-foreground"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
 
                         {/* Remove button */}
                         <Button
@@ -1518,7 +1791,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           <div className="space-y-6">
             <Card className="p-6 bg-card/60 backdrop-blur-md border-border shadow-xs space-y-6">
               <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Checkout Summary</h3>
-              
+
               <div className="space-y-3 text-sm border-b border-border pb-4">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Items Subtotal</span>
@@ -1552,12 +1825,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
               {/* Action Buttons Bar */}
               <div className="flex flex-col gap-3">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handlePreviewReceipt}
-                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm"
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm min-w-[110px]"
                   >
                     <Eye className="w-4 h-4 text-muted-foreground" />
                     <span>Preview</span>
@@ -1566,9 +1839,19 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <Button
                     type="button"
                     variant="outline"
+                    onClick={handlePrint}
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm min-w-[110px]"
+                  >
+                    <Printer className="w-4 h-4 text-muted-foreground" />
+                    <span>Print</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => handleDownloadImage('png')}
                     disabled={isExporting}
-                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm text-primary border-primary/30 hover:border-primary/60"
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm text-primary border-primary/30 hover:border-primary/60 min-w-[110px]"
                   >
                     {isExporting ? (
                       <>
@@ -1578,9 +1861,20 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        <span>Save Image</span>
+                        <span>PNG</span>
                       </>
                     )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDownloadPdf}
+                    disabled={isExporting}
+                    className="flex-1 min-h-[44px] gap-2 font-semibold text-xs sm:text-sm min-w-[110px]"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    <span>PDF</span>
                   </Button>
                 </div>
 
@@ -1622,8 +1916,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-xs p-3 sm:p-6 flex items-center justify-center no-print">
-            <div className="bg-card border border-border w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
-              
+            <div className={`bg-card border border-border w-full rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200 ${receiptTemplate === TEMPLATE_IDS.KHMER ? 'max-w-6xl' : 'max-w-4xl'}`}>
+
               {/* Top Bar controls */}
               <div className="p-4 border-b border-border flex justify-between items-center bg-card/60 flex-wrap gap-2">
                 <h3 className="font-semibold text-foreground text-sm sm:text-base flex items-center gap-2">
@@ -1631,33 +1925,56 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </h3>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Button 
+                  <select
+                    value={receiptTemplate}
+                    onChange={(e) => setReceiptTemplate(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-card px-2 text-xs text-foreground"
+                    title="Receipt template"
+                  >
+                    {TEMPLATE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+
+                  <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDownloadImage('png')} 
+                    onClick={() => handleDownloadImage('png')}
                     disabled={isExporting}
                     className="gap-1.5 text-xs text-primary border-primary/30 hover:border-primary/60"
                   >
                     {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    <span>Save Image (PNG)</span>
+                    <span>PNG</span>
                   </Button>
 
-                  <Button 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadPdf}
+                    disabled={isExporting}
+                    className="gap-1.5 text-xs"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </Button>
+
+                  <Button
                     type="button"
                     size="sm"
-                    onClick={handlePrint} 
+                    onClick={handlePrint}
                     className="gap-1.5 text-xs"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>{isDraft ? 'Print Draft' : 'Print Invoice'}</span>
+                    <span>{isDraft ? 'Print Draft' : 'Print'}</span>
                   </Button>
 
-                  <Button 
+                  <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => { setSavedOrder(null); setPreviewOrder(null); }} 
+                    onClick={() => { setSavedOrder(null); setPreviewOrder(null); }}
                     className="text-xs"
                   >
                     Close
@@ -1668,52 +1985,98 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               {/* Modal Body container (two-column split on md sizes) */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin bg-muted/20">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                  
+
                   {/* Left Column: Receipt Customization & Profit Card (5 cols) */}
                   <div className="md:col-span-5 space-y-6 no-print order-2 md:order-1">
-                    
+
                     {/* Header Customization Form */}
                     <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card/80 space-y-4 shadow-sm text-left">
                       <h4 className="text-xs font-bold text-primary uppercase tracking-widest border-b border-border pb-2">
-                        Edit Receipt Header
+                        {receiptTemplate === TEMPLATE_IDS.KHMER ? 'Khmer Invoice Settings' : 'Edit Receipt Header'}
                       </h4>
                       <div className="space-y-3 text-xs">
-                        <div>
-                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop/Vendor Name</label>
-                          <Input 
-                            type="text" 
-                            value={shopName} 
-                            onChange={(e) => setShopName(e.target.value)} 
-                            className="h-8 text-xs" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop Address / Landmark</label>
-                          <Input 
-                            type="text" 
-                            value={shopAddress} 
-                            onChange={(e) => setShopAddress(e.target.value)} 
-                            className="h-8 text-xs" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
-                          <Input 
-                            type="text" 
-                            value={shopPhone} 
-                            onChange={(e) => setShopPhone(e.target.value)} 
-                            className="h-8 text-xs" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-muted-foreground uppercase mb-1">Footer Message</label>
-                          <textarea 
-                            value={customFooter} 
-                            onChange={(e) => setCustomFooter(e.target.value)} 
-                            rows="2"
-                            className="w-full border border-input bg-background rounded-md px-3 py-1.5 text-xs text-foreground focus:ring-2 focus:ring-ring focus:outline-hidden resize-none" 
-                          />
-                        </div>
+                        {receiptTemplate === TEMPLATE_IDS.OLD ? (
+                          <>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop/Vendor Name</label>
+                              <Input type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop Address / Landmark</label>
+                              <Input type="text" value={shopAddress} onChange={(e) => setShopAddress(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
+                              <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Footer Message</label>
+                              <textarea
+                                value={customFooter}
+                                onChange={(e) => setCustomFooter(e.target.value)}
+                                rows="2"
+                                className="w-full border border-input bg-background rounded-md px-3 py-1.5 text-xs text-foreground focus:ring-2 focus:ring-ring focus:outline-hidden resize-none"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Customer Name</label>
+                              <Input type="text" value={invoiceCustomerName} onChange={(e) => setInvoiceCustomerName(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Phone</label>
+                              <Input type="text" value={invoicePhone} onChange={(e) => setInvoicePhone(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Invoice Number</label>
+                              <Input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Date</label>
+                              <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block font-semibold text-muted-foreground uppercase mb-1">Font Size</label>
+                                <Input type="number" min="10" max="22" value={invoiceFontSize} onChange={(e) => setInvoiceFontSize(Number(e.target.value) || 13)} className="h-8 text-xs" />
+                              </div>
+                              <div>
+                                <label className="block font-semibold text-muted-foreground uppercase mb-1">Border (px)</label>
+                                <Input type="number" min="1" max="4" step="0.5" value={invoiceBorderThickness} onChange={(e) => setInvoiceBorderThickness(Number(e.target.value) || 1.5)} className="h-8 text-xs" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Khmer Font</label>
+                              <select value={invoiceKhmerFont} onChange={(e) => setInvoiceKhmerFont(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                                {KHMER_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">English Font</label>
+                              <select value={invoiceEnglishFont} onChange={(e) => setInvoiceEnglishFont(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                                {ENGLISH_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block font-semibold text-muted-foreground uppercase mb-1">Width (px)</label>
+                                <Input type="number" min="480" max="900" value={invoiceWidth} onChange={(e) => setInvoiceWidth(Number(e.target.value) || 794)} className="h-8 text-xs" />
+                              </div>
+                              <div>
+                                <label className="block font-semibold text-muted-foreground uppercase mb-1">Page Size</label>
+                                <select value={invoicePageSize} onChange={(e) => setInvoicePageSize(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs">
+                                  {Object.values(PAGE_SIZES).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Currency Symbol</label>
+                              <Input type="text" value={currencySymbol} onChange={(e) => setCurrencySymbol(e.target.value || '$')} className="h-8 text-xs" />
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1728,7 +2091,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           {isDraft ? 'DRAFT' : `#${receiptData.order.id.slice(-6).toUpperCase()}`}
                         </span>
                       </div>
-                      
+
                       <div className="divide-y divide-border max-h-48 overflow-y-auto scrollbar-thin">
                         {receiptData.items.map((item, idx) => {
                           const prod = products.find(p => p.id === item.product_id);
@@ -1738,7 +2101,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           const qty = parseQuantity(item.quantity);
                           const profitPerUnit = selling - cost;
                           const itemProfit = roundMoney(profitPerUnit * qty);
-                          
+
                           return (
                             <div key={idx} className="py-2.5 flex justify-between items-start gap-4 text-xs">
                               <div className="space-y-1">
@@ -1767,7 +2130,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           );
                         })}
                       </div>
-                      
+
                       <div className="border-t border-border pt-3 flex justify-between items-center text-sm font-bold">
                         <span className="text-foreground">Total Order Profit:</span>
                         <span className="text-lg text-emerald-500 font-mono">
@@ -1782,102 +2145,44 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                   {/* Right Column: Printable Receipt Preview (7 cols) */}
                   <div className="md:col-span-7 flex flex-col justify-center items-center overflow-x-auto w-full order-1 md:order-2">
-                    {/* Visual Container Card for Modal Display */}
-                    <div className="w-full max-w-md bg-white border border-gray-300 p-6 shadow-xl rounded-xl text-black font-sans text-left my-1">
-                      
-                      {/* Ref node targeted for html-to-image export */}
-                      <div ref={printableCardRef} className="bg-white p-2 text-black font-sans">
-                        {isDraft && (
-                          <div className="no-print text-center text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 mb-4 text-xs font-bold">
-                            ⚠️ DRAFT INVOICE PREVIEW
-                          </div>
+                    <div
+                      className={`bg-white border border-gray-300 shadow-xl text-black text-left my-1 ${
+                        receiptTemplate === TEMPLATE_IDS.KHMER
+                          ? 'w-full max-w-[840px] p-2 sm:p-4 rounded-sm'
+                          : 'w-full max-w-md p-6 rounded-xl'
+                      }`}
+                    >
+                      <div ref={printableCardRef} className="bg-white text-black">
+                        {receiptTemplate === TEMPLATE_IDS.KHMER ? (
+                          <KhmerInvoiceTemplate
+                            receiptData={receiptData}
+                            products={products}
+                            invoiceNumber={invoiceNumber}
+                            invoiceDate={invoiceDate}
+                            customerName={invoiceCustomerName || receiptData.customer?.name}
+                            phone={invoicePhone || receiptData.customer?.phone}
+                            isDraft={isDraft}
+                            settings={invoiceSettings}
+                          />
+                        ) : (
+                          <OldReceiptTemplate
+                            receiptData={receiptData}
+                            products={products}
+                            shopName={shopName}
+                            shopAddress={shopAddress}
+                            shopPhone={shopPhone}
+                            customFooter={customFooter}
+                            isDraft={isDraft}
+                            currencySymbol={currencySymbol}
+                          />
                         )}
-                        
-                        {/* Receipt Header */}
-                        <div className="text-center space-y-1.5 border-b pb-4 border-dashed border-gray-300">
-                          <h1 className="text-xl font-bold uppercase tracking-wider text-black">វិក្កយបត្រ / INVOICE</h1>
-                          <h2 className="text-base font-bold text-black font-mono leading-tight">
-                            {shopName}
-                          </h2>
-                          <p className="text-[10px] text-gray-600">
-                            {shopAddress}
-                            {shopPhone ? ` • Tel: ${shopPhone}` : ''}
-                          </p>
-                          
-                          <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-3 font-mono text-gray-800">
-                            <div><strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
-                            <div><strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
-                            <div className="col-span-2"><strong>Customer:</strong> {receiptData.customer?.name}</div>
-                            {receiptData.customer?.phone && <div className="col-span-2"><strong>Phone:</strong> {receiptData.customer.phone}</div>}
-                            {receiptData.customer?.location_note && <div className="col-span-2"><strong>Address:</strong> {receiptData.customer.location_note}</div>}
-                          </div>
-                        </div>
-
-                        {/* Table items */}
-                        <table className="w-full text-xs text-left mt-4 border-b border-dashed border-gray-300 pb-4">
-                          <thead>
-                            <tr className="border-b border-gray-300 font-bold text-gray-900">
-                              <th className="py-2">Description / ទំនិញ</th>
-                              <th className="py-2 text-center">Qty</th>
-                              <th className="py-2 text-right">Price</th>
-                              <th className="py-2 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {receiptData.items.map((item, index) => {
-                              const prod = products.find(p => p.id === item.product_id);
-                              const qty = parseQuantity(item.quantity);
-                              const sub = roundMoney(Number(item.unit_price) * qty);
-                              return (
-                                <tr key={index} className="text-gray-900">
-                                  <td className="py-2">
-                                    <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
-                                    <div className="text-[10px] text-gray-500">{prod ? prod.name_en : 'Custom Item'}</div>
-                                  </td>
-                                  <td className="py-2 text-center font-mono font-medium">{qty}</td>
-                                  <td className="py-2 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                                  <td className="py-2 text-right font-mono font-bold">${sub.toFixed(2)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-
-                        {/* Totals block */}
-                        <div className="mt-4 space-y-1.5 text-xs text-right font-mono">
-                          <div className="flex justify-between text-gray-700">
-                            <span>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
-                            <span>${receiptData.items.reduce((sum, item) => sum + roundMoney(Number(item.unit_price) * parseQuantity(item.quantity)), 0).toFixed(2)}</span>
-                          </div>
-                          {Number(receiptData.order.discount || 0) > 0 && (
-                            <div className="flex justify-between text-rose-600 font-semibold">
-                              <span>Discount / បញ្ចុះតម្លៃ:</span>
-                              <span>-${Number(receiptData.order.discount).toFixed(2)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-gray-700">
-                            <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
-                            <span>{Number(receiptData.order.delivery_fee) > 0 ? `$${Number(receiptData.order.delivery_fee).toFixed(2)}` : 'Free / Pickup'}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-double pt-2 text-sm font-bold text-black">
-                            <span>Grand Total / សរុបរួម:</span>
-                            <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
-                          </div>
-                        </div>
-
-                        {/* Footer terms */}
-                        <div className="mt-6 text-center space-y-1 border-t border-dashed border-gray-300 pt-4 text-[10px] text-gray-500">
-                          <p className="font-medium text-gray-700">{customFooter}</p>
-                          <p className="font-mono text-[9px] text-gray-400">Wholesale Portal Invoice System</p>
-                        </div>
                       </div>
-
                     </div>
                   </div>
 
                 </div>
               </div>
-              
+
             </div>
           </div>
         );
@@ -1889,87 +2194,34 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
         return (
-          <div className="hidden print-only bg-white text-black p-4 font-sans leading-normal">
-            <div className="max-w-md mx-auto border-0 p-2">
-              
-              {/* Header */}
-              <div className="text-center space-y-1 pb-2 border-b border-dashed border-gray-400">
-                <h1 className="text-lg font-bold tracking-wider">
-                  {shopName}
-                </h1>
-                <p className="text-[10px]">
-                  វិក្កយបត្រ / INVOICE {isDraft && '(DRAFT PREVIEW)'}
-                  {receiptData.customer?.location_note ? ` • ${receiptData.customer.location_note}` : ''}
-                  {receiptData.customer?.phone ? ` • Tel: ${receiptData.customer.phone}` : ''}
-                </p>
-                {shopPhone && <p className="text-[9px] text-gray-600">Tel: {shopPhone} | {shopAddress}</p>}
-                
-                <div className="text-left text-[10px] grid grid-cols-2 gap-y-0.5 pt-2 font-mono">
-                  <div>No: #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}</div>
-                  <div>Date: {new Date(receiptData.order.ordered_at).toLocaleDateString()}</div>
-                  <div className="col-span-2">Customer: {receiptData.customer?.name}</div>
-                  {receiptData.customer?.phone && <div className="col-span-2">Phone: {receiptData.customer.phone}</div>}
-                </div>
+          <div className={`hidden print-only bg-white text-black leading-normal ${receiptTemplate === TEMPLATE_IDS.KHMER ? 'print-a4 p-0' : 'p-4 font-sans'}`}>
+            {receiptTemplate === TEMPLATE_IDS.KHMER ? (
+              <KhmerInvoiceTemplate
+                receiptData={receiptData}
+                products={products}
+                invoiceNumber={invoiceNumber}
+                invoiceDate={invoiceDate}
+                customerName={invoiceCustomerName || receiptData.customer?.name}
+                phone={invoicePhone || receiptData.customer?.phone}
+                isDraft={isDraft}
+                showDraftBanner={false}
+                settings={{ ...invoiceSettings, invoiceWidth: PAGE_SIZES[invoicePageSize]?.widthPx || 794 }}
+              />
+            ) : (
+              <div className="max-w-md mx-auto border-0 p-2">
+                <OldReceiptTemplate
+                  receiptData={receiptData}
+                  products={products}
+                  shopName={shopName}
+                  shopAddress={shopAddress}
+                  shopPhone={shopPhone}
+                  customFooter={customFooter}
+                  isDraft={isDraft}
+                  showDraftBanner={false}
+                  currencySymbol={currencySymbol}
+                />
               </div>
-
-              {/* Table */}
-              <table className="w-full text-[10px] text-left mt-2 border-b border-dashed border-gray-400 pb-2">
-                <thead>
-                  <tr className="border-b border-gray-400 font-bold">
-                    <th className="py-1">Product</th>
-                    <th className="py-1 text-center">Qty</th>
-                    <th className="py-1 text-right">Price</th>
-                    <th className="py-1 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-150">
-                  {receiptData.items.map((item, index) => {
-                    const prod = products.find(p => p.id === item.product_id);
-                    const qty = parseQuantity(item.quantity);
-                    const sub = roundMoney(Number(item.unit_price) * qty);
-                    return (
-                      <tr key={index}>
-                        <td className="py-1">
-                          <div className="font-bold">{prod ? prod.name_kh : (item.custom_name || 'Custom Item')}</div>
-                          <div className="text-[9px] text-gray-500">{prod ? prod.name_en : 'Custom Freeform Item'}</div>
-                        </td>
-                        <td className="py-1 text-center font-mono">{qty}</td>
-                        <td className="py-1 text-right font-mono">${Number(item.unit_price).toFixed(2)}</td>
-                        <td className="py-1 text-right font-mono">${sub.toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {/* Totals */}
-              <div className="mt-2 space-y-1 text-[10px] text-right font-mono">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>${receiptData.items.reduce((sum, item) => sum + roundMoney(Number(item.unit_price) * parseQuantity(item.quantity)), 0).toFixed(2)}</span>
-                </div>
-                {Number(receiptData.order.discount || 0) > 0 && (
-                  <div className="flex justify-between font-bold">
-                    <span>Discount:</span>
-                    <span>-${Number(receiptData.order.discount).toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Delivery:</span>
-                  <span>{Number(receiptData.order.delivery_fee) > 0 ? `$${Number(receiptData.order.delivery_fee).toFixed(2)}` : 'Free / Pickup'}</span>
-                </div>
-                <div className="flex justify-between border-t border-double pt-1 font-bold">
-                  <span>Grand Total:</span>
-                  <span>${Number(receiptData.order.total_amount).toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* Terms */}
-              <div className="mt-4 text-center text-[9px] text-gray-500">
-                <p>{customFooter}</p>
-              </div>
-
-            </div>
+            )}
           </div>
         );
       })()}
@@ -1978,7 +2230,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       {isBatchModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-xs p-4 flex items-center justify-center no-print">
           <div className="bg-card border border-border w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-            
+
             {/* Modal Header */}
             <div className="p-5 border-b border-border flex justify-between items-center bg-card/60">
               <div>
@@ -1990,7 +2242,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   Adjust quantities for multiple products (including decimals like 0.5 or 1.5) and apply them in one batch.
                 </p>
               </div>
-              <Button 
+              <Button
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -2024,7 +2276,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
- 
+
               <select
                 value={selectedCategoryFilter}
                 onChange={(e) => setSelectedCategoryFilter(e.target.value)}
@@ -2043,8 +2295,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {getFilteredProducts(batchSearchQuery).map(p => {
                   const sps = productSupplierPrices[p.id] || [];
-                  const cheapestPrice = sps.length > 0 
-                    ? Math.min(...sps.map(sp => sp.price)) 
+                  const cheapestPrice = sps.length > 0
+                    ? Math.min(...sps.map(sp => sp.price))
                     : p.base_price;
                   const totalStock = sps.reduce((sum, sp) => sum + sp.stock_qty, 0);
                   const qtyRaw = batchQuantities[p.id];
@@ -2083,17 +2335,16 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   };
 
                   return (
-                    <div 
-                      key={p.id} 
-                      className={`p-4 rounded-xl border transition-all ${
-                        qtyVal > 0 
-                          ? 'border-primary/40 bg-primary/5 shadow-xs' 
+                    <div
+                      key={p.id}
+                      className={`p-4 rounded-xl border transition-all ${qtyVal > 0
+                          ? 'border-primary/40 bg-primary/5 shadow-xs'
                           : 'border-border bg-card/60 hover:border-primary/30'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start gap-3.5 min-h-[5rem]">
                         {/* Interactive Image */}
-                        <div 
+                        <div
                           onClick={increment}
                           className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-muted border border-border cursor-pointer hover:border-primary/50 hover:scale-105 active:scale-95 transition-all select-none"
                           title="Click to increase quantity"
@@ -2203,7 +2454,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                     setLineItems(prevItems => {
                       let updated = [];
-                      
+
                       itemsToApply.forEach(({ productId, qty }) => {
                         const existingItem = prevItems.find(item => item.product_id === productId && !item.isCustom);
                         if (existingItem) {
@@ -2221,8 +2472,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                           const supplier_id = cheapest ? cheapest.supplier_id : '';
                           const supplier_price = cheapest ? cheapest.price : (prod ? prod.base_price : 0);
-                          const unit_price = customSellingPrice !== null 
-                            ? customSellingPrice 
+                          const unit_price = customSellingPrice !== null
+                            ? customSellingPrice
                             : (cheapest && highest
                               ? roundMoney(highest.price + 0.20)
                               : (prod ? roundMoney(prod.base_price + 0.20) : 0));
@@ -2281,14 +2532,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       {imageExportModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center no-print animate-in fade-in duration-200">
           <div className="bg-dark-900 border border-dark-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-            
+
             {/* Modal Top Bar */}
             <div className="p-4 border-b border-dark-800 flex justify-between items-center bg-dark-950/60">
               <h3 className="font-bold text-white text-sm sm:text-base flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-primary-400" />
                 <span>Save Invoice to Photos</span>
               </h3>
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   if (imageExportModal.blobUrl) URL.revokeObjectURL(imageExportModal.blobUrl);
@@ -2311,9 +2562,9 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
             {/* Rendered Invoice Image Preview Node */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center bg-dark-950/40 min-h-[260px]">
-              <img 
-                src={imageExportModal.dataUrl} 
-                alt="Generated Invoice" 
+              <img
+                src={imageExportModal.dataUrl}
+                alt="Generated Invoice"
                 className="w-full h-auto max-w-sm rounded-xl shadow-2xl border border-dark-700 select-all"
               />
             </div>
