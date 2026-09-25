@@ -552,6 +552,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const barcodeReaderRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
+  const barcodeSessionIdRef = useRef(0);
 
   const stopBarcodeCamera = () => {
     try {
@@ -582,6 +583,8 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
   const openBarcodeCameraFor = async (setter) => {
     setBarcodeCameraError('');
+    barcodeSessionIdRef.current += 1;
+    const sessionId = barcodeSessionIdRef.current;
     barcodeScanLockRef.current = false;
     lastScannedCodeRef.current = '';
     setIsBarcodeCameraOpen(true);
@@ -612,6 +615,10 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       }
 
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
+        if (sessionId !== barcodeSessionIdRef.current) {
+          return;
+        }
+
         if (result) {
           const scanned = result.getText()?.trim();
 
@@ -623,7 +630,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
             const debugMessage = `Repeated barcode detected: "${scanned}". Scan stopped to prevent duplicate input.`;
             setBarcodeCameraError(debugMessage);
             setIsBarcodeCameraOpen(false);
-            stopBarcodeCamera(true);
+            stopBarcodeCamera();
             showToast(debugMessage, 'error');
             return;
           }
@@ -632,7 +639,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           barcodeScanLockRef.current = true;
           setter(scanned);
           setIsBarcodeCameraOpen(false);
-          stopBarcodeCamera(true);
+          stopBarcodeCamera();
           setTimeout(() => {
             barcodeScanLockRef.current = false;
             lastScannedCodeRef.current = '';

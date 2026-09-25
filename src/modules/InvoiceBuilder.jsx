@@ -202,6 +202,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const lastScannedCodeRef = useRef('');
   const lastProcessedBarcodeRef = useRef({ code: '', timestamp: 0 });
   const barcodeProcessingRef = useRef(false);
+  const barcodeSessionIdRef = useRef(0);
 
   const stopCameraScanner = () => {
     try {
@@ -605,6 +606,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const openBarcodeCamera = async () => {
     setCameraScannerError('');
+    barcodeSessionIdRef.current += 1;
+    const sessionId = barcodeSessionIdRef.current;
     barcodeScanLockRef.current = false;
     lastScannedCodeRef.current = '';
     setIsCameraScannerOpen(true);
@@ -637,6 +640,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       }
 
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
+        if (sessionId !== barcodeSessionIdRef.current) {
+          return;
+        }
+
         if (result) {
           const scannedCode = result.getText()?.trim();
 
