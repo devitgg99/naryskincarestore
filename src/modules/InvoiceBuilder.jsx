@@ -13,6 +13,7 @@ import {
   Minus,
   X,
   Eye,
+  Camera,
   ImageIcon,
   Download,
   Share2,
@@ -24,6 +25,7 @@ import {
   FileDown
 } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 import { db, getSupabaseConfig, generateDraftId } from '../services/db';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
@@ -191,14 +193,40 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [isQuickDropdownOpen, setIsQuickDropdownOpen] = useState(false);
   const [isScannerMode, setIsScannerMode] = useState(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraScannerError, setCameraScannerError] = useState('');
   const quickInputRef = useRef(null);
+  const cameraVideoRef = useRef(null);
+  const barcodeReaderRef = useRef(null);
+
+  const stopCameraScanner = () => {
+    try {
+      barcodeReaderRef.current?.reset();
+    } catch (err) {
+      console.warn('Camera reset failed:', err);
+    }
+
+    barcodeReaderRef.current = null;
+
+    const tracks = cameraVideoRef.current?.srcObject instanceof MediaStream
+      ? cameraVideoRef.current.srcObject.getTracks()
+      : [];
+
+    tracks.forEach((track) => track.stop());
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+  };
 
   useEffect(() => {
     const focusTimer = setTimeout(() => {
       quickInputRef.current?.focus();
     }, 250);
 
-    return () => clearTimeout(focusTimer);
+    return () => {
+      clearTimeout(focusTimer);
+      stopCameraScanner();
+    };
   }, []);
 
   useEffect(() => {
@@ -524,11 +552,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     return products.find((p) => normalizeBarcode(p.barcode || '') === normalizedQuery) || null;
   };
 
-  const handleBarcodeSubmit = () => {
-    const trimmed = quickSearchQuery.trim();
-    if (!trimmed) return;
+  const handleBarcodeSubmit = (overrideValue) => {
+    const value = String(overrideValue ?? quickSearchQuery ?? '').trim();
+    if (!value) return;
 
-    const exactMatch = findProductByBarcode(trimmed) || getFilteredProducts(trimmed)[0];
+    const exactMatch = findProductByBarcode(value) || getFilteredProducts(value)[0];
     if (exactMatch) {
       addProductToInvoice(exactMatch.id, 1);
       setQuickSearchQuery('');
@@ -539,6 +567,42 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
 
     showToast('No matching product found for this barcode or product name.', 'warning');
+  };
+
+  const openBarcodeCamera = async () => {
+    setCameraScannerError('');
+    setIsCameraScannerOpen(true);
+
+    try {
+      const reader = new BrowserMultiFormatReader();
+      barcodeReaderRef.current = reader;
+
+      const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
+      const selectedDeviceId = videoInputDevices[0]?.deviceId || undefined;
+
+      await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
+        if (result) {
+          const scannedCode = result.getText();
+          setQuickSearchQuery(scannedCode);
+          setIsQuickDropdownOpen(false);
+          setIsCameraScannerOpen(false);
+          stopCameraScanner();
+          setTimeout(() => {
+            handleBarcodeSubmit(scannedCode);
+          }, 100);
+        }
+
+        if (error && error.name !== 'NotFoundException') {
+          console.warn('Barcode scan warning:', error);
+        }
+      });
+    } catch (err) {
+      console.error('Camera barcode scan start failed:', err);
+      setCameraScannerError(err?.message || 'Unable to access the camera.');
+      setIsCameraScannerOpen(false);
+      stopCameraScanner();
+      showToast('Camera access failed. Use manual barcode entry instead.', 'warning');
+    }
   };
 
   // Calculate row details
@@ -1532,9 +1596,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openBarcodeCamera}
+                    className="h-10 px-3 text-[11px] font-bold whitespace-nowrap gap-1"
+                    title="Open camera scan mode on your iPhone or tablet"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    Camera
+                  </Button>
+
+                  <Button
+                    type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={handleBarcodeSubmit}
+                    onClick={() => handleBarcodeSubmit()}
                     className="h-10 px-3 text-[11px] font-bold whitespace-nowrap"
                     title="Add the current barcode or product match to the invoice"
                   >
@@ -1603,6 +1679,42 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   </div>
                 )}
               </div>
+
+              {isCameraScannerOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+                  <div className="w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-3 shadow-2xl">
+                    <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                      <div>
+                        <div className="text-sm font-bold">Barcode Scanner</div>
+                        <div className="text-[10px] text-slate-300">Point your iPhone camera at the barcode</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsCameraScannerOpen(false);
+                          stopCameraScanner();
+                        }}
+                        className="h-8 px-2.5 text-[11px] border-white/20 text-white hover:bg-white/10"
+                      >
+                        Close
+                      </Button>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black">
+                      <video ref={cameraVideoRef} autoPlay playsInline muted className="h-[320px] w-full object-cover bg-black" />
+                      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-24 -translate-y-1/2 rounded-xl border-2 border-emerald-400/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                    </div>
+
+                    {cameraScannerError && (
+                      <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        {cameraScannerError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Line Items Cards List - Fully Responsive for Mobile, Tablet & Desktop */}
               <div className="space-y-4">
