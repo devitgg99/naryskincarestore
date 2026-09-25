@@ -201,6 +201,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
   const lastProcessedBarcodeRef = useRef({ code: '', timestamp: 0 });
+  const barcodeProcessingRef = useRef(false);
 
   const stopCameraScanner = () => {
     try {
@@ -573,13 +574,20 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
     if (sameRecentBarcode) {
       const debugMessage = `Repeated scan detected for "${value}". Quantity add stopped to prevent a loop.`;
-      setCameraScannerError(debugMessage);
-      setIsCameraScannerOpen(false);
-      stopCameraScanner();
-      showToast(debugMessage, 'error');
+      if (!barcodeProcessingRef.current) {
+        barcodeProcessingRef.current = true;
+        setCameraScannerError(debugMessage);
+        setIsCameraScannerOpen(false);
+        stopCameraScanner();
+        showToast(debugMessage, 'error');
+        setTimeout(() => {
+          barcodeProcessingRef.current = false;
+        }, 1200);
+      }
       return;
     }
 
+    barcodeProcessingRef.current = true;
     lastProcessedBarcodeRef.current = { code: value, timestamp: now };
 
     const exactMatch = findProductByBarcode(value) || getFilteredProducts(value)[0];
@@ -608,6 +616,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         }
       });
 
+      barcodeProcessingRef.current = false;
+
       if (cameraVideoRef.current) {
         cameraVideoRef.current.srcObject = stream;
       }
@@ -634,15 +644,24 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
             return;
           }
 
-          if (barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
-            const debugMessage = `Repeated barcode detected: "${scannedCode}". Scan stopped to prevent duplicate adds.`;
-            setCameraScannerError(debugMessage);
-            setIsCameraScannerOpen(false);
-            stopCameraScanner();
-            showToast(debugMessage, 'error');
+          if (barcodeProcessingRef.current || barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
+            if (!barcodeProcessingRef.current) {
+              barcodeProcessingRef.current = true;
+              const debugMessage = `Repeated barcode detected: "${scannedCode}". Scan stopped to prevent duplicate adds.`;
+              setCameraScannerError(debugMessage);
+              setIsCameraScannerOpen(false);
+              stopCameraScanner();
+              showToast(debugMessage, 'error');
+              setTimeout(() => {
+                barcodeProcessingRef.current = false;
+                barcodeScanLockRef.current = false;
+                lastScannedCodeRef.current = '';
+              }, 1200);
+            }
             return;
           }
 
+          barcodeProcessingRef.current = true;
           lastScannedCodeRef.current = scannedCode;
           barcodeScanLockRef.current = true;
           setQuickSearchQuery(scannedCode);
@@ -651,6 +670,11 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           stopCameraScanner();
           setTimeout(() => {
             handleBarcodeSubmit(scannedCode);
+            setTimeout(() => {
+              barcodeProcessingRef.current = false;
+              barcodeScanLockRef.current = false;
+              lastScannedCodeRef.current = '';
+            }, 1200);
           }, 100);
         }
 

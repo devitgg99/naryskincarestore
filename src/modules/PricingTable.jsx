@@ -623,7 +623,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
             const debugMessage = `Repeated barcode detected: "${scanned}". Scan stopped to prevent duplicate input.`;
             setBarcodeCameraError(debugMessage);
             setIsBarcodeCameraOpen(false);
-            stopBarcodeCamera();
+            stopBarcodeCamera(true);
             showToast(debugMessage, 'error');
             return;
           }
@@ -632,7 +632,11 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           barcodeScanLockRef.current = true;
           setter(scanned);
           setIsBarcodeCameraOpen(false);
-          stopBarcodeCamera();
+          stopBarcodeCamera(true);
+          setTimeout(() => {
+            barcodeScanLockRef.current = false;
+            lastScannedCodeRef.current = '';
+          }, 500);
         }
 
         if (error && error.name !== 'NotFoundException') {
