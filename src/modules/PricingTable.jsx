@@ -579,7 +579,15 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       barcodeReaderRef.current = reader;
 
       const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-      const deviceId = devices[0]?.deviceId || undefined;
+      const preferredRearCamera = devices.find((device) => {
+        const label = (device.label || '').toLowerCase();
+        return label.includes('back') || label.includes('rear') || label.includes('environment');
+      });
+      const deviceId = preferredRearCamera?.deviceId || devices[0]?.deviceId || undefined;
+
+      if (!deviceId) {
+        throw new Error('No camera found on this device.');
+      }
 
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
         if (result) {

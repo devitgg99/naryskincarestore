@@ -578,7 +578,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       barcodeReaderRef.current = reader;
 
       const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
-      const selectedDeviceId = videoInputDevices[0]?.deviceId || undefined;
+      const preferredRearCamera = videoInputDevices.find((device) => {
+        const label = (device.label || '').toLowerCase();
+        return label.includes('back') || label.includes('rear') || label.includes('environment');
+      });
+      const selectedDeviceId = preferredRearCamera?.deviceId || videoInputDevices[0]?.deviceId || undefined;
+
+      if (!selectedDeviceId) {
+        throw new Error('No camera found on this device.');
+      }
 
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
         if (result) {
