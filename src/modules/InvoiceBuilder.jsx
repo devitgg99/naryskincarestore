@@ -198,6 +198,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const quickInputRef = useRef(null);
   const cameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
+  const barcodeScanLockRef = useRef(false);
 
   const stopCameraScanner = () => {
     try {
@@ -206,6 +207,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       console.warn('Camera reset failed:', err);
     }
 
+    barcodeScanLockRef.current = false;
     barcodeReaderRef.current = null;
 
     const tracks = cameraVideoRef.current?.srcObject instanceof MediaStream
@@ -571,6 +573,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const openBarcodeCamera = async () => {
     setCameraScannerError('');
+    barcodeScanLockRef.current = false;
     setIsCameraScannerOpen(true);
 
     try {
@@ -600,7 +603,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
         if (result) {
+          if (barcodeScanLockRef.current) return;
+
           const scannedCode = result.getText();
+          barcodeScanLockRef.current = true;
           setQuickSearchQuery(scannedCode);
           setIsQuickDropdownOpen(false);
           setIsCameraScannerOpen(false);

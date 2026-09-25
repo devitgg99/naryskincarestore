@@ -550,6 +550,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [barcodeCameraError, setBarcodeCameraError] = useState('');
   const barcodeCameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
+  const barcodeScanLockRef = useRef(false);
 
   const stopBarcodeCamera = () => {
     try {
@@ -558,6 +559,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       console.warn('Barcode camera reset failed:', err);
     }
 
+    barcodeScanLockRef.current = false;
     barcodeReaderRef.current = null;
 
     const tracks = barcodeCameraVideoRef.current?.srcObject instanceof MediaStream
@@ -572,6 +574,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
   const openBarcodeCameraFor = async (setter) => {
     setBarcodeCameraError('');
+    barcodeScanLockRef.current = false;
     setIsBarcodeCameraOpen(true);
 
     try {
@@ -601,7 +604,10 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
         if (result) {
+          if (barcodeScanLockRef.current) return;
+
           const scanned = result.getText();
+          barcodeScanLockRef.current = true;
           setter(scanned);
           setIsBarcodeCameraOpen(false);
           stopBarcodeCamera();
