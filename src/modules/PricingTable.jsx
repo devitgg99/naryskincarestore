@@ -614,7 +614,17 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
         if (result) {
           const scanned = result.getText()?.trim();
-          if (!scanned || barcodeScanLockRef.current || scanned === lastScannedCodeRef.current) {
+
+          if (!scanned) {
+            return;
+          }
+
+          if (barcodeScanLockRef.current || scanned === lastScannedCodeRef.current) {
+            const debugMessage = `Repeated barcode detected: "${scanned}". Scan stopped to prevent duplicate input.`;
+            setBarcodeCameraError(debugMessage);
+            setIsBarcodeCameraOpen(false);
+            stopBarcodeCamera();
+            showToast(debugMessage, 'error');
             return;
           }
 

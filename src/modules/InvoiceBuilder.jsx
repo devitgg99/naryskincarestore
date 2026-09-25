@@ -613,7 +613,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
         if (result) {
           const scannedCode = result.getText()?.trim();
-          if (!scannedCode || barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
+
+          if (!scannedCode) {
+            return;
+          }
+
+          if (barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
+            const debugMessage = `Repeated barcode detected: "${scannedCode}". Scan stopped to prevent duplicate adds.`;
+            setCameraScannerError(debugMessage);
+            setIsCameraScannerOpen(false);
+            stopCameraScanner();
+            showToast(debugMessage, 'error');
             return;
           }
 
