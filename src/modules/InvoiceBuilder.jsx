@@ -200,6 +200,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const barcodeReaderRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
+  const lastProcessedBarcodeRef = useRef({ code: '', timestamp: 0 });
 
   const stopCameraScanner = () => {
     try {
@@ -565,6 +566,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const handleBarcodeSubmit = (overrideValue) => {
     const value = String(overrideValue ?? quickSearchQuery ?? '').trim();
     if (!value) return;
+
+    const now = Date.now();
+    const sameRecentBarcode = value === lastProcessedBarcodeRef.current.code
+      && now - lastProcessedBarcodeRef.current.timestamp < 1500;
+
+    if (sameRecentBarcode) {
+      const debugMessage = `Repeated scan detected for "${value}". Quantity add stopped to prevent a loop.`;
+      setCameraScannerError(debugMessage);
+      setIsCameraScannerOpen(false);
+      stopCameraScanner();
+      showToast(debugMessage, 'error');
+      return;
+    }
+
+    lastProcessedBarcodeRef.current = { code: value, timestamp: now };
 
     const exactMatch = findProductByBarcode(value) || getFilteredProducts(value)[0];
     if (exactMatch) {
