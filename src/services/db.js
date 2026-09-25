@@ -35,6 +35,11 @@ const setLocal = (key, data) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+const normalizeBarcode = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value).trim().replace(/\s+/g, '');
+};
+
 // Initialize LocalStorage Mock Data if needed
 const initMockDB = () => {
   getLocal('wsp_brands', initialBrands);
@@ -157,25 +162,37 @@ export const db = {
   },
   
   saveProduct: async (product) => {
+    const normalizedProduct = {
+      ...product,
+      barcode: normalizeBarcode(product.barcode)
+    };
+
     const client = getClient();
     if (client) {
-      const { data, error } = await client.from('products').upsert(product).select();
+      const { data, error } = await client.from('products').upsert(normalizedProduct).select();
       if (!error) return data[0];
       throw error;
     }
     
     // Fallback
     const products = getLocal('wsp_products', initialProducts);
-    if (product.id) {
-      const idx = products.findIndex(p => p.id === product.id);
+    if (normalizedProduct.barcode) {
+      const duplicate = products.find(p => p.id !== normalizedProduct.id && normalizeBarcode(p.barcode) === normalizedProduct.barcode);
+      if (duplicate) {
+        throw new Error('Barcode already exists for another product.');
+      }
+    }
+
+    if (normalizedProduct.id) {
+      const idx = products.findIndex(p => p.id === normalizedProduct.id);
       if (idx !== -1) {
-        products[idx] = { ...products[idx], ...product };
+        products[idx] = { ...products[idx], ...normalizedProduct };
         setLocal('wsp_products', products);
         return products[idx];
       }
       throw new Error("Product not found");
     } else {
-      const newProduct = { ...product, id: 'p_' + Date.now().toString(), created_at: new Date().toISOString() };
+      const newProduct = { ...normalizedProduct, id: 'p_' + Date.now().toString(), created_at: new Date().toISOString() };
       products.push(newProduct);
       setLocal('wsp_products', products);
       return newProduct;

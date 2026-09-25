@@ -190,7 +190,22 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   // POS Quick Add States
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [isQuickDropdownOpen, setIsQuickDropdownOpen] = useState(false);
+  const [isScannerMode, setIsScannerMode] = useState(false);
   const quickInputRef = useRef(null);
+
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      quickInputRef.current?.focus();
+    }, 250);
+
+    return () => clearTimeout(focusTimer);
+  }, []);
+
+  useEffect(() => {
+    if (isScannerMode) {
+      quickInputRef.current?.focus();
+    }
+  }, [isScannerMode]);
 
   // Batch Add Catalog Modal States
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
@@ -471,11 +486,18 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
   });
 
+  const normalizeBarcode = (value = '') => String(value ?? '').trim().replace(/\s+/g, '');
+
   const getFilteredProducts = (query) => {
     return products.filter(p => {
       if (query) {
         const lower = query.toLowerCase();
-        const matches = p.name_en.toLowerCase().includes(lower) || p.name_kh.includes(lower);
+        const normalizedQuery = normalizeBarcode(query);
+        const matches =
+          p.name_en?.toLowerCase().includes(lower) ||
+          (p.name_kh || '').includes(lower) ||
+          normalizeBarcode(p.barcode || '').includes(normalizedQuery) ||
+          (p.barcode || '').toLowerCase().includes(lower);
         if (!matches) return false;
       }
       if (selectedBrandFilter !== 'all') {
@@ -494,6 +516,29 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       }
       return true;
     });
+  };
+
+  const findProductByBarcode = (query) => {
+    const normalizedQuery = normalizeBarcode(query);
+    if (!normalizedQuery) return null;
+    return products.find((p) => normalizeBarcode(p.barcode || '') === normalizedQuery) || null;
+  };
+
+  const handleBarcodeSubmit = () => {
+    const trimmed = quickSearchQuery.trim();
+    if (!trimmed) return;
+
+    const exactMatch = findProductByBarcode(trimmed) || getFilteredProducts(trimmed)[0];
+    if (exactMatch) {
+      addProductToInvoice(exactMatch.id, 1);
+      setQuickSearchQuery('');
+      setIsQuickDropdownOpen(false);
+      setIsScannerMode(true);
+      quickInputRef.current?.focus();
+      return;
+    }
+
+    showToast('No matching product found for this barcode or product name.', 'warning');
   };
 
   // Calculate row details
@@ -1431,36 +1476,70 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               </div>
 
               {/* POS-Style Quick Search & Add Bar */}
-              <div className="relative z-30">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
-                  <input
-                    ref={quickInputRef}
-                    type="text"
-                    placeholder="⚡ POS Quick Search & Add Product..."
-                    value={quickSearchQuery}
-                    onChange={(e) => {
-                      setQuickSearchQuery(e.target.value);
-                      setIsQuickDropdownOpen(true);
-                    }}
-                    onFocus={() => setIsQuickDropdownOpen(true)}
-                    onBlur={() => {
-                      setTimeout(() => setIsQuickDropdownOpen(false), 200);
-                    }}
-                    className="w-full pl-11 pr-10 glass-input min-h-[44px] text-xs sm:text-sm font-medium border-primary-500/20 focus:border-primary-500/50 shadow-inner"
-                  />
-                  {quickSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickSearchQuery('');
-                        setIsQuickDropdownOpen(false);
+              <div className={`relative z-30 ${isScannerMode ? 'sm:sticky sm:top-2' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-dark-500" />
+                    <input
+                      ref={quickInputRef}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder={isScannerMode ? 'Scan barcode or type product name…' : '⚡ POS Quick Search & Add Product...'}
+                      value={quickSearchQuery}
+                      onChange={(e) => {
+                        setQuickSearchQuery(e.target.value);
+                        setIsQuickDropdownOpen(true);
                       }}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-dark-400 hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleBarcodeSubmit();
+                        }
+                      }}
+                      onFocus={() => setIsQuickDropdownOpen(true)}
+                      onBlur={() => {
+                        setTimeout(() => setIsQuickDropdownOpen(false), 200);
+                      }}
+                      className={`w-full pl-11 pr-10 glass-input min-h-[44px] text-xs sm:text-sm font-medium border-primary-500/20 focus:border-primary-500/50 shadow-inner ${isScannerMode ? 'sm:min-h-[52px] text-sm' : ''}`}
+                    />
+                    {quickSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickSearchQuery('');
+                          setIsQuickDropdownOpen(false);
+                        }}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-dark-400 hover:text-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant={isScannerMode ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setIsScannerMode((prev) => !prev);
+                      setTimeout(() => quickInputRef.current?.focus(), 50);
+                    }}
+                    className="h-10 px-3 text-[11px] font-bold whitespace-nowrap"
+                    title="Toggle barcode scanner mode"
+                  >
+                    {isScannerMode ? 'Scanner On' : 'Scan Barcode'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleBarcodeSubmit}
+                    className="h-10 px-3 text-[11px] font-bold whitespace-nowrap"
+                    title="Add the current barcode or product match to the invoice"
+                  >
+                    Add
+                  </Button>
                 </div>
 
                 {isQuickDropdownOpen && quickSearchQuery && (
@@ -1503,7 +1582,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           <div className="flex items-center gap-2.5">
                             <div className="text-right text-[10px] text-dark-400">
                               <span className="block font-medium text-white">${cheapestPrice.toFixed(2)}</span>
-                              <span>Stock: {totalStock}</span>
+                              <span>{p.barcode ? `Barcode: ${p.barcode}` : 'Stock: ' + totalStock}</span>
                             </div>
                             {existingQty > 0 ? (
                               <span className="text-[10px] bg-primary-500/20 text-primary-400 font-semibold px-2 py-0.5 rounded border border-primary-500/30">

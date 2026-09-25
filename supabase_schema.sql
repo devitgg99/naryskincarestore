@@ -6,6 +6,7 @@ create table if not exists products (
   id uuid primary key default gen_random_uuid(),
   name_kh text not null,
   name_en text not null,
+  barcode text,
   image_url text,
   base_price numeric(10, 2) not null default 0.00,
   created_at timestamp with time zone default now()
@@ -67,6 +68,7 @@ create table if not exists order_items (
 -- Indexes for performance
 create index if not exists idx_products_name_en on products(name_en);
 create index if not exists idx_products_name_kh on products(name_kh);
+create index if not exists idx_products_barcode on products(barcode);
 create index if not exists idx_supplier_prices_product on supplier_prices(product_id);
 create index if not exists idx_supplier_prices_supplier on supplier_prices(supplier_id);
 create index if not exists idx_orders_customer on orders(customer_id);

@@ -537,6 +537,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   });
   const [newProductNameKh, setNewProductNameKh] = useState('');
   const [newProductNameEn, setNewProductNameEn] = useState('');
+  const [newProductBarcode, setNewProductBarcode] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [newProductBrandId, setNewProductBrandId] = useState('');
   const [newProductCategoryId, setNewProductCategoryId] = useState('');
@@ -555,6 +556,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editingProduct, setEditingProduct] = useState(null);
   const [editProductNameKh, setEditProductNameKh] = useState('');
   const [editProductNameEn, setEditProductNameEn] = useState('');
+  const [editProductBarcode, setEditProductBarcode] = useState('');
   const [editProductBasePrice, setEditProductBasePrice] = useState('');
   const [editProductBrandId, setEditProductBrandId] = useState('');
   const [editProductCategoryId, setEditProductCategoryId] = useState('');
@@ -733,6 +735,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setEditingProduct(product);
     setEditProductNameKh(product.name_kh);
     setEditProductNameEn(product.name_en);
+    setEditProductBarcode(product.barcode || '');
     setEditProductBasePrice(product.base_price.toString());
     setEditProductBrandId(product.brand_id || '');
     setEditProductCategoryId(product.category_id || '');
@@ -774,6 +777,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         ...editingProduct,
         name_kh: editProductNameKh,
         name_en: editProductNameEn,
+        barcode: editProductBarcode,
         base_price: Number(editProductBasePrice),
         brand_id: editProductBrandId || null,
         category_id: editProductCategoryId || null,
@@ -835,6 +839,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       await db.saveProduct({
         name_kh: newProductNameKh,
         name_en: newProductNameEn,
+        barcode: newProductBarcode,
         base_price: Number(newProductBasePrice),
         brand_id: newProductBrandId || null,
         category_id: newProductCategoryId || null,
@@ -845,6 +850,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       // Reset all fields
       setNewProductNameKh('');
       setNewProductNameEn('');
+      setNewProductBarcode('');
       setNewProductBasePrice('');
       setNewProductBrandId('');
       setNewProductCategoryId('');
@@ -1421,6 +1427,17 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Barcode (Optional)</label>
+                <Input 
+                  type="text"
+                  placeholder="Scan or enter barcode"
+                  value={newProductBarcode}
+                  onChange={(e) => setNewProductBarcode(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reference Base Price ($) *</label>
                 <Input 
                   type="number" 
@@ -1597,6 +1614,17 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                     placeholder="English Product Name"
                     value={editProductNameEn}
                     onChange={(e) => setEditProductNameEn(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Barcode</label>
+                  <Input 
+                    type="text"
+                    placeholder="Scan or enter barcode"
+                    value={editProductBarcode}
+                    onChange={(e) => setEditProductBarcode(e.target.value)}
                     className="h-9 text-xs"
                   />
                 </div>
