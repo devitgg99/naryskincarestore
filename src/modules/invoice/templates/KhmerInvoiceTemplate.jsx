@@ -40,10 +40,13 @@ export default function KhmerInvoiceTemplate({
   const fontStack = `${khmerFont}, ${englishFont}`;
 
   const items = receiptData.items || [];
-  const total = items.reduce(
+  const itemsSubtotal = items.reduce(
     (sum, item) => sum + roundMoney(Number(item.unit_price) * parseQuantity(item.quantity)),
     0
   );
+  const discountAmount = Number(receiptData.order?.discount || 0);
+  const deliveryFee = Number(receiptData.order?.delivery_fee || 0);
+  const grandTotal = Number(receiptData.order?.total_amount || 0) || roundMoney(Math.max(0, itemsSubtotal - discountAmount) + deliveryFee);
 
   const displayCustomer = customerName || receiptData.customer?.name || '';
   const displayPhone = phone || receiptData.customer?.phone || '';
@@ -191,7 +194,6 @@ export default function KhmerInvoiceTemplate({
             );
           })}
 
-          {/* Total row */}
           <tr>
             <td
               colSpan={4}
@@ -201,7 +203,7 @@ export default function KhmerInvoiceTemplate({
                 borderTop: border
               }}
             >
-              សរុប / Total Price
+              សរុប / Subtotal
             </td>
             <td
               style={{
@@ -210,11 +212,37 @@ export default function KhmerInvoiceTemplate({
                 borderTop: border
               }}
             >
-              {formatCurrency(total, currencySymbol)}
+              {formatCurrency(itemsSubtotal, currencySymbol)}
             </td>
           </tr>
         </tbody>
       </table>
+
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, fontSize: `${bodySize}px` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#374151' }}>Subtotal / សរុបបណ្តោះអាសន្ន:</span>
+          <span>{formatCurrency(itemsSubtotal, currencySymbol)}</span>
+        </div>
+
+        {discountAmount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: '#B91C1C', fontWeight: 600 }}>
+            <span>Discount / បញ្ចុះតម្លៃ:</span>
+            <span>-{formatCurrency(discountAmount, currencySymbol)}</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: '#374151' }}>
+          <span>Delivery / ថ្លៃដឹកជញ្ជូន:</span>
+          <span>
+            {deliveryFee > 0 ? formatCurrency(deliveryFee, currencySymbol) : 'Free / Pickup'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderTop: `${Math.max(1, borderThickness - 0.5)}px double #000`, paddingTop: 8, fontWeight: 700, fontSize: `${Math.max(12, bodySize + 1)}px` }}>
+          <span>Grand Total / សរុបរួម:</span>
+          <span>{formatCurrency(grandTotal, currencySymbol)}</span>
+        </div>
+      </div>
     </div>
   );
 }
