@@ -574,6 +574,16 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setIsCameraScannerOpen(true);
 
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        }
+      });
+
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+      }
+
       const reader = new BrowserMultiFormatReader();
       barcodeReaderRef.current = reader;
 
@@ -585,7 +595,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       const selectedDeviceId = preferredRearCamera?.deviceId || videoInputDevices[0]?.deviceId || undefined;
 
       if (!selectedDeviceId) {
-        throw new Error('No camera found on this device.');
+        throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
       }
 
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
@@ -606,10 +616,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       });
     } catch (err) {
       console.error('Camera barcode scan start failed:', err);
-      setCameraScannerError(err?.message || 'Unable to access the camera.');
+      setCameraScannerError(
+        err?.message || 'Unable to access the camera. Please allow camera access in Safari and open the site over HTTPS.'
+      );
       setIsCameraScannerOpen(false);
       stopCameraScanner();
-      showToast('Camera access failed. Use manual barcode entry instead.', 'warning');
+      showToast('Camera access failed. Please allow camera permission in Safari and use the HTTPS site.', 'warning');
     }
   };
 

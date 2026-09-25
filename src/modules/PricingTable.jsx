@@ -575,6 +575,16 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setIsBarcodeCameraOpen(true);
 
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        }
+      });
+
+      if (barcodeCameraVideoRef.current) {
+        barcodeCameraVideoRef.current.srcObject = stream;
+      }
+
       const reader = new BrowserMultiFormatReader();
       barcodeReaderRef.current = reader;
 
@@ -586,7 +596,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       const deviceId = preferredRearCamera?.deviceId || devices[0]?.deviceId || undefined;
 
       if (!deviceId) {
-        throw new Error('No camera found on this device.');
+        throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
       }
 
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
@@ -603,10 +613,12 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       });
     } catch (err) {
       console.error('Product barcode camera failed:', err);
-      setBarcodeCameraError(err?.message || 'Camera access failed.');
+      setBarcodeCameraError(
+        err?.message || 'Camera access failed. Please allow camera access in Safari and use the HTTPS site.'
+      );
       setIsBarcodeCameraOpen(false);
       stopBarcodeCamera();
-      showToast('Camera access failed. You can still type the barcode manually.', 'warning');
+      showToast('Camera access failed. Please allow camera permission in Safari and use the HTTPS site.', 'warning');
     }
   };
 
