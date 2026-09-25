@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop, LayoutGrid, List } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
@@ -545,6 +546,65 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [newProductImageState, setNewProductImageState] = useState({ file: null, removed: false });
 
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isBarcodeCameraOpen, setIsBarcodeCameraOpen] = useState(false);
+  const [barcodeCameraError, setBarcodeCameraError] = useState('');
+  const barcodeCameraVideoRef = useRef(null);
+  const barcodeReaderRef = useRef(null);
+
+  const stopBarcodeCamera = () => {
+    try {
+      barcodeReaderRef.current?.reset();
+    } catch (err) {
+      console.warn('Barcode camera reset failed:', err);
+    }
+
+    barcodeReaderRef.current = null;
+
+    const tracks = barcodeCameraVideoRef.current?.srcObject instanceof MediaStream
+      ? barcodeCameraVideoRef.current.srcObject.getTracks()
+      : [];
+
+    tracks.forEach((track) => track.stop());
+    if (barcodeCameraVideoRef.current) {
+      barcodeCameraVideoRef.current.srcObject = null;
+    }
+  };
+
+  const openBarcodeCameraFor = async (setter) => {
+    setBarcodeCameraError('');
+    setIsBarcodeCameraOpen(true);
+
+    try {
+      const reader = new BrowserMultiFormatReader();
+      barcodeReaderRef.current = reader;
+
+      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      const deviceId = devices[0]?.deviceId || undefined;
+
+      await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
+        if (result) {
+          const scanned = result.getText();
+          setter(scanned);
+          setIsBarcodeCameraOpen(false);
+          stopBarcodeCamera();
+        }
+
+        if (error && error.name !== 'NotFoundException') {
+          console.warn('Barcode decode warning:', error);
+        }
+      });
+    } catch (err) {
+      console.error('Product barcode camera failed:', err);
+      setBarcodeCameraError(err?.message || 'Camera access failed.');
+      setIsBarcodeCameraOpen(false);
+      stopBarcodeCamera();
+      showToast('Camera access failed. You can still type the barcode manually.', 'warning');
+    }
+  };
+
+  useEffect(() => {
+    return () => stopBarcodeCamera();
+  }, []);
 
   // States for adding a new supplier
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
@@ -1428,13 +1488,25 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Barcode (Optional)</label>
-                <Input 
-                  type="text"
-                  placeholder="Scan or enter barcode"
-                  value={newProductBarcode}
-                  onChange={(e) => setNewProductBarcode(e.target.value)}
-                  className="h-9 text-xs"
-                />
+                <div className="flex items-center gap-2">
+                  <Input 
+                    type="text"
+                    placeholder="Scan or enter barcode"
+                    value={newProductBarcode}
+                    onChange={(e) => setNewProductBarcode(e.target.value)}
+                    className="h-9 text-xs flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openBarcodeCameraFor(setNewProductBarcode)}
+                    className="h-9 px-2.5 text-[10px] font-bold gap-1"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    Scan
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -1516,6 +1588,42 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           </form>
         </DialogContent>
       </Dialog>
+
+      {isBarcodeCameraOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-3 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-3 text-white">
+              <div>
+                <div className="text-sm font-bold">Scan Product Barcode</div>
+                <div className="text-[10px] text-slate-300">Point your camera at the barcode</div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsBarcodeCameraOpen(false);
+                  stopBarcodeCamera();
+                }}
+                className="h-8 px-2.5 text-[11px] border-white/20 text-white hover:bg-white/10"
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black">
+              <video ref={barcodeCameraVideoRef} autoPlay playsInline muted className="h-[320px] w-full object-cover bg-black" />
+              <div className="pointer-events-none absolute inset-x-8 top-1/2 h-24 -translate-y-1/2 rounded-xl border-2 border-emerald-400/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+            </div>
+
+            {barcodeCameraError && (
+              <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                {barcodeCameraError}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Supplier Modal */}
       <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
@@ -1620,13 +1728,25 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Barcode</label>
-                  <Input 
-                    type="text"
-                    placeholder="Scan or enter barcode"
-                    value={editProductBarcode}
-                    onChange={(e) => setEditProductBarcode(e.target.value)}
-                    className="h-9 text-xs"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="text"
+                      placeholder="Scan or enter barcode"
+                      value={editProductBarcode}
+                      onChange={(e) => setEditProductBarcode(e.target.value)}
+                      className="h-9 text-xs flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openBarcodeCameraFor(setEditProductBarcode)}
+                      className="h-9 px-2.5 text-[10px] font-bold gap-1"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Scan
+                    </Button>
+                  </div>
                 </div>
 
                 <div>
