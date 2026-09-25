@@ -199,8 +199,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const cameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
+  const lastScannedCodeRef = useRef('');
 
   const stopCameraScanner = () => {
+    try {
+      barcodeReaderRef.current?.stopContinuousDecode?.();
+    } catch (err) {
+      console.warn('Continuous decode stop failed:', err);
+    }
+
     try {
       barcodeReaderRef.current?.reset();
     } catch (err) {
@@ -208,6 +215,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }
 
     barcodeScanLockRef.current = false;
+    lastScannedCodeRef.current = '';
     barcodeReaderRef.current = null;
 
     const tracks = cameraVideoRef.current?.srcObject instanceof MediaStream
@@ -574,6 +582,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const openBarcodeCamera = async () => {
     setCameraScannerError('');
     barcodeScanLockRef.current = false;
+    lastScannedCodeRef.current = '';
     setIsCameraScannerOpen(true);
 
     try {
@@ -603,9 +612,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
         if (result) {
-          if (barcodeScanLockRef.current) return;
+          const scannedCode = result.getText()?.trim();
+          if (!scannedCode || barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
+            return;
+          }
 
-          const scannedCode = result.getText();
+          lastScannedCodeRef.current = scannedCode;
           barcodeScanLockRef.current = true;
           setQuickSearchQuery(scannedCode);
           setIsQuickDropdownOpen(false);

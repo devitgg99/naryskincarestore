@@ -551,8 +551,15 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const barcodeCameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
+  const lastScannedCodeRef = useRef('');
 
   const stopBarcodeCamera = () => {
+    try {
+      barcodeReaderRef.current?.stopContinuousDecode?.();
+    } catch (err) {
+      console.warn('Barcode continuous decode stop failed:', err);
+    }
+
     try {
       barcodeReaderRef.current?.reset();
     } catch (err) {
@@ -560,6 +567,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     }
 
     barcodeScanLockRef.current = false;
+    lastScannedCodeRef.current = '';
     barcodeReaderRef.current = null;
 
     const tracks = barcodeCameraVideoRef.current?.srcObject instanceof MediaStream
@@ -575,6 +583,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const openBarcodeCameraFor = async (setter) => {
     setBarcodeCameraError('');
     barcodeScanLockRef.current = false;
+    lastScannedCodeRef.current = '';
     setIsBarcodeCameraOpen(true);
 
     try {
@@ -604,9 +613,12 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
       await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
         if (result) {
-          if (barcodeScanLockRef.current) return;
+          const scanned = result.getText()?.trim();
+          if (!scanned || barcodeScanLockRef.current || scanned === lastScannedCodeRef.current) {
+            return;
+          }
 
-          const scanned = result.getText();
+          lastScannedCodeRef.current = scanned;
           barcodeScanLockRef.current = true;
           setter(scanned);
           setIsBarcodeCameraOpen(false);
