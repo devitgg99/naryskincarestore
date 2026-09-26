@@ -162,9 +162,10 @@ export const db = {
   },
   
   saveProduct: async (product) => {
+    const cleanedBarcode = normalizeBarcode(product.barcode);
     const normalizedProduct = {
       ...product,
-      barcode: normalizeBarcode(product.barcode)
+      barcode: cleanedBarcode || null
     };
 
     const client = getClient();
