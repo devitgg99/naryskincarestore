@@ -554,6 +554,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
   const barcodeSessionIdRef = useRef(0);
+  const barcodeSetterRef = useRef(null);
 
   const stopBarcodeCamera = () => {
     barcodeSessionIdRef.current += 1;
@@ -579,87 +580,111 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     }
   };
 
-  const openBarcodeCameraFor = async (setter) => {
-    stopBarcodeCamera();
+  const openBarcodeCameraFor = (setter) => {
+    barcodeSetterRef.current = setter;
     setBarcodeCameraError('');
+    setIsBarcodeCameraOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isBarcodeCameraOpen) {
+      stopBarcodeCamera();
+      return;
+    }
+
+    let active = true;
     barcodeSessionIdRef.current += 1;
     const sessionId = barcodeSessionIdRef.current;
     barcodeScanLockRef.current = false;
     lastScannedCodeRef.current = '';
-    setIsBarcodeCameraOpen(true);
 
-    try {
-      const reader = new BrowserMultiFormatReader();
-      barcodeReaderRef.current = reader;
+    const startScanning = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera access is not supported by your browser. Please open in Safari or Chrome directly.');
+        }
 
-      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-      const preferredRearCamera = devices.find((device) => {
-        const label = (device.label || '').toLowerCase();
-        return label.includes('back') || label.includes('rear') || label.includes('environment');
-      });
-      const deviceId = preferredRearCamera?.deviceId || devices[0]?.deviceId || undefined;
+        const videoEl = barcodeCameraVideoRef.current;
+        if (!videoEl) {
+          console.warn('Barcode camera video element not available');
+          return;
+        }
 
-      if (!deviceId) {
-        throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
-      }
+        const reader = new BrowserMultiFormatReader();
+        barcodeReaderRef.current = reader;
 
-      const controls = await reader.decodeFromVideoDevice(
-        deviceId, 
-        barcodeCameraVideoRef.current, 
-        (result, error) => {
-          if (sessionId !== barcodeSessionIdRef.current) {
-            return;
-          }
-
-          if (result) {
-            const scanned = result.getText()?.trim();
-            if (!scanned) return;
-
-            if (barcodeScanLockRef.current) {
+        // Passing undefined as deviceId tells @zxing/browser to automatically request
+        // the rear camera ({ facingMode: 'environment' }) and naturally triggers
+        // the browser permission prompt without failing prematurely.
+        const controls = await reader.decodeFromVideoDevice(
+          undefined,
+          videoEl,
+          (result, error) => {
+            if (!active || sessionId !== barcodeSessionIdRef.current) {
               return;
             }
 
-            barcodeScanLockRef.current = true;
-            lastScannedCodeRef.current = scanned;
+            if (result) {
+              const scanned = result.getText()?.trim();
+              if (!scanned) return;
 
-            // Immediately close and stop camera
-            setIsBarcodeCameraOpen(false);
-            stopBarcodeCamera();
+              if (barcodeScanLockRef.current) {
+                return;
+              }
 
-            setter(scanned);
+              barcodeScanLockRef.current = true;
+              lastScannedCodeRef.current = scanned;
 
-            setTimeout(() => {
-              barcodeScanLockRef.current = false;
-              lastScannedCodeRef.current = '';
-            }, 800);
+              // Immediately close and stop camera
+              setIsBarcodeCameraOpen(false);
+              stopBarcodeCamera();
+
+              barcodeSetterRef.current?.(scanned);
+
+              setTimeout(() => {
+                barcodeScanLockRef.current = false;
+                lastScannedCodeRef.current = '';
+              }, 800);
+            }
+
+            if (error && error.name !== 'NotFoundException') {
+              console.warn('Barcode decode warning:', error);
+            }
           }
+        );
 
-          if (error && error.name !== 'NotFoundException') {
-            console.warn('Barcode decode warning:', error);
-          }
+        if (!active || sessionId !== barcodeSessionIdRef.current) {
+          controls.stop();
+          return;
         }
-      );
 
-      if (sessionId !== barcodeSessionIdRef.current) {
-        controls.stop();
-        return;
+        barcodeControlsRef.current = controls;
+      } catch (err) {
+        if (!active) return;
+        console.error('Product barcode camera failed:', err);
+        let userMsg = err?.message || 'Unable to open camera.';
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          userMsg = 'Camera permission was denied. Please allow camera access in your browser site settings.';
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          userMsg = 'No camera found on this device.';
+        } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+          userMsg = 'Camera is already in use by another app or browser tab.';
+        }
+        setBarcodeCameraError(userMsg);
+        showToast(userMsg, 'error');
       }
+    };
 
-      barcodeControlsRef.current = controls;
-    } catch (err) {
-      console.error('Product barcode camera failed:', err);
-      setBarcodeCameraError(
-        err?.message || 'Camera access failed. Please allow camera access in Safari and use the HTTPS site.'
-      );
-      setIsBarcodeCameraOpen(false);
+    const timer = setTimeout(() => {
+      startScanning();
+    }, 100);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
       stopBarcodeCamera();
-      showToast('Camera access failed. Please allow camera permission in Safari and use the HTTPS site.', 'warning');
-    }
-  };
-
-  useEffect(() => {
-    return () => stopBarcodeCamera();
-  }, []);
+    };
+  }, [isBarcodeCameraOpen]);
 
   // States for adding a new supplier
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);

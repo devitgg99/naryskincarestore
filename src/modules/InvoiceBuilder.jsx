@@ -609,86 +609,114 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     }, 300);
   };
 
-  const openBarcodeCamera = async () => {
-    stopCameraScanner();
+  const openBarcodeCamera = () => {
     setCameraScannerError('');
+    setIsCameraScannerOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isCameraScannerOpen) {
+      stopCameraScanner();
+      return;
+    }
+
+    let active = true;
     barcodeSessionIdRef.current += 1;
     const sessionId = barcodeSessionIdRef.current;
     barcodeScanLockRef.current = false;
     lastScannedCodeRef.current = '';
-    setIsCameraScannerOpen(true);
 
-    try {
-      const reader = new BrowserMultiFormatReader();
-      barcodeReaderRef.current = reader;
+    const startScanning = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera access is not supported by this browser. Please open in Safari or Chrome directly.');
+        }
 
-      const videoInputDevices = await BrowserMultiFormatReader.listVideoInputDevices();
-      const preferredRearCamera = videoInputDevices.find((device) => {
-        const label = (device.label || '').toLowerCase();
-        return label.includes('back') || label.includes('rear') || label.includes('environment');
-      });
-      const selectedDeviceId = preferredRearCamera?.deviceId || videoInputDevices[0]?.deviceId || undefined;
+        const videoEl = cameraVideoRef.current;
+        if (!videoEl) {
+          console.warn('Camera video element not available');
+          return;
+        }
 
-      if (!selectedDeviceId) {
-        throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
-      }
+        const reader = new BrowserMultiFormatReader();
+        barcodeReaderRef.current = reader;
 
-      const controls = await reader.decodeFromVideoDevice(
-        selectedDeviceId,
-        cameraVideoRef.current,
-        (result, error) => {
-          if (sessionId !== barcodeSessionIdRef.current) {
-            return;
-          }
-
-          if (result) {
-            const scannedCode = result.getText()?.trim();
-            if (!scannedCode) return;
-
-            if (barcodeScanLockRef.current) {
+        // Passing undefined as deviceId tells @zxing/browser to automatically request
+        // the rear camera ({ facingMode: 'environment' }) and naturally triggers
+        // the browser permission prompt without failing prematurely.
+        const controls = await reader.decodeFromVideoDevice(
+          undefined,
+          videoEl,
+          (result, error) => {
+            if (!active || sessionId !== barcodeSessionIdRef.current) {
               return;
             }
 
-            barcodeScanLockRef.current = true;
-            lastScannedCodeRef.current = scannedCode;
+            if (result) {
+              const scannedCode = result.getText()?.trim();
+              if (!scannedCode) return;
 
-            // Immediately close modal and stop camera decoding
-            setIsCameraScannerOpen(false);
-            stopCameraScanner();
+              if (barcodeScanLockRef.current) {
+                return;
+              }
 
-            // Submit product
-            handleBarcodeSubmit(scannedCode);
+              barcodeScanLockRef.current = true;
+              lastScannedCodeRef.current = scannedCode;
 
-            // Release lock after cooldown
-            setTimeout(() => {
-              barcodeScanLockRef.current = false;
-              lastScannedCodeRef.current = '';
-            }, 1200);
+              // Immediately close modal and stop camera decoding
+              setIsCameraScannerOpen(false);
+              stopCameraScanner();
+
+              // Submit product
+              handleBarcodeSubmit(scannedCode);
+
+              // Release lock after cooldown
+              setTimeout(() => {
+                barcodeScanLockRef.current = false;
+                lastScannedCodeRef.current = '';
+              }, 1200);
+            }
+
+            if (error && error.name !== 'NotFoundException') {
+              console.warn('Barcode scan warning:', error);
+            }
           }
+        );
 
-          if (error && error.name !== 'NotFoundException') {
-            console.warn('Barcode scan warning:', error);
-          }
+        // If user closed modal while awaiting camera permission
+        if (!active || sessionId !== barcodeSessionIdRef.current) {
+          controls.stop();
+          return;
         }
-      );
 
-      // If session closed while awaiting permission/device setup
-      if (sessionId !== barcodeSessionIdRef.current) {
-        controls.stop();
-        return;
+        barcodeControlsRef.current = controls;
+      } catch (err) {
+        if (!active) return;
+        console.error('Camera barcode scan start failed:', err);
+        let userMsg = err?.message || 'Unable to open camera.';
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          userMsg = 'Camera permission was denied. Please allow camera access in your browser site settings.';
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          userMsg = 'No camera found on this device.';
+        } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+          userMsg = 'Camera is already in use by another app or browser tab.';
+        }
+        setCameraScannerError(userMsg);
+        showToast(userMsg, 'error');
       }
+    };
 
-      barcodeControlsRef.current = controls;
-    } catch (err) {
-      console.error('Camera barcode scan start failed:', err);
-      setCameraScannerError(
-        err?.message || 'Unable to access the camera. Please allow camera access in Safari and open the site over HTTPS.'
-      );
-      setIsCameraScannerOpen(false);
+    // Small delay ensures video element is mounted in DOM before accessing
+    const timer = setTimeout(() => {
+      startScanning();
+    }, 100);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
       stopCameraScanner();
-      showToast('Camera access failed. Please allow camera permission in Safari and use the HTTPS site.', 'warning');
-    }
-  };
+    };
+  }, [isCameraScannerOpen]);
 
   // Calculate row details
   const updateLineItem = (index, field, value) => {
