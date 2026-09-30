@@ -106,11 +106,18 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
   };
 
   // Get order item details for history list
-  const getOrderSummaryText = (orderId) => {
-    const items = orderItems.filter(oi => oi.order_id === orderId);
+  const getOrderSummaryText = (order) => {
+    const orderId = typeof order === 'object' ? order.id : order;
+    const embedded = typeof order === 'object' ? (order.order_items || order.items) : null;
+    const items = (Array.isArray(embedded) && embedded.length > 0)
+      ? embedded
+      : orderItems.filter(oi => String(oi.order_id || oi.orderId || '').trim().toLowerCase() === String(orderId).trim().toLowerCase());
+
+    if (items.length === 0) return 'No items recorded';
+
     return items.map(oi => {
-      const prod = products.find(p => p.id === oi.product_id);
-      const prodName = prod ? prod.name_kh : 'Product';
+      const prod = products.find(p => String(p.id).trim() === String(oi.product_id).trim());
+      const prodName = prod ? prod.name_kh : (oi.custom_name || 'Product');
       return `${prodName} (x${oi.quantity})`;
     }).join(', ');
   };
@@ -319,7 +326,7 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
                           </Badge>
                         </div>
                         <p className="text-xs text-foreground/80 font-medium truncate max-w-sm">
-                          {getOrderSummaryText(order.id)}
+                          {getOrderSummaryText(order)}
                         </p>
                         <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                           <Calendar className="w-3 h-3" />

@@ -144,7 +144,26 @@ export default function App() {
       setCustomers(custs || []);
       setPrices(prs || []);
       setOrders(ords || []);
-      setOrderItems(items || []);
+
+      // Consolidate orderItems: items from getOrderItems() PLUS any embedded order_items in ords
+      const combinedMap = new Map();
+      (items || []).forEach(item => {
+        const key = item.id || `${item.order_id}_${item.product_id || item.custom_name}_${item.quantity}`;
+        combinedMap.set(key, item);
+      });
+      (ords || []).forEach(order => {
+        const embedded = order.order_items || order.items || order.line_items;
+        if (Array.isArray(embedded)) {
+          embedded.forEach((item, idx) => {
+            const key = item.id || `${order.id}_${item.product_id || item.custom_name || idx}_${item.quantity}`;
+            if (!combinedMap.has(key)) {
+              combinedMap.set(key, { ...item, order_id: item.order_id || order.id });
+            }
+          });
+        }
+      });
+      setOrderItems(Array.from(combinedMap.values()));
+
       setBrands(bnds || []);
       setCategories(cats || []);
     } catch (e) {

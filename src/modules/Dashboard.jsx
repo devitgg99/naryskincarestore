@@ -60,11 +60,20 @@ export default function Dashboard({
     return prod ? prod.base_price : 0;
   };
 
+  // Resilient item helper
+  const getOrderItems = (order) => {
+    if (!order) return [];
+    const embedded = order.order_items || order.items || order.line_items;
+    if (Array.isArray(embedded) && embedded.length > 0) return embedded;
+    const targetId = String(order.id || '').trim().toLowerCase();
+    return orderItems.filter(oi => String(oi.order_id || oi.orderId || '').trim().toLowerCase() === targetId);
+  };
+
   // 1. Metric Calculations
   const totalSales = orders.reduce((sum, o) => sum + Number(o.total_amount), 0);
   
   const totalProfit = orders.reduce((sum, order) => {
-    const currentItems = orderItems.filter(oi => oi.order_id === order.id);
+    const currentItems = getOrderItems(order);
     const orderProfit = currentItems.reduce((s, oi) => {
       if (!oi.product_id) return s; // Exclude custom items from profit
       const cost = getItemCost(oi);
@@ -91,7 +100,7 @@ export default function Dashboard({
     const revenue = dayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
     
     const profit = dayOrders.reduce((sum, order) => {
-      const currentItems = orderItems.filter(oi => oi.order_id === order.id);
+      const currentItems = getOrderItems(order);
       const orderProfit = currentItems.reduce((s, oi) => {
         if (!oi.product_id) return s;
         const cost = getItemCost(oi);

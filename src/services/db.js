@@ -387,21 +387,59 @@ export const db = {
   getOrders: async () => {
     const client = getClient();
     if (client) {
-      const { data, error } = await client.from('orders').select('*').order('ordered_at', { ascending: false });
-      if (!error) return data;
-      console.error(error);
+      // Eagerly load order_items joined with orders
+      const { data, error } = await client
+        .from('orders')
+        .select('*, order_items(*)')
+        .order('ordered_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+      // Fallback query without join if relation has an issue
+      const fallback = await client.from('orders').select('*').order('ordered_at', { ascending: false });
+      if (!fallback.error && Array.isArray(fallback.data)) {
+        return fallback.data;
+      }
+      console.error("Supabase getOrders error:", error || fallback.error);
     }
-    return getLocal('wsp_orders', initialOrders).sort((a, b) => new Date(b.ordered_at) - new Date(a.ordered_at));
+    const localOrders = getLocal('wsp_orders', initialOrders).sort((a, b) => new Date(b.ordered_at) - new Date(a.ordered_at));
+    const localItems = getLocal('wsp_order_items', initialOrderItems);
+    return localOrders.map(order => {
+      const targetId = String(order.id).trim().toLowerCase();
+      const items = localItems.filter(oi => String(oi.order_id || oi.orderId || '').trim().toLowerCase() === targetId);
+      return { ...order, order_items: items };
+    });
   },
 
   getOrderItems: async () => {
     const client = getClient();
     if (client) {
       const { data, error } = await client.from('order_items').select('*');
-      if (!error) return data;
-      console.error(error);
+      if (!error && Array.isArray(data)) return data;
+      console.error("Supabase getOrderItems error:", error);
     }
     return getLocal('wsp_order_items', initialOrderItems);
+  },
+
+  getOrderItemsByOrderId: async (orderId) => {
+    if (!orderId) return [];
+    const client = getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('order_items')
+          .select('*')
+          .eq('order_id', orderId);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (e) {
+        console.error("Error fetching order items by order_id:", e);
+      }
+    }
+    const localItems = getLocal('wsp_order_items', initialOrderItems);
+    const targetId = String(orderId).trim().toLowerCase();
+    return localItems.filter(oi => String(oi.order_id || oi.orderId || '').trim().toLowerCase() === targetId);
   },
 
   createOrder: async (orderObj, items) => {
@@ -476,7 +514,7 @@ export const db = {
           }
         }
       }
-      return newOrder;
+      return { ...newOrder, order_items: itemsToInsert };
     }
 
     // LocalStorage fallback
@@ -523,7 +561,7 @@ export const db = {
     setLocal('wsp_order_items', orderItems);
     setLocal('wsp_supplier_prices', supplierPrices);
 
-    return newOrder;
+    return { ...newOrder, order_items: items };
   },
 
   updateOrderStatus: async (orderId, newStatus) => {
