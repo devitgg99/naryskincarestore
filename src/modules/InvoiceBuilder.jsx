@@ -198,36 +198,35 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const quickInputRef = useRef(null);
   const cameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
+  const barcodeControlsRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
   const lastProcessedBarcodeRef = useRef({ code: '', timestamp: 0 });
-  const barcodeProcessingRef = useRef(false);
+  const barcodeSubmittingRef = useRef(false);
   const barcodeSessionIdRef = useRef(0);
 
   const stopCameraScanner = () => {
+    // Invalidate active session so trailing frames are ignored
+    barcodeSessionIdRef.current += 1;
+
     try {
-      barcodeReaderRef.current?.stopContinuousDecode?.();
+      barcodeControlsRef.current?.stop();
     } catch (err) {
       console.warn('Continuous decode stop failed:', err);
     }
-
-    try {
-      barcodeReaderRef.current?.reset();
-    } catch (err) {
-      console.warn('Camera reset failed:', err);
-    }
-
-    barcodeScanLockRef.current = false;
-    lastScannedCodeRef.current = '';
+    barcodeControlsRef.current = null;
     barcodeReaderRef.current = null;
 
-    const tracks = cameraVideoRef.current?.srcObject instanceof MediaStream
-      ? cameraVideoRef.current.srcObject.getTracks()
-      : [];
-
-    tracks.forEach((track) => track.stop());
-    if (cameraVideoRef.current) {
-      cameraVideoRef.current.srcObject = null;
+    try {
+      const tracks = cameraVideoRef.current?.srcObject instanceof MediaStream
+        ? cameraVideoRef.current.srcObject.getTracks()
+        : [];
+      tracks.forEach((track) => track.stop());
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = null;
+      }
+    } catch (err) {
+      console.warn('Tracks stop failed:', err);
     }
   };
 
@@ -566,45 +565,52 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   };
 
   const handleBarcodeSubmit = (overrideValue) => {
-    const value = String(overrideValue ?? quickSearchQuery ?? '').trim();
+    const rawVal = overrideValue !== undefined ? overrideValue : quickSearchQuery;
+    const value = String(rawVal ?? '').trim();
     if (!value) return;
 
     const now = Date.now();
     const sameRecentBarcode = value === lastProcessedBarcodeRef.current.code
-      && now - lastProcessedBarcodeRef.current.timestamp < 1500;
+      && now - lastProcessedBarcodeRef.current.timestamp < 1200;
 
     if (sameRecentBarcode) {
-      const debugMessage = `Repeated scan detected for "${value}". Quantity add stopped to prevent a loop.`;
-      if (!barcodeProcessingRef.current) {
-        barcodeProcessingRef.current = true;
-        setCameraScannerError(debugMessage);
-        setIsCameraScannerOpen(false);
-        stopCameraScanner();
-        showToast(debugMessage, 'error');
-        setTimeout(() => {
-          barcodeProcessingRef.current = false;
-        }, 1200);
-      }
+      // Quietly ignore rapid duplicate scans of the same barcode within 1.2s to prevent loop-adds
+      setQuickSearchQuery('');
+      if (quickInputRef.current) quickInputRef.current.value = '';
       return;
     }
 
-    barcodeProcessingRef.current = true;
+    if (barcodeSubmittingRef.current) return;
+    barcodeSubmittingRef.current = true;
+
+    // Immediately clear input fields so subsequent events start fresh
+    setQuickSearchQuery('');
+    if (quickInputRef.current) quickInputRef.current.value = '';
+    setIsQuickDropdownOpen(false);
+
     lastProcessedBarcodeRef.current = { code: value, timestamp: now };
 
     const exactMatch = findProductByBarcode(value) || getFilteredProducts(value)[0];
     if (exactMatch) {
       addProductToInvoice(exactMatch.id, 1);
-      setQuickSearchQuery('');
-      setIsQuickDropdownOpen(false);
+      const prodName = exactMatch.name_kh || exactMatch.name_en || 'Product';
+      showToast(`Added: ${prodName}`, 'success');
       setIsScannerMode(true);
-      quickInputRef.current?.focus();
+      setTimeout(() => {
+        quickInputRef.current?.focus();
+        barcodeSubmittingRef.current = false;
+      }, 300);
       return;
     }
 
     showToast('No matching product found for this barcode or product name.', 'warning');
+    setTimeout(() => {
+      barcodeSubmittingRef.current = false;
+    }, 300);
   };
 
   const openBarcodeCamera = async () => {
+    stopCameraScanner();
     setCameraScannerError('');
     barcodeSessionIdRef.current += 1;
     const sessionId = barcodeSessionIdRef.current;
@@ -613,18 +619,6 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setIsCameraScannerOpen(true);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        }
-      });
-
-      barcodeProcessingRef.current = false;
-
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = stream;
-      }
-
       const reader = new BrowserMultiFormatReader();
       barcodeReaderRef.current = reader;
 
@@ -639,56 +633,52 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
       }
 
-      await reader.decodeFromVideoDevice(selectedDeviceId, cameraVideoRef.current, (result, error) => {
-        if (sessionId !== barcodeSessionIdRef.current) {
-          return;
-        }
-
-        if (result) {
-          const scannedCode = result.getText()?.trim();
-
-          if (!scannedCode) {
+      const controls = await reader.decodeFromVideoDevice(
+        selectedDeviceId,
+        cameraVideoRef.current,
+        (result, error) => {
+          if (sessionId !== barcodeSessionIdRef.current) {
             return;
           }
 
-          if (barcodeProcessingRef.current || barcodeScanLockRef.current || scannedCode === lastScannedCodeRef.current) {
-            if (!barcodeProcessingRef.current) {
-              barcodeProcessingRef.current = true;
-              const debugMessage = `Repeated barcode detected: "${scannedCode}". Scan stopped to prevent duplicate adds.`;
-              setCameraScannerError(debugMessage);
-              setIsCameraScannerOpen(false);
-              stopCameraScanner();
-              showToast(debugMessage, 'error');
-              setTimeout(() => {
-                barcodeProcessingRef.current = false;
-                barcodeScanLockRef.current = false;
-                lastScannedCodeRef.current = '';
-              }, 1200);
+          if (result) {
+            const scannedCode = result.getText()?.trim();
+            if (!scannedCode) return;
+
+            if (barcodeScanLockRef.current) {
+              return;
             }
-            return;
-          }
 
-          barcodeProcessingRef.current = true;
-          lastScannedCodeRef.current = scannedCode;
-          barcodeScanLockRef.current = true;
-          setQuickSearchQuery(scannedCode);
-          setIsQuickDropdownOpen(false);
-          setIsCameraScannerOpen(false);
-          stopCameraScanner();
-          setTimeout(() => {
+            barcodeScanLockRef.current = true;
+            lastScannedCodeRef.current = scannedCode;
+
+            // Immediately close modal and stop camera decoding
+            setIsCameraScannerOpen(false);
+            stopCameraScanner();
+
+            // Submit product
             handleBarcodeSubmit(scannedCode);
+
+            // Release lock after cooldown
             setTimeout(() => {
-              barcodeProcessingRef.current = false;
               barcodeScanLockRef.current = false;
               lastScannedCodeRef.current = '';
             }, 1200);
-          }, 100);
-        }
+          }
 
-        if (error && error.name !== 'NotFoundException') {
-          console.warn('Barcode scan warning:', error);
+          if (error && error.name !== 'NotFoundException') {
+            console.warn('Barcode scan warning:', error);
+          }
         }
-      });
+      );
+
+      // If session closed while awaiting permission/device setup
+      if (sessionId !== barcodeSessionIdRef.current) {
+        controls.stop();
+        return;
+      }
+
+      barcodeControlsRef.current = controls;
     } catch (err) {
       console.error('Camera barcode scan start failed:', err);
       setCameraScannerError(
@@ -1652,7 +1642,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          handleBarcodeSubmit();
+                          if (e.repeat) return;
+                          handleBarcodeSubmit(e.target.value);
                         }
                       }}
                       onFocus={() => setIsQuickDropdownOpen(true)}

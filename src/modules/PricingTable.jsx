@@ -550,38 +550,37 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [barcodeCameraError, setBarcodeCameraError] = useState('');
   const barcodeCameraVideoRef = useRef(null);
   const barcodeReaderRef = useRef(null);
+  const barcodeControlsRef = useRef(null);
   const barcodeScanLockRef = useRef(false);
   const lastScannedCodeRef = useRef('');
   const barcodeSessionIdRef = useRef(0);
 
   const stopBarcodeCamera = () => {
-    try {
-      barcodeReaderRef.current?.stopContinuousDecode?.();
-    } catch (err) {
-      console.warn('Barcode continuous decode stop failed:', err);
-    }
+    barcodeSessionIdRef.current += 1;
 
     try {
-      barcodeReaderRef.current?.reset();
+      barcodeControlsRef.current?.stop();
     } catch (err) {
-      console.warn('Barcode camera reset failed:', err);
+      console.warn('Barcode camera controls stop failed:', err);
     }
-
-    barcodeScanLockRef.current = false;
-    lastScannedCodeRef.current = '';
+    barcodeControlsRef.current = null;
     barcodeReaderRef.current = null;
 
-    const tracks = barcodeCameraVideoRef.current?.srcObject instanceof MediaStream
-      ? barcodeCameraVideoRef.current.srcObject.getTracks()
-      : [];
-
-    tracks.forEach((track) => track.stop());
-    if (barcodeCameraVideoRef.current) {
-      barcodeCameraVideoRef.current.srcObject = null;
+    try {
+      const tracks = barcodeCameraVideoRef.current?.srcObject instanceof MediaStream
+        ? barcodeCameraVideoRef.current.srcObject.getTracks()
+        : [];
+      tracks.forEach((track) => track.stop());
+      if (barcodeCameraVideoRef.current) {
+        barcodeCameraVideoRef.current.srcObject = null;
+      }
+    } catch (err) {
+      console.warn('Tracks stop failed:', err);
     }
   };
 
   const openBarcodeCameraFor = async (setter) => {
+    stopBarcodeCamera();
     setBarcodeCameraError('');
     barcodeSessionIdRef.current += 1;
     const sessionId = barcodeSessionIdRef.current;
@@ -590,16 +589,6 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
     setIsBarcodeCameraOpen(true);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        }
-      });
-
-      if (barcodeCameraVideoRef.current) {
-        barcodeCameraVideoRef.current.srcObject = stream;
-      }
-
       const reader = new BrowserMultiFormatReader();
       barcodeReaderRef.current = reader;
 
@@ -614,42 +603,49 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         throw new Error('No camera found on this device. Make sure the browser has camera access enabled.');
       }
 
-      await reader.decodeFromVideoDevice(deviceId, barcodeCameraVideoRef.current, (result, error) => {
-        if (sessionId !== barcodeSessionIdRef.current) {
-          return;
-        }
-
-        if (result) {
-          const scanned = result.getText()?.trim();
-
-          if (!scanned) {
+      const controls = await reader.decodeFromVideoDevice(
+        deviceId, 
+        barcodeCameraVideoRef.current, 
+        (result, error) => {
+          if (sessionId !== barcodeSessionIdRef.current) {
             return;
           }
 
-          if (barcodeScanLockRef.current || scanned === lastScannedCodeRef.current) {
-            const debugMessage = `Repeated barcode detected: "${scanned}". Scan stopped to prevent duplicate input.`;
-            setBarcodeCameraError(debugMessage);
+          if (result) {
+            const scanned = result.getText()?.trim();
+            if (!scanned) return;
+
+            if (barcodeScanLockRef.current) {
+              return;
+            }
+
+            barcodeScanLockRef.current = true;
+            lastScannedCodeRef.current = scanned;
+
+            // Immediately close and stop camera
             setIsBarcodeCameraOpen(false);
             stopBarcodeCamera();
-            showToast(debugMessage, 'error');
-            return;
+
+            setter(scanned);
+
+            setTimeout(() => {
+              barcodeScanLockRef.current = false;
+              lastScannedCodeRef.current = '';
+            }, 800);
           }
 
-          lastScannedCodeRef.current = scanned;
-          barcodeScanLockRef.current = true;
-          setter(scanned);
-          setIsBarcodeCameraOpen(false);
-          stopBarcodeCamera();
-          setTimeout(() => {
-            barcodeScanLockRef.current = false;
-            lastScannedCodeRef.current = '';
-          }, 500);
+          if (error && error.name !== 'NotFoundException') {
+            console.warn('Barcode decode warning:', error);
+          }
         }
+      );
 
-        if (error && error.name !== 'NotFoundException') {
-          console.warn('Barcode decode warning:', error);
-        }
-      });
+      if (sessionId !== barcodeSessionIdRef.current) {
+        controls.stop();
+        return;
+      }
+
+      barcodeControlsRef.current = controls;
     } catch (err) {
       console.error('Product barcode camera failed:', err);
       setBarcodeCameraError(
