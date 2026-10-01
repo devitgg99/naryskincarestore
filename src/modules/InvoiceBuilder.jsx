@@ -33,6 +33,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { OldReceiptTemplate, KhmerInvoiceTemplate } from './invoice/templates';
 import {
   roundMoney,
@@ -1795,49 +1802,43 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 )}
               </div>
 
-              {isCameraScannerOpen && createPortal(
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-                  <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-dark-900/95 p-5 shadow-2xl animate-in zoom-in-95 duration-150 space-y-4">
-                    <div className="flex items-center justify-between gap-3 text-white border-b border-white/10 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-primary-500/20 text-primary-400 border border-primary-500/30">
-                          <Camera className="w-5 h-5 animate-pulse" />
-                        </div>
-                        <div>
-                          <div className="text-base font-bold">Barcode Scanner</div>
-                          <div className="text-xs text-dark-300">Point your camera at the barcode</div>
-                        </div>
+              {/* Barcode Camera Scanner Modal */}
+              <Dialog 
+                open={isCameraScannerOpen} 
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setIsCameraScannerOpen(false);
+                    stopCameraScanner();
+                  }
+                }}
+              >
+                <DialogContent className="max-w-md p-5 bg-dark-900/95 border-white/20 text-white rounded-3xl z-[200]">
+                  <DialogHeader className="flex flex-row items-center justify-between border-b border-white/10 pb-3 pr-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-primary-500/20 text-primary-400 border border-primary-500/30">
+                        <Camera className="w-5 h-5 animate-pulse" />
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsCameraScannerOpen(false);
-                          stopCameraScanner();
-                        }}
-                        className="h-8 rounded-xl px-3 text-xs border-white/20 text-white hover:bg-white/10 cursor-pointer"
-                      >
-                        <X className="w-4 h-4 mr-1" /> Close
-                      </Button>
-                    </div>
-
-                    <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-black shadow-inner">
-                      <video ref={cameraVideoRef} autoPlay playsInline muted className="h-[320px] w-full object-cover bg-black" />
-                      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-28 -translate-y-1/2 rounded-2xl border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] flex items-center justify-center">
-                        <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse" />
+                      <div className="text-left">
+                        <DialogTitle className="text-base font-bold text-white">Barcode Scanner</DialogTitle>
+                        <DialogDescription className="text-xs text-dark-300">Point your camera at the barcode</DialogDescription>
                       </div>
                     </div>
+                  </DialogHeader>
 
-                    {cameraScannerError && (
-                      <div className="rounded-xl border border-rose-500/40 bg-rose-500/15 p-3 text-xs text-rose-200 font-medium">
-                        {cameraScannerError}
-                      </div>
-                    )}
+                  <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-black my-2 shadow-inner">
+                    <video ref={cameraVideoRef} autoPlay playsInline muted className="h-[320px] w-full object-cover bg-black" />
+                    <div className="pointer-events-none absolute inset-x-8 top-1/2 h-28 -translate-y-1/2 rounded-2xl border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] flex items-center justify-center">
+                      <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse" />
+                    </div>
                   </div>
-                </div>,
-                document.body
-              )}
+
+                  {cameraScannerError && (
+                    <div className="rounded-xl border border-rose-500/40 bg-rose-500/15 p-3 text-xs text-rose-200 font-medium">
+                      {cameraScannerError}
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
 
               {/* Line Items Cards List - Fully Responsive for Mobile, Tablet & Desktop */}
               <div className="space-y-4">
