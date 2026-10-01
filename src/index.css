@@ -406,4 +406,66 @@ body {
     margin: 0 !important;
     width: 100% !important;
   }
+
+  /* Barcode Label Printing Layouts */
+  .print-thermal-roll {
+    display: flex;
+    flex-direction: column;
+    gap: 4mm;
+    align-items: center;
+  }
+
+  .print-label-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4mm;
+    padding: 2mm;
+  }
+
+  .barcode-label-sticker {
+    width: 50mm;
+    height: 30mm;
+    border: 1px dashed #cbd5e1;
+    border-radius: 3mm;
+    padding: 2mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: white;
+    color: black;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .barcode-label-sticker .label-title {
+    font-size: 8pt;
+    font-weight: bold;
+    line-height: 1.1;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .barcode-label-sticker .label-subtitle {
+    font-size: 6.5pt;
+    color: #475569;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .barcode-label-sticker .label-barcode {
+    margin: 1mm 0;
+    color: black;
+  }
+
+  .barcode-label-sticker .label-price {
+    font-size: 9pt;
+    font-weight: 900;
+    font-family: monospace;
+  }
 }

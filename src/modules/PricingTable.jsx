@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { BrowserMultiFormatReader } from '@zxing/browser';
-import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop, LayoutGrid, List } from 'lucide-react';
+import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, Crop, LayoutGrid, List, Printer, Sparkles } from 'lucide-react';
 import { db } from '../services/db';
 import { uploadProductImage, deleteProductImage } from '../services/imageStorage';
+import { generateUniqueBarcode } from '../services/barcodeGenerator';
+import BarcodePrintModal from '../components/BarcodePrintModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -544,6 +546,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [newProductCategoryId, setNewProductCategoryId] = useState('');
   const [newProductSellingPrice, setNewProductSellingPrice] = useState('');
   const [newProductImageState, setNewProductImageState] = useState({ file: null, removed: false });
+
+  const [printProductBarcodeModal, setPrintProductBarcodeModal] = useState(null);
+
+  const handleAutoGenerateBarcodeForAdd = () => {
+    const code = generateUniqueBarcode(products);
+    setNewProductBarcode(code);
+    showToast(`Auto-generated barcode: ${code}`, 'success');
+  };
+
+  const handleAutoGenerateBarcodeForEdit = () => {
+    const code = generateUniqueBarcode(products);
+    setEditProductBarcode(code);
+    showToast(`Auto-generated barcode: ${code}`, 'success');
+  };
 
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isBarcodeCameraOpen, setIsBarcodeCameraOpen] = useState(false);
@@ -1201,7 +1217,19 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-start sm:self-auto">
+                  <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                    {product.barcode && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPrintProductBarcodeModal(product)}
+                        className="h-8 px-2.5 text-xs text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 gap-1 font-bold"
+                        title="Print Barcode Sticker"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Label
+                      </Button>
+                    )}
                     <div className="text-left sm:text-right">
                       <span className="text-[10px] text-muted-foreground block font-semibold uppercase">Selling Price</span>
                       <span className="text-base font-bold text-foreground font-mono">${sellingPrice.toFixed(2)}</span>
@@ -1327,6 +1355,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                             <div className="font-semibold text-foreground group-hover/prod-name:text-primary flex items-center gap-1.5 transition-colors">
                               <span>{product.name_kh}</span>
                               <Edit2 className="w-3.5 h-3.5 opacity-0 group-hover/prod-name:opacity-60 transition-opacity text-primary" />
+                              {product.barcode && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPrintProductBarcodeModal(product);
+                                  }}
+                                  className="h-6 w-6 text-emerald-400 opacity-0 group-hover/prod-name:opacity-100 transition-opacity hover:bg-emerald-500/10"
+                                  title="Print Barcode Label"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5">
                               <span>{product.name_en}</span>
@@ -1576,16 +1618,27 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                     onChange={(e) => setNewProductBarcode(e.target.value)}
                     className="h-9 text-xs flex-1"
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openBarcodeCameraFor(setNewProductBarcode)}
-                    className="h-9 px-2.5 text-[10px] font-bold gap-1"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    Scan
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAutoGenerateBarcodeForAdd}
+                      title="Auto-generate a unique 13-digit barcode"
+                      className="h-9 px-2 text-[10px] font-bold gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Auto
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openBarcodeCameraFor(setNewProductBarcode)}
+                      className="h-9 px-2.5 text-[10px] font-bold gap-1"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Scan
+                    </Button>
                 </div>
               </div>
 
@@ -1822,12 +1875,36 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={handleAutoGenerateBarcodeForEdit}
+                      title="Auto-generate a unique 13-digit barcode"
+                      className="h-9 px-2 text-[10px] font-bold gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Auto
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => openBarcodeCameraFor(setEditProductBarcode)}
                       className="h-9 px-2.5 text-[10px] font-bold gap-1"
                     >
                       <Camera className="w-3.5 h-3.5" />
                       Scan
                     </Button>
+                    {editProductBarcode && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPrintProductBarcodeModal({ ...editingProduct, barcode: editProductBarcode })}
+                        title="Print Barcode Labels"
+                        className="h-9 px-2.5 text-[10px] font-bold gap-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Print
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -1920,6 +1997,13 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Barcode Sticker Label Printing Modal */}
+      <BarcodePrintModal 
+        product={printProductBarcodeModal} 
+        isOpen={!!printProductBarcodeModal} 
+        onClose={() => setPrintProductBarcodeModal(null)} 
+      />
     </div>
   );
 }
