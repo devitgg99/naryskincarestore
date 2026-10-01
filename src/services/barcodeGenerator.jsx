@@ -79,7 +79,7 @@ export function BarcodeSvg({ value, height = 50, barWidth = 2, className = '' })
 
   if (!bars || bars.length === 0) {
     return (
-      <div className="text-[10px] text-muted-foreground italic text-center py-2">
+      <div className="text-[10px] text-gray-500 italic text-center py-2">
         Invalid barcode text
       </div>
     );
@@ -91,7 +91,7 @@ export function BarcodeSvg({ value, height = 50, barWidth = 2, className = '' })
   let currentX = 0;
 
   return (
-    <div className={`flex flex-col items-center select-none ${className}`}>
+    <div className={`flex flex-col items-center select-none text-black ${className}`}>
       <svg 
         width={totalWidth} 
         height={height} 
@@ -110,13 +110,13 @@ export function BarcodeSvg({ value, height = 50, barWidth = 2, className = '' })
               y={0} 
               width={w} 
               height={height} 
-              fill="currentColor" 
+              fill="#000000" 
             />
           );
         })}
       </svg>
       {value && (
-        <span className="font-mono text-[11px] tracking-widest font-bold mt-1 text-foreground">
+        <span className="font-mono text-[11px] tracking-widest font-bold mt-1 text-black">
           {value}
         </span>
       )}
