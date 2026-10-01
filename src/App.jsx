@@ -31,8 +31,22 @@ import {
   Info
 } from 'lucide-react';
 
+const VALID_TABS = ['dashboard', 'pricing', 'customers', 'invoice', 'sales', 'stock', 'brands', 'categories'];
+
+const getInitialTab = () => {
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  if (VALID_TABS.includes(hash)) {
+    return hash;
+  }
+  const savedTab = localStorage.getItem('wsp_activeTab');
+  if (VALID_TABS.includes(savedTab)) {
+    return savedTab;
+  }
+  return 'dashboard';
+};
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,6 +54,26 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'dark');
   const [toasts, setToasts] = useState([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('wsp_activeTab', activeTab);
+    const currentHash = window.location.hash.replace(/^#\/?/, '');
+    if (currentHash !== activeTab) {
+      window.history.replaceState(null, '', `#${activeTab}`);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      if (VALID_TABS.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const showToast = (message, type = 'info') => {
     const id = Date.now().toString() + Math.random().toString();

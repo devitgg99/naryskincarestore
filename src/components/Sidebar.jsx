@@ -111,13 +111,13 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
                 setActiveTab(item.id);
                 if (onClose) onClose();
               }}
-              className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium cursor-pointer ${
+              className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium cursor-pointer ${
                 isActive
-                  ? 'bg-primary/10 text-primary border-l-2 border-primary font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:translate-x-0.5'
+                  ? 'bg-gradient-to-r from-primary-500/15 via-primary-500/10 to-transparent text-primary border-l-3 border-primary font-bold shadow-xs shadow-primary-500/10 translate-x-0.5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:translate-x-1'
               }`}
             >
-              <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+              <Icon className={`w-4.5 h-4.5 transition-transform duration-200 ${isActive ? 'text-primary scale-110' : 'text-muted-foreground'}`} />
               {item.label}
             </button>
           );

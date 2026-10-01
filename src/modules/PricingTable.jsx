@@ -1669,13 +1669,18 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         </DialogContent>
       </Dialog>
 
-      {isBarcodeCameraOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-3 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between gap-3 text-white">
-              <div>
-                <div className="text-sm font-bold">Scan Product Barcode</div>
-                <div className="text-[10px] text-slate-300">Point your camera at the barcode</div>
+      {isBarcodeCameraOpen && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-dark-900/95 p-5 shadow-2xl animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between gap-3 text-white border-b border-white/10 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary-500/20 text-primary-400 border border-primary-500/30">
+                  <Camera className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="text-base font-bold">Scan Product Barcode</div>
+                  <div className="text-xs text-dark-300">Point your camera at the barcode</div>
+                </div>
               </div>
               <Button
                 type="button"
@@ -1685,24 +1690,27 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   setIsBarcodeCameraOpen(false);
                   stopBarcodeCamera();
                 }}
-                className="h-8 px-2.5 text-[11px] border-white/20 text-white hover:bg-white/10"
+                className="h-8 rounded-xl px-3 text-xs border-white/20 text-white hover:bg-white/10 cursor-pointer"
               >
-                Close
+                <X className="w-4 h-4 mr-1" /> Close
               </Button>
             </div>
 
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black">
+            <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-black shadow-inner">
               <video ref={barcodeCameraVideoRef} autoPlay playsInline muted className="h-[320px] w-full object-cover bg-black" />
-              <div className="pointer-events-none absolute inset-x-8 top-1/2 h-24 -translate-y-1/2 rounded-xl border-2 border-emerald-400/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+              <div className="pointer-events-none absolute inset-x-8 top-1/2 h-28 -translate-y-1/2 rounded-2xl border-2 border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] flex items-center justify-center">
+                <div className="w-full h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse" />
+              </div>
             </div>
 
             {barcodeCameraError && (
-              <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/15 p-3 text-xs text-rose-200 font-medium">
                 {barcodeCameraError}
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Supplier Modal */}
