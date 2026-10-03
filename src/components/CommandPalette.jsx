@@ -138,26 +138,26 @@ export default function CommandPalette({
 
   const getIcon = (type) => {
     switch (type) {
-      case 'nav': return <Navigation className="w-4 h-4 text-primary-400" />;
-      case 'action': return <Database className="w-4 h-4 text-emerald-400" />;
-      case 'customer': return <Users className="w-4 h-4 text-violet-400" />;
-      case 'product': return <Package className="w-4 h-4 text-amber-400" />;
-      default: return <HelpCircle className="w-4 h-4 text-dark-500" />;
+      case 'nav': return <Navigation className="w-4 h-4 text-[#000080] dark:text-blue-400" />;
+      case 'action': return <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+      case 'customer': return <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />;
+      case 'product': return <Package className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+      default: return <HelpCircle className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   return (
     <div 
-      className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-24 px-4"
+      className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-xs flex items-start justify-center pt-24 px-4"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-lg glass-panel rounded-2xl overflow-hidden shadow-2xl border border-dark-800 bg-dark-950 flex flex-col max-h-[460px] animate-in zoom-in-95 duration-100"
+        className="w-full max-w-lg rounded-xl overflow-hidden shadow-xl border border-border bg-card text-foreground flex flex-col max-h-[460px] animate-in zoom-in-95 duration-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Box */}
-        <div className="relative border-b border-dark-850 p-4">
-          <Search className="w-5 h-5 absolute left-7 top-1/2 -translate-y-1/2 text-dark-500" />
+        <div className="relative border-b border-border p-3">
+          <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             ref={inputRef}
             autoFocus
@@ -168,11 +168,11 @@ export default function CommandPalette({
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            className="w-full pl-12 pr-10 py-3 bg-dark-900 border border-dark-800 focus:border-primary-500 rounded-xl text-sm font-semibold outline-none text-white transition-all shadow-inner"
+            className="w-full pl-10 pr-9 py-2 bg-background border border-border focus:border-[#000080] focus:ring-1 focus:ring-[#000080] rounded-lg text-sm font-medium outline-none text-foreground transition-colors"
           />
           <button 
             onClick={onClose}
-            className="absolute right-7 top-1/2 -translate-y-1/2 text-dark-400 hover:text-white p-1 rounded-lg hover:bg-dark-800/60"
+            className="absolute right-6 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
           >
             <X className="w-4 h-4" />
           </button>
@@ -181,7 +181,7 @@ export default function CommandPalette({
         {/* Results List */}
         <div 
           ref={resultsRef}
-          className="flex-1 overflow-y-auto p-2 divide-y divide-dark-900 scrollbar-thin max-h-[340px]"
+          className="flex-1 overflow-y-auto p-2 divide-y divide-border/40 scrollbar-thin max-h-[340px]"
         >
           {filtered.map((opt, idx) => {
             const isSelected = idx === selectedIndex;
@@ -189,23 +189,23 @@ export default function CommandPalette({
               <div
                 key={idx}
                 onClick={() => handleSelect(opt)}
-                className={`active-result p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-4 ${
+                className={`active-result p-2.5 rounded-lg cursor-pointer transition-colors flex items-center justify-between gap-4 ${
                   isSelected 
-                    ? 'bg-primary-500/10 border-l-2 border-primary-500 text-white' 
-                    : 'text-dark-300 hover:bg-dark-900/40 hover:text-white'
+                    ? 'bg-[#000080] text-white shadow-xs' 
+                    : 'text-foreground hover:bg-muted'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
-                  <div className={`p-2 rounded-lg ${isSelected ? 'bg-primary-500/10' : 'bg-dark-900 border border-dark-850'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-md ${isSelected ? 'bg-white/15 text-white' : 'bg-muted border border-border'}`}>
                     {getIcon(opt.type)}
                   </div>
                   <div>
-                    <span className="text-xs sm:text-sm font-bold block">{opt.label}</span>
-                    <span className="text-[10px] text-dark-500 block mt-0.5">{opt.description}</span>
+                    <span className="text-xs sm:text-sm font-semibold block">{opt.label}</span>
+                    <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-white/80' : 'text-muted-foreground'}`}>{opt.description}</span>
                   </div>
                 </div>
                 {isSelected && (
-                  <span className="text-[10px] font-bold bg-primary-500/20 text-primary-400 px-2 py-0.5 rounded border border-primary-500/30">
+                  <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded">
                     Select
                   </span>
                 )}
@@ -214,19 +214,19 @@ export default function CommandPalette({
           })}
 
           {filtered.length === 0 && (
-            <div className="p-8 text-center text-dark-500 text-xs italic">
+            <div className="p-8 text-center text-muted-foreground text-xs italic">
               No matching commands, products, or customers found.
             </div>
           )}
         </div>
 
         {/* Footer shortcuts info */}
-        <div className="p-3 border-t border-dark-850 bg-dark-950/60 text-[10px] text-dark-500 flex justify-between items-center px-6">
+        <div className="p-2.5 border-t border-border bg-muted/30 text-[10px] text-muted-foreground flex justify-between items-center px-4">
           <div className="flex gap-4">
-            <span><kbd className="font-sans font-bold bg-dark-900 border border-dark-800 px-1 py-0.2 rounded shadow">↑↓</kbd> Navigate</span>
-            <span><kbd className="font-sans font-bold bg-dark-900 border border-dark-800 px-1 py-0.2 rounded shadow">Enter</kbd> Select</span>
+            <span><kbd className="font-sans font-bold bg-background border border-border px-1.5 py-0.5 rounded shadow-xs text-foreground">↑↓</kbd> Navigate</span>
+            <span><kbd className="font-sans font-bold bg-background border border-border px-1.5 py-0.5 rounded shadow-xs text-foreground">Enter</kbd> Select</span>
           </div>
-          <span><kbd className="font-sans font-bold bg-dark-900 border border-dark-800 px-1 py-0.2 rounded shadow">ESC</kbd> Close</span>
+          <span><kbd className="font-sans font-bold bg-background border border-border px-1.5 py-0.5 rounded shadow-xs text-foreground">ESC</kbd> Close</span>
         </div>
       </div>
     </div>

@@ -42,19 +42,19 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
   };
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-dark-800/40 bg-dark-950/80 backdrop-blur-2xl flex flex-col h-screen transition-transform duration-300 md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} no-print`}>
+    <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card text-card-foreground flex flex-col h-screen transition-transform duration-200 md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} no-print`}>
       {/* Title */}
-      <div className="p-6 flex items-center justify-between border-b border-dark-800/40">
+      <div className="p-5 flex items-center justify-between border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-600 to-violet-500 flex items-center justify-center font-bold text-white shadow-lg shadow-primary-500/25 text-lg animate-float">
+          <div className="w-8 h-8 rounded-lg bg-[#000080] flex items-center justify-center font-black text-white shadow-xs text-sm tracking-tight">
             WP
           </div>
           <div>
-            <h1 className="font-extrabold text-base tracking-wide text-white leading-tight font-sans">WHOLESALE</h1>
-            <p className="text-[10px] font-semibold text-primary-400 tracking-widest uppercase font-sans">Portal System</p>
+            <h1 className="font-extrabold text-sm tracking-wider text-foreground leading-tight font-sans">WHOLESALE</h1>
+            <p className="text-[9px] font-bold text-[#000080] dark:text-blue-400 tracking-widest uppercase font-sans">Portal System</p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
@@ -62,7 +62,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-400" />}
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-[#000080]" />}
           </Button>
           <Button
             variant="ghost"
@@ -77,7 +77,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
       </div>
 
       {/* Nav List */}
-      <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto scrollbar-thin">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
         {/* Command Palette Trigger Button */}
         <Button
           variant="outline"
@@ -90,13 +90,13 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             });
             window.dispatchEvent(event);
           }}
-          className="w-full justify-between h-9 px-3 mb-4 bg-muted/30 hover:bg-muted/60 border-border text-muted-foreground hover:text-foreground font-normal"
+          className="w-full justify-between h-8.5 px-2.5 mb-3 bg-muted/40 hover:bg-muted border-border text-muted-foreground hover:text-foreground font-normal rounded-md"
         >
           <div className="flex items-center gap-2">
             <Keyboard className="w-3.5 h-3.5" />
             <span className="text-xs">Command Menu</span>
           </div>
-          <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4 bg-background">
+          <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4 bg-background border-border">
             ⌘K
           </Badge>
         </Button>
@@ -111,13 +111,13 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
                 setActiveTab(item.id);
                 if (onClose) onClose();
               }}
-              className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm cursor-pointer ${
                 isActive
-                  ? 'bg-gradient-to-r from-primary-500/15 via-primary-500/10 to-transparent text-primary border-l-3 border-primary font-bold shadow-xs shadow-primary-500/10 translate-x-0.5'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:translate-x-1'
+                  ? 'bg-[#000080] text-white font-medium shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted font-medium'
               }`}
             >
-              <Icon className={`w-4.5 h-4.5 transition-transform duration-200 ${isActive ? 'text-primary scale-110' : 'text-muted-foreground'}`} />
+              <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : 'text-muted-foreground'}`} />
               {item.label}
             </button>
           );
@@ -125,21 +125,21 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
       </nav>
 
       {/* Database Status Block */}
-      <div className="p-4 border-t border-border space-y-3 bg-card/20">
+      <div className="p-3 border-t border-border space-y-2 bg-muted/20">
         <div 
           onClick={onOpenSettings}
-          className="w-full flex items-center justify-between p-3 rounded-lg bg-card border border-border hover:border-primary/40 transition-all cursor-pointer group shadow-xs"
+          className="w-full flex items-center justify-between p-2.5 rounded-lg bg-card border border-border hover:border-[#000080]/60 transition-colors cursor-pointer group shadow-xs"
         >
-          <div className="flex items-center gap-3">
-            <Database className={`w-4 h-4 ${isSupabase ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`} />
+          <div className="flex items-center gap-2.5">
+            <Database className={`w-3.5 h-3.5 ${isSupabase ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400 animate-pulse'}`} />
             <div className="text-left">
-              <span className="text-[10px] font-semibold text-muted-foreground block leading-none uppercase tracking-wider mb-0.5">DB STATUS</span>
+              <span className="text-[9px] font-semibold text-muted-foreground block leading-none uppercase tracking-wider mb-0.5">DB STATUS</span>
               <span className="text-xs font-bold text-foreground block">
                 {isSupabase ? 'Supabase Live' : 'Offline Mock'}
               </span>
             </div>
           </div>
-          <Badge variant={isSupabase ? "success" : "warning"} className="text-[10px] px-1.5 py-0">
+          <Badge variant={isSupabase ? "success" : "secondary"} className="text-[9px] px-1.5 py-0">
             {isSupabase ? 'Connected' : 'Local'}
           </Badge>
         </div>
@@ -150,15 +150,15 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             variant="outline"
             size="sm"
             onClick={handleResetMock}
-            className="w-full h-8 text-xs border-dashed text-muted-foreground hover:text-foreground"
+            className="w-full h-7 text-xs border-dashed text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className="w-3 h-3 mr-1.5" />
             Reset Local DB
           </Button>
         )}
 
-        <div className="flex gap-2 text-[10px] text-muted-foreground px-1 leading-normal">
-          <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <div className="flex gap-1.5 text-[9px] text-muted-foreground px-1 leading-tight">
+          <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
           <span>Click status panel to config Supabase credentials.</span>
         </div>
       </div>

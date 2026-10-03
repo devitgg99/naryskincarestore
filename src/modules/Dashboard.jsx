@@ -146,11 +146,11 @@ export default function Dashboard({
   return (
     <div className="space-y-6">
       {/* Welcome Banner Panel */}
-      <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 bg-card/60 backdrop-blur-md border-border shadow-xs">
+      <Card className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-5 bg-card border-border shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-foreground tracking-wide">Dashboard Overview</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Real-time visual metrics, performance trends, and quick access shortcuts for the Wholesale Portal.
+          <h2 className="text-lg font-bold text-foreground tracking-tight">Dashboard Overview</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time wholesale sales metrics, weekly inventory trends, and system shortcuts.
           </p>
         </div>
         <Button 
@@ -158,9 +158,9 @@ export default function Dashboard({
           size="sm"
           onClick={handleRefresh}
           disabled={syncing}
-          className="h-8 gap-1.5 text-xs cursor-pointer"
+          className="h-8 gap-1.5 text-xs border-border text-foreground hover:bg-muted"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-primary' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-[#000080]' : ''}`} />
           Refresh Stats
         </Button>
       </Card>
@@ -168,50 +168,50 @@ export default function Dashboard({
       {/* 4 Stats Metrics Panel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1 */}
-        <Card className="p-5 border-border hover:border-primary/40 transition-all flex items-center gap-4 shadow-xs">
-          <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
-            <TrendingUp className="w-6 h-6" />
+        <Card className="p-4 border-border hover:border-[#000080]/40 transition-colors flex items-center gap-3.5 shadow-xs">
+          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+            <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block leading-tight">Total Volume</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block leading-tight">Total Volume</span>
             <span className="text-xl font-black text-foreground block mt-0.5 font-mono">${totalSales.toFixed(2)}</span>
-            <span className="text-[9px] text-emerald-400 font-semibold block leading-tight mt-0.5">Cumulative sales revenue</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium block leading-tight mt-0.5">Cumulative sales revenue</span>
           </div>
         </Card>
 
         {/* Metric 2 */}
-        <Card className="p-5 border-border hover:border-primary/40 transition-all flex items-center gap-4 shadow-xs">
-          <div className="p-3 bg-primary/10 rounded-xl border border-primary/20 text-primary">
-            <DollarSign className="w-6 h-6" />
+        <Card className="p-4 border-border hover:border-[#000080]/40 transition-colors flex items-center gap-3.5 shadow-xs">
+          <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 rounded-lg border border-blue-500/20 text-[#000080] dark:text-blue-400">
+            <DollarSign className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block leading-tight">Net Profit</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block leading-tight">Net Profit</span>
             <span className="text-xl font-black text-foreground block mt-0.5 font-mono">${totalProfit.toFixed(2)}</span>
-            <span className="text-[9px] text-primary font-semibold block leading-tight mt-0.5">Estimated gross profit margin</span>
+            <span className="text-[10px] text-[#000080] dark:text-blue-400 font-medium block leading-tight mt-0.5">Estimated gross profit margin</span>
           </div>
         </Card>
 
         {/* Metric 3 */}
-        <Card className="p-5 border-border hover:border-primary/40 transition-all flex items-center gap-4 shadow-xs">
-          <div className="p-3 bg-violet-500/10 rounded-xl border border-violet-500/20 text-violet-400">
-            <FileText className="w-6 h-6" />
+        <Card className="p-4 border-border hover:border-[#000080]/40 transition-colors flex items-center gap-3.5 shadow-xs">
+          <div className="p-2.5 bg-muted rounded-lg border border-border text-foreground">
+            <FileText className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block leading-tight">Total Orders</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block leading-tight">Total Orders</span>
             <span className="text-xl font-black text-foreground block mt-0.5 font-mono">{ordersCount}</span>
-            <span className="text-[9px] text-violet-400 font-semibold block leading-tight mt-0.5">Invoices logged in database</span>
+            <span className="text-[10px] text-muted-foreground font-medium block leading-tight mt-0.5">Invoices logged in database</span>
           </div>
         </Card>
 
         {/* Metric 4 */}
-        <Card className="p-5 border-border hover:border-primary/40 transition-all flex items-center gap-4 shadow-xs">
-          <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
-            <AlertTriangle className="w-6 h-6" />
+        <Card className="p-4 border-border hover:border-amber-500/40 transition-colors flex items-center gap-3.5 shadow-xs">
+          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-500/20 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block leading-tight">Stock Warnings</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block leading-tight">Stock Warnings</span>
             <span className="text-xl font-black text-foreground block mt-0.5 font-mono">{lowStockAlertCount}</span>
-            <span className="text-[9px] text-amber-400 font-semibold block leading-tight mt-0.5">Supplier inventories ≤ 2 qty</span>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium block leading-tight mt-0.5">Inventories ≤ 2 qty</span>
           </div>
         </Card>
       </div>
@@ -220,43 +220,43 @@ export default function Dashboard({
         {/* Left Area: Visual CSS Chart (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
           {/* Trend Chart Card */}
-          <Card className="p-6 border-border space-y-6 shadow-xs">
+          <Card className="p-5 border-border space-y-5 shadow-xs">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4.5 h-4.5 text-primary" />
+              <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-[#000080] dark:text-blue-400" />
                 Weekly Performance Trend
               </h3>
               <div className="flex gap-4 text-[10px] font-bold text-muted-foreground">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-primary rounded"></span> Revenue</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-emerald-400 rounded"></span> Net Profit</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#000080] rounded-xs"></span> Revenue</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-emerald-600 dark:bg-emerald-500 rounded-xs"></span> Net Profit</span>
               </div>
             </div>
 
             {/* Render CSS Visual bar graph */}
-            <div className="h-64 flex items-end justify-between gap-3 sm:gap-6 border-b border-border/80 pb-2 pt-6">
+            <div className="h-64 flex items-end justify-between gap-3 sm:gap-6 border-b border-border pb-2 pt-6">
               {last7DaysData.map((d, index) => {
                 const revHeightPercent = Math.max(4, (d.revenue / maxChartValue) * 100);
                 const profHeightPercent = Math.max(4, (d.profit / maxChartValue) * 100);
 
                 return (
                   <div key={index} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                    <div className="absolute bottom-full mb-2 bg-popover border border-border text-[10px] font-bold rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-24 text-center shadow-xl space-y-0.5">
+                    <div className="absolute bottom-full mb-2 bg-popover border border-border text-[10px] font-bold rounded-md p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-24 text-center shadow-md space-y-0.5">
                       <span className="block text-foreground">Rev: ${d.revenue.toFixed(1)}</span>
-                      <span className="block text-emerald-400">Prof: ${d.profit.toFixed(1)}</span>
+                      <span className="block text-emerald-600 dark:text-emerald-400">Prof: ${d.profit.toFixed(1)}</span>
                     </div>
 
-                    <div className="w-full flex items-end justify-center gap-1 h-full max-h-[220px]">
+                    <div className="w-full flex items-end justify-center gap-1.5 h-full max-h-[220px]">
                       <div 
                         style={{ height: `${revHeightPercent}%` }} 
-                        className="w-1/2 rounded-t bg-gradient-to-t from-primary/90 to-primary/60 shadow-xs group-hover:brightness-110 transition-all"
+                        className="w-1/2 rounded-t bg-[#000080] shadow-xs group-hover:bg-[#000066] transition-colors"
                       />
                       <div 
                         style={{ height: `${profHeightPercent}%` }} 
-                        className="w-1/2 rounded-t bg-gradient-to-t from-emerald-500 to-emerald-300 shadow-xs group-hover:brightness-110 transition-all"
+                        className="w-1/2 rounded-t bg-emerald-600 dark:bg-emerald-500 shadow-xs group-hover:bg-emerald-700 transition-colors"
                       />
                     </div>
 
-                    <span className="text-[10px] font-semibold text-muted-foreground mt-2.5 block group-hover:text-foreground transition-colors">
+                    <span className="text-[10px] font-semibold text-muted-foreground mt-2 block group-hover:text-foreground transition-colors">
                       {d.label}
                     </span>
                   </div>
@@ -264,58 +264,58 @@ export default function Dashboard({
               })}
             </div>
             
-            <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold px-1">
-              <span>(Last 7 days performance metrics summary)</span>
-              <span>Max value: ${maxChartValue.toFixed(0)}</span>
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground font-medium px-1">
+              <span>Last 7 days performance metrics summary</span>
+              <span>Max volume scale: ${maxChartValue.toFixed(0)}</span>
             </div>
           </Card>
 
           {/* Quick Actions Panel */}
-          <Card className="p-6 border-border space-y-4 shadow-xs">
-            <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Quick Actions Shortcuts</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card className="p-5 border-border space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Quick Actions Shortcuts</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Button 
                 variant="outline"
                 onClick={() => setActiveTab('invoice')}
-                className="h-auto p-4 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer group hover:border-primary/40 bg-card/40"
+                className="h-auto p-3.5 flex flex-col items-center justify-center gap-2 text-center cursor-pointer group hover:border-[#000080]/50 bg-card rounded-lg"
               >
-                <div className="p-2.5 bg-primary/10 text-primary rounded-lg group-hover:bg-primary/20 transition-colors">
-                  <Plus className="w-5 h-5" />
+                <div className="p-2 bg-muted text-[#000080] dark:text-blue-400 rounded-md group-hover:bg-[#000080] group-hover:text-white transition-colors">
+                  <Plus className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-foreground block">Create Invoice</span>
+                <span className="text-xs font-semibold text-foreground block">Create Invoice</span>
               </Button>
 
               <Button 
                 variant="outline"
                 onClick={handleQuickAddProduct}
-                className="h-auto p-4 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer group hover:border-violet-500/40 bg-card/40"
+                className="h-auto p-3.5 flex flex-col items-center justify-center gap-2 text-center cursor-pointer group hover:border-[#000080]/50 bg-card rounded-lg"
               >
-                <div className="p-2.5 bg-violet-500/10 text-violet-400 rounded-lg group-hover:bg-violet-500/20 transition-colors">
-                  <Package className="w-5 h-5" />
+                <div className="p-2 bg-muted text-[#000080] dark:text-blue-400 rounded-md group-hover:bg-[#000080] group-hover:text-white transition-colors">
+                  <Package className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-foreground block">Add Product</span>
+                <span className="text-xs font-semibold text-foreground block">Add Product</span>
               </Button>
 
               <Button 
                 variant="outline"
                 onClick={handleQuickAddCustomer}
-                className="h-auto p-4 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer group hover:border-emerald-500/40 bg-card/40"
+                className="h-auto p-3.5 flex flex-col items-center justify-center gap-2 text-center cursor-pointer group hover:border-[#000080]/50 bg-card rounded-lg"
               >
-                <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
-                  <Users className="w-5 h-5" />
+                <div className="p-2 bg-muted text-[#000080] dark:text-blue-400 rounded-md group-hover:bg-[#000080] group-hover:text-white transition-colors">
+                  <Users className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-foreground block">Add Customer</span>
+                <span className="text-xs font-semibold text-foreground block">Add Customer</span>
               </Button>
 
               <Button 
                 variant="outline"
                 onClick={() => setActiveTab('stock')}
-                className="h-auto p-4 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer group hover:border-amber-500/40 bg-card/40"
+                className="h-auto p-3.5 flex flex-col items-center justify-center gap-2 text-center cursor-pointer group hover:border-amber-500/50 bg-card rounded-lg"
               >
-                <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">
-                  <AlertTriangle className="w-5 h-5" />
+                <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-md group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-bold text-foreground block">Stock Alerts</span>
+                <span className="text-xs font-semibold text-foreground block">Stock Alerts</span>
               </Button>
             </div>
           </Card>

@@ -227,7 +227,7 @@ export default function CustomerDirectory({ customers, orders, orderItems, produ
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b border-border">
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center font-bold text-white shadow-md text-lg">
+                    <div className="w-12 h-12 rounded-xl bg-[#000080] flex items-center justify-center font-bold text-white shadow-xs text-lg">
                       {activeCustomer.name.charAt(0)}
                     </div>
                     <div>

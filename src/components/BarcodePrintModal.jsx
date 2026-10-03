@@ -29,17 +29,17 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-xl p-6 bg-dark-900 border-dark-800 text-foreground rounded-3xl z-[200]">
+        <DialogContent className="max-w-xl p-6 bg-card border-border text-foreground rounded-xl z-[200]">
           
           {/* Screen-only Modal Header */}
           <div className="space-y-4">
             <DialogHeader>
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary-500/20 text-primary-400 border border-primary-500/30">
-                  <Printer className="w-5 h-5" />
+                <div className="p-2 rounded-lg bg-muted text-[#000080] dark:text-blue-400 border border-border">
+                  <Printer className="w-4 h-4" />
                 </div>
                 <div>
-                  <DialogTitle className="text-lg font-bold text-white">Print Barcode Labels</DialogTitle>
+                  <DialogTitle className="text-base font-bold text-foreground">Print Barcode Labels</DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground">
                     Print scannable barcode sticker labels for your thermal printer or paper.
                   </DialogDescription>
@@ -48,7 +48,7 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
             </DialogHeader>
 
             {/* Settings Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-dark-950/60 border border-dark-800/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg bg-muted/30 border border-border">
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Number of Copies
@@ -60,7 +60,7 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
                     max="200"
                     value={printQuantity}
                     onChange={(e) => setPrintQuantity(e.target.value)}
-                    className="h-9 text-xs flex-1 font-mono"
+                    className="h-8.5 text-xs flex-1 font-mono"
                   />
                   <div className="flex gap-1">
                     {[1, 5, 10, 20].map((num) => (
@@ -68,10 +68,10 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
                         key={num}
                         type="button"
                         onClick={() => setPrintQuantity(num)}
-                        className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                        className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors cursor-pointer ${
                           Number(printQuantity) === num
-                            ? 'bg-primary-500/20 text-primary-400 border-primary-500/40'
-                            : 'bg-dark-900 border-dark-800 text-muted-foreground hover:text-white'
+                            ? 'bg-[#000080] text-white border-transparent'
+                            : 'bg-card border-border text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         {num}x
@@ -88,7 +88,7 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
                 <select
                   value={labelPreset}
                   onChange={(e) => setLabelPreset(e.target.value)}
-                  className="flex h-9 w-full rounded-xl border border-dark-800 bg-dark-900 px-3 py-1 text-xs text-white outline-none focus:border-primary-500"
+                  className="flex h-8.5 w-full rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground outline-none focus:border-[#000080]"
                 >
                   <option value="single">Thermal Sticker Roll (Single Label per page)</option>
                   <option value="sheet">Sticker Sheet Grid (Multi-label page)</option>
@@ -101,7 +101,7 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Live Label Preview
               </span>
-              <div className="p-6 rounded-2xl bg-white text-black flex flex-col items-center justify-center border border-slate-300 shadow-inner max-w-xs mx-auto text-center space-y-1">
+              <div className="p-5 rounded-xl bg-white text-black flex flex-col items-center justify-center border border-border shadow-xs max-w-xs mx-auto text-center space-y-1">
                 <span className="text-xs font-bold text-slate-900 line-clamp-1 leading-tight font-sans">
                   {product.name_kh || product.name_en}
                 </span>
@@ -131,7 +131,7 @@ export default function BarcodePrintModal({ product, isOpen, onClose }) {
               <Button 
                 size="sm" 
                 onClick={handlePrint}
-                className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold"
+                className="gap-2 bg-[#000080] hover:bg-[#000066] text-white font-semibold"
               >
                 <Printer className="w-4 h-4" /> Print {qty} Label{qty > 1 ? 's' : ''}
               </Button>

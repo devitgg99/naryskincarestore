@@ -51,7 +51,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'light');
   const [toasts, setToasts] = useState([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
@@ -129,10 +129,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
     }
     localStorage.setItem('wsp_theme', theme);
   }, [theme]);
@@ -364,12 +366,12 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-dark-950 font-sans">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
       {/* Sidebar Backdrop Overlay on Mobile */}
       {isSidebarOpen && (
         <div 
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 md:hidden"
         />
       )}
 
@@ -386,41 +388,41 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-dark-950/20">
+      <main className="flex-1 flex flex-col overflow-hidden bg-background">
         {/* Top Header Bar */}
-        <header className="h-16 border-b border-border bg-card/60 backdrop-blur-md flex items-center justify-between px-8 flex-shrink-0 no-print">
-          <div className="flex items-center gap-4">
+        <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6 flex-shrink-0 no-print">
+          <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden"
+              className="md:hidden h-8 w-8"
               title="Open Menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </Button>
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-muted/60 border border-border">
+              <div className="p-1.5 rounded-md bg-muted border border-border text-[#000080] dark:text-blue-400">
                 {getTabIcon()}
               </div>
-              <span className="text-sm font-bold text-foreground uppercase tracking-wider font-sans">
+              <span className="text-xs font-bold text-foreground uppercase tracking-wider font-sans">
                 {getTabLabel()}
               </span>
             </div>
           </div>
 
           {/* Quick Info Badges */}
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="hidden md:flex items-center gap-2 py-1.5 px-3 bg-muted/40 font-normal">
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-muted-foreground font-medium">Total Volume:</span>
-              <strong className="text-foreground font-bold font-mono">${totalSales.toFixed(2)}</strong>
+          <div className="flex items-center gap-2.5">
+            <Badge variant="outline" className="hidden md:flex items-center gap-2 py-1 px-3 bg-card font-normal border-border">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-muted-foreground font-medium text-xs">Total Volume:</span>
+              <strong className="text-foreground font-bold font-mono text-xs">${totalSales.toFixed(2)}</strong>
             </Badge>
 
             {lowStockCount > 0 && (
-              <Badge variant="destructive" className="flex items-center gap-1.5 py-1 px-2.5">
+              <Badge variant="destructive" className="flex items-center gap-1.5 py-1 px-2.5 text-xs">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span className="font-semibold">{lowStockCount} Low Stock Alerts</span>
+                <span className="font-semibold">{lowStockCount} Low Stock</span>
               </Badge>
             )}
 
@@ -429,16 +431,16 @@ export default function App() {
               size="icon"
               onClick={loadData}
               disabled={loading || syncing}
-              className="h-9 w-9 bg-card/40"
+              className="h-8.5 w-8.5 bg-card border-border"
               title="Sync Database"
             >
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-primary' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-[#000080]' : ''}`} />
             </Button>
           </div>
         </header>
 
         {/* Dashboard Panels */}
-        <div className="flex-1 overflow-y-auto p-8 scrollbar-thin animate-fade-slide">
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin animate-fade-slide">
           {renderTabContent()}
         </div>
       </main>
@@ -455,20 +457,20 @@ export default function App() {
         {toasts.map(t => (
           <div
             key={t.id}
-            className={`p-4 rounded-xl shadow-lg flex items-center gap-3 border text-sm font-semibold pointer-events-auto animate-in slide-in-from-bottom-5 fade-in duration-300 ${
+            className={`p-3.5 rounded-lg shadow-md flex items-center gap-3 border text-xs font-semibold pointer-events-auto animate-in slide-in-from-bottom-3 fade-in duration-200 ${
               t.type === 'success'
-                ? 'bg-emerald-950/90 text-emerald-400 border-emerald-500/30'
+                ? 'bg-card text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
                 : t.type === 'error'
-                ? 'bg-rose-950/90 text-rose-400 border-rose-500/30'
+                ? 'bg-card text-rose-700 dark:text-rose-300 border-rose-500/30'
                 : t.type === 'warning'
-                ? 'bg-amber-950/90 text-amber-400 border-amber-500/30'
-                : 'bg-dark-900/90 text-white border-dark-800'
+                ? 'bg-card text-amber-700 dark:text-amber-300 border-amber-500/30'
+                : 'bg-card text-foreground border-border'
             }`}
           >
-            {t.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />}
-            {t.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />}
-            {t.type === 'warning' && <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />}
-            {t.type === 'info' && <Info className="w-5 h-5 flex-shrink-0 text-primary-400" />}
+            {t.type === 'success' && <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />}
+            {t.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600 dark:text-rose-400" />}
+            {t.type === 'warning' && <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />}
+            {t.type === 'info' && <Info className="w-4 h-4 flex-shrink-0 text-[#000080] dark:text-blue-400" />}
             <span>{t.message}</span>
           </div>
         ))}
