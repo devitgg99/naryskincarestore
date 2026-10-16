@@ -13,13 +13,27 @@ import {
   Tag,
   Layers,
   LayoutDashboard,
-  Keyboard
+  Keyboard,
+  LogOut,
+  ShoppingBag
 } from 'lucide-react';
 import { getSupabaseConfig, db } from '../services/db';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRefresh, theme, toggleTheme, isOpen, onClose }) {
+export default function Sidebar({ 
+  activeTab, 
+  setActiveTab, 
+  onOpenSettings, 
+  onRefresh, 
+  theme, 
+  toggleTheme, 
+  isOpen, 
+  onClose,
+  currentUser,
+  onLogout,
+  onPreviewCatalog
+}) {
   const config = getSupabaseConfig();
   const isSupabase = config.active && config.url && config.key;
 
@@ -122,6 +136,22 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
             </button>
           );
         })}
+
+        {/* Option to preview the customer-facing catalog */}
+        {onPreviewCatalog && (
+          <div className="pt-3">
+            <button
+              onClick={() => {
+                onPreviewCatalog();
+                if (onClose) onClose();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors cursor-pointer"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Preview User Catalog</span>
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* Database Status Block */}
@@ -157,10 +187,35 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenSettings, onRef
           </Button>
         )}
 
-        <div className="flex gap-1.5 text-[9px] text-muted-foreground px-1 leading-tight">
-          <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-          <span>Click status panel to config Supabase credentials.</span>
-        </div>
+        {/* User Account / Sign Out Block */}
+        {currentUser && (
+          <div className="pt-1 border-t border-border/60 flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="w-6 h-6 rounded-md bg-[#000080] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div className="truncate text-left">
+                <span className="text-xs font-semibold text-foreground block truncate leading-tight">
+                  {currentUser.name}
+                </span>
+                <span className="text-[9px] text-[#000080] dark:text-blue-400 block uppercase font-bold tracking-wider">
+                  {currentUser.role}
+                </span>
+              </div>
+            </div>
+            {onLogout && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onLogout}
+                className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

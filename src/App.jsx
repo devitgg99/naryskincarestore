@@ -9,8 +9,12 @@ import StockTracker from './modules/StockTracker';
 import BrandManager from './modules/BrandManager';
 import CategoryManager from './modules/CategoryManager';
 import Dashboard from './modules/Dashboard';
+import UserProductCatalog from './modules/UserProductCatalog';
+import AuthScreen from './components/AuthScreen';
 import CommandPalette from './components/CommandPalette';
 import { db } from './services/db';
+import { auth } from './services/auth';
+import { initTelegramMiniApp, isTelegramMiniApp, getTelegramUser } from './services/telegram';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -28,10 +32,13 @@ import {
   Layers,
   CheckCircle,
   AlertCircle,
-  Info
+  Info,
+  LogOut,
+  ShoppingBag,
+  Eye
 } from 'lucide-react';
 
-const VALID_TABS = ['dashboard', 'pricing', 'customers', 'invoice', 'sales', 'stock', 'brands', 'categories'];
+const VALID_TABS = ['dashboard', 'pricing', 'customers', 'invoice', 'sales', 'stock', 'brands', 'categories', 'catalog'];
 
 const getInitialTab = () => {
   const hash = window.location.hash.replace(/^#\/?/, '');
@@ -46,6 +53,7 @@ const getInitialTab = () => {
 };
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(() => auth.getCurrentUser());
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -54,6 +62,43 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('wsp_theme') || 'light');
   const [toasts, setToasts] = useState([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Sync auth state listener
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChange((user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Initialize Telegram Mini App integration
+  useEffect(() => {
+    if (isTelegramMiniApp()) {
+      initTelegramMiniApp({
+        onThemeChange: (tgTheme) => {
+          setTheme(tgTheme);
+        }
+      });
+
+      // Auto-authenticate when opened in Telegram if user is available and not logged in
+      const tgUser = getTelegramUser();
+      const existingUser = auth.getCurrentUser();
+      if (tgUser && !existingUser) {
+        auth.loginWithTelegram(tgUser).then((res) => {
+          if (res.success) {
+            setCurrentUser(res.user);
+            showToast(`Welcome from Telegram, ${res.user.name}!`, 'success');
+          }
+        });
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    auth.logout();
+    setCurrentUser(null);
+    showToast('You have been signed out successfully.', 'info');
+  };
 
   useEffect(() => {
     localStorage.setItem('wsp_activeTab', activeTab);
@@ -330,6 +375,30 @@ export default function App() {
             showToast={showToast}
           />
         );
+      case 'catalog':
+        return (
+          <div className="space-y-4">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <Eye className="w-4 h-4" />
+                <span>Admin Live Preview: This is the user product showcase with retail prices and images.</span>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setActiveTab('pricing')} className="h-7 text-xs border-emerald-500/30">
+                Back to Pricing Catalog
+              </Button>
+            </div>
+            <UserProductCatalog 
+              products={products}
+              brands={brands}
+              categories={categories}
+              prices={prices}
+              currentUser={currentUser}
+              onLogout={handleLogout}
+              theme={theme}
+              toggleTheme={toggleTheme}
+            />
+          </div>
+        );
       default:
         return <div>Module not found.</div>;
     }
@@ -348,6 +417,7 @@ export default function App() {
       case 'stock': return <Package className="w-4.5 h-4.5 text-primary-400" />;
       case 'brands': return <Tag className="w-4.5 h-4.5 text-primary-400" />;
       case 'categories': return <Layers className="w-4.5 h-4.5 text-primary-400" />;
+      case 'catalog': return <ShoppingBag className="w-4.5 h-4.5 text-primary-400" />;
       default: return <LayoutDashboard className="w-4.5 h-4.5 text-primary-400" />;
     }
   };
@@ -361,9 +431,95 @@ export default function App() {
       case 'stock': return 'Stock Tracker';
       case 'brands': return 'Brand Manager';
       case 'categories': return 'Category Manager';
+      case 'catalog': return 'User Catalog Preview';
       default: return 'Dashboard';
     }
   };
+
+  // -------------------------------------------------------------
+  // Security Gate 1: If not logged in, render AuthScreen
+  // -------------------------------------------------------------
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        <AuthScreen 
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            showToast(`Signed in as ${user.name} (${user.role === 'admin' ? 'Administrator' : 'Customer'})`, 'success');
+          }}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+        {/* Floating Toast Notifications */}
+        <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 max-w-sm pointer-events-none">
+          {toasts.map(t => (
+            <div
+              key={t.id}
+              className={`p-3.5 rounded-lg shadow-md flex items-center gap-3 border text-xs font-semibold pointer-events-auto animate-in slide-in-from-bottom-3 fade-in duration-200 ${
+                t.type === 'success'
+                  ? 'bg-card text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  : t.type === 'error'
+                  ? 'bg-card text-rose-700 dark:text-rose-300 border-rose-500/30'
+                  : t.type === 'warning'
+                  ? 'bg-card text-amber-700 dark:text-amber-300 border-amber-500/30'
+                  : 'bg-card text-foreground border-border'
+              }`}
+            >
+              {t.type === 'success' && <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />}
+              {t.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600 dark:text-rose-400" />}
+              {t.type === 'warning' && <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />}
+              {t.type === 'info' && <Info className="w-4 h-4 flex-shrink-0 text-[#000080] dark:text-blue-400" />}
+              <span>{t.message}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Security Gate 2: If logged in as 'user', strictly render UserProductCatalog
+  // (Zero access to administrative modules, supplier costs, or orders)
+  // -------------------------------------------------------------
+  if (currentUser.role === 'user') {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-sans">
+        <UserProductCatalog 
+          products={products}
+          brands={brands}
+          categories={categories}
+          prices={prices}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+        {/* Floating Toast Notifications */}
+        <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 max-w-sm pointer-events-none">
+          {toasts.map(t => (
+            <div
+              key={t.id}
+              className={`p-3.5 rounded-lg shadow-md flex items-center gap-3 border text-xs font-semibold pointer-events-auto animate-in slide-in-from-bottom-3 fade-in duration-200 ${
+                t.type === 'success'
+                  ? 'bg-card text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  : t.type === 'error'
+                  ? 'bg-card text-rose-700 dark:text-rose-300 border-rose-500/30'
+                  : t.type === 'warning'
+                  ? 'bg-card text-amber-700 dark:text-amber-300 border-amber-500/30'
+                  : 'bg-card text-foreground border-border'
+              }`}
+            >
+              {t.type === 'success' && <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />}
+              {t.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600 dark:text-rose-400" />}
+              {t.type === 'warning' && <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />}
+              {t.type === 'info' && <Info className="w-4 h-4 flex-shrink-0 text-[#000080] dark:text-blue-400" />}
+              <span>{t.message}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
@@ -385,6 +541,9 @@ export default function App() {
         toggleTheme={toggleTheme}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onPreviewCatalog={() => setActiveTab('catalog')}
       />
 
       {/* Main Content Area */}
@@ -411,7 +570,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick Info Badges */}
+          {/* Quick Info Badges & User Controls */}
           <div className="flex items-center gap-2.5">
             <Badge variant="outline" className="hidden md:flex items-center gap-2 py-1 px-3 bg-card font-normal border-border">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -435,6 +594,27 @@ export default function App() {
               title="Sync Database"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-[#000080]' : ''}`} />
+            </Button>
+
+            {/* Admin Profile & Logout */}
+            <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-border">
+              <div className="w-6 h-6 rounded-md bg-[#000080] text-white flex items-center justify-center font-bold text-xs">
+                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div className="text-left leading-none">
+                <span className="text-xs font-bold text-foreground block max-w-[100px] truncate">{currentUser?.name}</span>
+                <span className="text-[9px] font-bold text-[#000080] dark:text-blue-400 uppercase tracking-wider">Admin</span>
+              </div>
+            </div>
+
+            <Button 
+              variant="outline"
+              size="icon"
+              onClick={handleLogout}
+              className="h-8.5 w-8.5 bg-card border-border hover:text-destructive hover:border-destructive/40"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
             </Button>
           </div>
         </header>

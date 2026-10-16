@@ -160,3 +160,16 @@ create table if not exists invoice_drafts (
 
 create index if not exists idx_invoice_drafts_updated_at on invoice_drafts(updated_at desc);
 alter table invoice_drafts disable row level security;
+
+-- Table 10: user_profiles (Multi-role access control: admin vs user)
+create table if not exists user_profiles (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  name text not null,
+  role text not null default 'user', -- 'admin' or 'user'
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_user_profiles_email on user_profiles(email);
+alter table user_profiles disable row level security;
+
