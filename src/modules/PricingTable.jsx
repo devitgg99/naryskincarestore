@@ -58,7 +58,15 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
   // Use a ref to hold latest cropSrc so paste/callbacks don't go stale
   const cropSrcRef = useRef(null);
 
-  const V = 300; // Viewport width/height px
+  const V = 300; // Viewport width/height px (CSS clamps to actual screen width)
+
+  // ── Body scroll-lock while crop modal is open (prevents iOS page freeze) ──
+  useEffect(() => {
+    if (!isCropping) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isCropping]);
 
   const handleFileSelect = useCallback((selected) => {
     if (!selected) return;
@@ -195,6 +203,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
 
   const handleTouchStart = (e) => {
     if (e.touches.length !== 1) return;
+    // Do NOT call e.preventDefault() here — let touchAction: 'none' on the element handle it
     setIsDragging(true);
     setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
     setDragOffsetStart({ ...cropOffset });
@@ -218,7 +227,9 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
 
     const handleTouchMove = (e) => {
       if (e.touches.length !== 1) return;
-      e.preventDefault();
+      // passive: true is safe here because touch-action: none on the viewport element
+      // already suppresses scroll — we do NOT call e.preventDefault() to avoid the
+      // non-passive listener freezing the page on iOS after the modal closes.
       const dx = e.touches[0].clientX - dragStart.x;
       const dy = e.touches[0].clientY - dragStart.y;
       const wRendered = imageDimensions.width * baseScale * cropZoom;
@@ -235,14 +246,18 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleDragEnd);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    // Use passive: true — touch-action: none on the element prevents scroll without e.preventDefault()
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handleDragEnd);
+    // Safety: cancel also ends drag (e.g. when iOS pulls focus away)
+    window.addEventListener('touchcancel', handleDragEnd);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleDragEnd);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleDragEnd);
+      window.removeEventListener('touchcancel', handleDragEnd);
     };
   }, [isDragging, dragStart, dragOffsetStart, cropZoom, imageDimensions, baseScale]);
 
@@ -398,7 +413,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
 
       {/* ── Crop Modal ──────────────────────────────── */}
       {isCropping && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in duration-150" style={{ touchAction: 'none' }}>
           <div
             className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col"
             style={{ maxHeight: 'min(95dvh, 620px)' }}
@@ -426,7 +441,11 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
                 onMouseDown={handleMouseDown}
                 onTouchStart={handleTouchStart}
                 className="rounded-xl border border-white/15 bg-black/60 cursor-grab active:cursor-grabbing select-none overflow-hidden relative flex-shrink-0"
-                style={{ width: `${V}px`, height: `${V}px`, touchAction: 'none' }}
+                style={{
+                  width: `min(${V}px, calc(100vw - 48px))`,
+                  height: `min(${V}px, calc(100vw - 48px))`,
+                  touchAction: 'none',
+                }}
               >
                 {cropSrc && (
                   <img
@@ -458,7 +477,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
               </div>
 
               {/* Zoom slider */}
-              <div className="w-full flex-shrink-0 space-y-1.5" style={{ maxWidth: `${V}px` }}>
+              <div className="w-full flex-shrink-0 space-y-1.5" style={{ maxWidth: `min(${V}px, calc(100vw - 48px))` }}>
                 <div className="flex justify-between text-[11px] text-white/50 font-medium">
                   <span>Zoom</span>
                   <span>{Math.round(cropZoom * 100)}%</span>
