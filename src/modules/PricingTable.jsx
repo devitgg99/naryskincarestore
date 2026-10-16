@@ -436,11 +436,11 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
           style={{ touchAction: 'none' }}
-          onPointerDownCapture={stopEvt}
-          onMouseDownCapture={stopEvt}
-          onTouchStartCapture={stopEvt}
-          onClickCapture={stopEvt}
-          onKeyDownCapture={stopEvt}
+          onPointerDown={stopEvt}
+          onMouseDown={stopEvt}
+          onTouchStart={stopEvt}
+          onClick={stopEvt}
+          onKeyDown={stopEvt}
         >
           <div
             ref={cropPanelRef}
