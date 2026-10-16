@@ -55,6 +55,7 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
   const cameraInputRef = useRef(null);
   const viewportRef = useRef(null);
   const imageRef = useRef(null);
+  const cropPanelRef = useRef(null);
   // Use a ref to hold latest cropSrc so paste/callbacks don't go stale
   const cropSrcRef = useRef(null);
 
@@ -67,6 +68,25 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [isCropping]);
+
+  // ── Auto-focus crop panel when it opens ──────────────────────────────────
+  // This steals focus from the Radix Dialog FocusTrap so Radix stops
+  // intercepting pointer/touch events that land on our portal.
+  useEffect(() => {
+    if (!isCropping) return;
+    const frame = requestAnimationFrame(() => {
+      cropPanelRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isCropping]);
+
+  // ── Capture-phase event blocker ───────────────────────────────────────────
+  // Radix Dialog registers a document-level pointerdown capture listener to
+  // detect "outside" clicks and swallow them. We stop propagation at the
+  // capture phase on the crop overlay so Radix never sees the events.
+  const stopEvt = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
 
   const handleFileSelect = useCallback((selected) => {
     if (!selected) return;
@@ -413,9 +433,19 @@ function ImageUploadWidget({ existingImageUrl, onStateChange }) {
 
       {/* ── Crop Modal ──────────────────────────────── */}
       {isCropping && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in duration-150" style={{ touchAction: 'none' }}>
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+          style={{ touchAction: 'none' }}
+          onPointerDownCapture={stopEvt}
+          onMouseDownCapture={stopEvt}
+          onTouchStartCapture={stopEvt}
+          onClickCapture={stopEvt}
+          onKeyDownCapture={stopEvt}
+        >
           <div
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col"
+            ref={cropPanelRef}
+            tabIndex={-1}
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f] shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col outline-none"
             style={{ maxHeight: 'min(95dvh, 620px)' }}
           >
             {/* Header */}
