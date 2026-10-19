@@ -29,6 +29,82 @@ export const formatInvoiceDate = (dateInput) => {
   return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`;
 };
 
+/**
+ * Builds a high-legibility receipt for 58 mm Bluetooth thermal printers.
+ * Product names get their own line, while prices and totals use compact,
+ * copy-safe text rows for printer apps that only accept pasted text.
+ */
+export const createThermalReceiptText = ({
+  receiptData,
+  getItemName,
+  shopName = '',
+  shopAddress = '',
+  shopPhone = '',
+  footer = '',
+  invoiceNumber = '',
+  invoiceDate = '',
+  currencySymbol = '$',
+  isDraft = false,
+}) => {
+  if (!receiptData?.order) return '';
+
+  const order = receiptData.order;
+  const items = receiptData.items || [];
+  const line = '-'.repeat(32);
+  const strongLine = '='.repeat(32);
+  const orderNumber = invoiceNumber || (isDraft
+    ? 'DRAFT'
+    : `#${String(order.id || '').slice(-6).toUpperCase()}`);
+  const date = invoiceDate || formatInvoiceDate(order.ordered_at);
+  const subtotal = roundMoney(items.reduce((sum, item) => (
+    sum + Number(item.subtotal ?? (parseQuantity(item.quantity) * Number(item.unit_price || 0)))
+  ), 0));
+  const discount = Number(order.discount || 0);
+  const delivery = Number(order.delivery_fee || 0);
+  const total = Number(order.total_amount ?? roundMoney(Math.max(0, subtotal - discount) + delivery));
+  const nameForItem = typeof getItemName === 'function'
+    ? getItemName
+    : (item) => item.custom_name || item.name_kh || item.name_en || item.product_name || item.name || 'Item';
+
+  const moneyRow = (label, amount) => `${label.padEnd(20, ' ')}${amount}`;
+  // Leading spaces are retained when pasted into common Bluetooth printer apps.
+  // Do not truncate long Khmer or English names: those apps can wrap them naturally.
+  const centered = (value) => {
+    const text = String(value || '').trim();
+    return text ? `${' '.repeat(Math.max(0, Math.floor((32 - text.length) / 2)))}${text}` : '';
+  };
+  const lines = [
+    strongLine,
+    centered(shopName),
+    centered(shopAddress),
+    shopPhone ? centered(`Tel: ${shopPhone}`) : '',
+    strongLine,
+    centered(`RECEIPT ${orderNumber}`),
+    date ? centered(`Date: ${date}`) : '',
+    line,
+    'ITEMS',
+  ].filter(Boolean);
+
+  items.forEach((item, index) => {
+    const quantity = parseQuantity(item.quantity);
+    const price = Number(item.unit_price || 0);
+    const amount = Number(item.subtotal ?? roundMoney(quantity * price));
+    lines.push(`${index + 1}. ${String(nameForItem(item) || 'Item').trim()}`);
+    lines.push(`   ${quantity} x ${formatCurrency(price, currencySymbol)} = ${formatCurrency(amount, currencySymbol)}`);
+  });
+
+  lines.push(line);
+  lines.push(moneyRow('Subtotal', formatCurrency(subtotal, currencySymbol)));
+  if (discount > 0) lines.push(moneyRow('Discount', `-${formatCurrency(discount, currencySymbol)}`));
+  if (delivery > 0) lines.push(moneyRow('Delivery', formatCurrency(delivery, currencySymbol)));
+  lines.push(strongLine);
+  lines.push(moneyRow('TOTAL', formatCurrency(total, currencySymbol)));
+  lines.push(strongLine);
+  if (footer) lines.push(footer);
+
+  return lines.join('\n');
+};
+
 export const TEMPLATE_IDS = {
   OLD: 'old',
   KHMER: 'khmer'

@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { OldReceiptTemplate, KhmerInvoiceTemplate } from './invoice/templates';
+import ThermalReceiptDialog from '../components/ThermalReceiptDialog';
 import {
   roundMoney,
   parseQuantity,
@@ -52,6 +53,7 @@ import {
   DEFAULT_INVOICE_SETTINGS,
   createSampleCustomLineItems,
   downloadPdfFromJpeg,
+  createThermalReceiptText,
 } from './invoice/invoiceUtils';
 
 const createEmptyLineItem = () => ({
@@ -196,6 +198,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const printableCardRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [imageExportModal, setImageExportModal] = useState(null);
+  const [isTextReceiptOpen, setIsTextReceiptOpen] = useState(false);
 
   // POS Quick Add States
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
@@ -2277,6 +2280,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsTextReceiptOpen(true)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>58 mm Text</span>
+                  </Button>
+
+                  <Button
+                    type="button"
                     size="sm"
                     onClick={handlePrint}
                     className="gap-1.5 text-xs"
@@ -2538,6 +2552,37 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               </div>
             )}
           </div>
+        );
+      })()}
+
+      {(() => {
+        const receiptData = savedOrder || previewOrder;
+        if (!receiptData) return null;
+        const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        const receiptText = createThermalReceiptText({
+          receiptData,
+          getItemName: (item) => {
+            const product = products.find((entry) => String(entry.id) === String(item.product_id));
+            return product?.name_kh || product?.name_en || item.custom_name || 'Item';
+          },
+          shopName,
+          shopAddress,
+          shopPhone,
+          footer: customFooter,
+          invoiceNumber: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceNumber : '',
+          invoiceDate: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceDate : '',
+          customerName: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceCustomerName : '',
+          customerPhone: receiptTemplate === TEMPLATE_IDS.KHMER ? invoicePhone : '',
+          currencySymbol,
+          isDraft,
+        });
+        return (
+          <ThermalReceiptDialog
+            open={isTextReceiptOpen}
+            onOpenChange={setIsTextReceiptOpen}
+            receiptText={receiptText}
+            onCopied={() => showToast('58 mm receipt copied. Paste it into your printer app.', 'success')}
+          />
         );
       })()}
 

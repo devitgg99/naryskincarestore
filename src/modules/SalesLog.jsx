@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Calendar, Filter, Eye, Printer, Trash2, Download, ImageIcon, Share2, X, RefreshCw, FileDown } from 'lucide-react';
+import { Search, Calendar, Filter, Eye, Printer, Trash2, Download, ImageIcon, Share2, X, RefreshCw, FileDown, FileText } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
 import { db } from '../services/db';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { OldReceiptTemplate, KhmerInvoiceTemplate } from './invoice/templates';
+import ThermalReceiptDialog from '../components/ThermalReceiptDialog';
 import {
   roundMoney,
   parseQuantity,
@@ -17,6 +18,7 @@ import {
   DEFAULT_INVOICE_SETTINGS,
   downloadPdfFromJpeg,
   formatCurrency,
+  createThermalReceiptText,
 } from './invoice/invoiceUtils';
 import {
   Table,
@@ -109,6 +111,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
   const printableCardRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [imageExportModal, setImageExportModal] = useState(null);
+  const [isTextReceiptOpen, setIsTextReceiptOpen] = useState(false);
 
   // Helper to retrieve the cost of an item at order-time with cascade lookup fallbacks
   const getItemCost = (oi) => {
@@ -701,6 +704,17 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
 
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsTextReceiptOpen(true)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>58 mm Text</span>
+                  </Button>
+
+                  <Button
+                    type="button"
                     size="sm"
                     onClick={handlePrint}
                     className="gap-1.5 text-xs"
@@ -977,6 +991,35 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
               </div>
             )}
           </div>
+        );
+      })()}
+
+      {activeOrderPreview && (() => {
+        const receiptData = {
+          order: activeOrderPreview.order,
+          items: activeOrderPreview.items,
+          customer: activeOrderPreview.customer
+        };
+        const receiptText = createThermalReceiptText({
+          receiptData,
+          getItemName: (item) => getProductName(item).primary,
+          shopName,
+          shopAddress,
+          shopPhone,
+          footer: customFooter,
+          invoiceNumber: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceNumber : '',
+          invoiceDate: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceDate : '',
+          customerName: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceCustomerName : '',
+          customerPhone: receiptTemplate === TEMPLATE_IDS.KHMER ? invoicePhone : '',
+          currencySymbol,
+        });
+        return (
+          <ThermalReceiptDialog
+            open={isTextReceiptOpen}
+            onOpenChange={setIsTextReceiptOpen}
+            receiptText={receiptText}
+            onCopied={() => showToast('58 mm receipt copied. Paste it into your printer app.', 'success')}
+          />
         );
       })()}
 
