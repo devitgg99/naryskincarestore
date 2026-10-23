@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { Search, SlidersHorizontal, Edit2, Info, Plus, Trash2, Camera, ImageIcon, X, LayoutGrid, List, Printer, Sparkles } from 'lucide-react';
 import { db } from '../services/db';
@@ -368,109 +368,102 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
   const [editProductSellingPrice, setEditProductSellingPrice] = useState('');
   const [editProductImageState, setEditProductImageState] = useState({ file: null, removed: false });
 
-  // Map brands & categories for lookup
-  const brandMap = {};
-  brands.forEach(b => {
-    brandMap[b.id] = b.name;
-  });
+  // ── Memoized lookup maps ────────────────────────────────────────────────────
+  // These only recompute when the source arrays change, not on every render.
 
-  const categoryMap = {};
-  categories.forEach(c => {
-    categoryMap[c.id] = c.name;
-  });
+  const brandMap = useMemo(() => {
+    const map = {};
+    brands.forEach(b => { map[b.id] = b.name; });
+    return map;
+  }, [brands]);
 
-  // Group prices by product_id and supplier_id for easy lookup
-  const priceMap = {};
-  prices.forEach(sp => {
-    if (!priceMap[sp.product_id]) {
-      priceMap[sp.product_id] = {};
-    }
-    priceMap[sp.product_id][sp.supplier_id] = sp;
-  });
+  const categoryMap = useMemo(() => {
+    const map = {};
+    categories.forEach(c => { map[c.id] = c.name; });
+    return map;
+  }, [categories]);
+
+  // Group prices by product_id → supplier_id for O(1) lookup
+  const priceMap = useMemo(() => {
+    const map = {};
+    prices.forEach(sp => {
+      if (!map[sp.product_id]) map[sp.product_id] = {};
+      map[sp.product_id][sp.supplier_id] = sp;
+    });
+    return map;
+  }, [prices]);
 
   // Find cheapest price details for each product
-  const getCheapestPrice = (productId) => {
+  const getCheapestPrice = useCallback((productId) => {
     const productPrices = priceMap[productId];
     if (!productPrices) return null;
-
     let cheapest = null;
-    Object.keys(productPrices).forEach(supplierId => {
-      const sp = productPrices[supplierId];
-      if (sp.price > 0 && (!cheapest || sp.price < cheapest.price)) {
-        cheapest = sp;
-      }
+    Object.values(productPrices).forEach(sp => {
+      if (sp.price > 0 && (!cheapest || sp.price < cheapest.price)) cheapest = sp;
     });
     return cheapest;
-  };
+  }, [priceMap]);
 
   // Find highest price details for each product
-  const getHighestPrice = (productId) => {
+  const getHighestPrice = useCallback((productId) => {
     const productPrices = priceMap[productId];
     if (!productPrices) return null;
-
     let highest = null;
-    Object.keys(productPrices).forEach(supplierId => {
-      const sp = productPrices[supplierId];
-      if (sp.price > 0 && (!highest || sp.price > highest.price)) {
-        highest = sp;
-      }
+    Object.values(productPrices).forEach(sp => {
+      if (sp.price > 0 && (!highest || sp.price > highest.price)) highest = sp;
     });
     return highest;
-  };
+  }, [priceMap]);
 
-  const getExpectedSellingPrice = (productId, editingSpId, newPrice) => {
+  const getExpectedSellingPrice = useCallback((productId, editingSpId, newPrice) => {
     const productPrices = priceMap[productId] || {};
     let maxPrice = 0;
-    
-    Object.keys(productPrices).forEach(supplierId => {
-      const sp = productPrices[supplierId];
+    Object.values(productPrices).forEach(sp => {
       const pVal = sp.id === editingSpId ? Number(newPrice || 0) : sp.price;
-      if (pVal > maxPrice) {
-        maxPrice = pVal;
-      }
+      if (pVal > maxPrice) maxPrice = pVal;
     });
-    
-    if (maxPrice === 0) {
-      maxPrice = Number(newPrice || 0);
-    }
-    
+    if (maxPrice === 0) maxPrice = Number(newPrice || 0);
     return maxPrice > 0 ? maxPrice + 0.20 : 0;
-  };
+  }, [priceMap]);
 
-  // Filter products based on search term and supplier filter
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = 
-      product.name_en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.name_kh.includes(searchTerm);
+  // ── Memoized filtered product list ─────────────────────────────────────────
+  // Only recalculates when products, filters, or priceMap change.
+  const filteredProducts = useMemo(() =>
+    products.filter(product => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        product.name_en.toLowerCase().includes(term) ||
+        product.name_kh.includes(searchTerm);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    // Brand filter
-    if (selectedBrandFilter !== 'all') {
-      if (selectedBrandFilter === 'none') {
-        if (product.brand_id) return false;
-      } else {
-        if (product.brand_id !== selectedBrandFilter) return false;
+      // Brand filter
+      if (selectedBrandFilter !== 'all') {
+        if (selectedBrandFilter === 'none') {
+          if (product.brand_id) return false;
+        } else {
+          if (product.brand_id !== selectedBrandFilter) return false;
+        }
       }
-    }
- 
-    // Category filter
-    if (selectedCategoryFilter !== 'all') {
-      if (selectedCategoryFilter === 'none') {
-        if (product.category_id) return false;
-      } else {
-        if (product.category_id !== selectedCategoryFilter) return false;
+
+      // Category filter
+      if (selectedCategoryFilter !== 'all') {
+        if (selectedCategoryFilter === 'none') {
+          if (product.category_id) return false;
+        } else {
+          if (product.category_id !== selectedCategoryFilter) return false;
+        }
       }
-    }
 
-    // Supplier filter
-    if (selectedSupplierFilter !== 'all') {
-      const hasSupplierOffer = priceMap[product.id] && priceMap[product.id][selectedSupplierFilter];
-      if (!hasSupplierOffer) return false;
-    }
+      // Supplier filter
+      if (selectedSupplierFilter !== 'all') {
+        if (!priceMap[product.id]?.[selectedSupplierFilter]) return false;
+      }
 
-    return true;
-  });
+      return true;
+    }),
+    [products, searchTerm, selectedBrandFilter, selectedCategoryFilter, selectedSupplierFilter, priceMap]
+  );
 
   const handleCellClick = (product, supplier) => {
     const priceObj = (priceMap[product.id] && priceMap[product.id][supplier.id]) || {

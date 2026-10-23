@@ -267,7 +267,11 @@ export const db = {
   getSupplierPrices: async () => {
     const client = getClient();
     if (client) {
-      const { data, error } = await client.from('supplier_prices').select('*');
+      // Select only the columns consumed by PricingTable / StockTracker.
+      // Avoids pulling any future large columns (e.g. notes, images) unnecessarily.
+      const { data, error } = await client
+        .from('supplier_prices')
+        .select('id, product_id, supplier_id, price, stock_qty, stock_unit, updated_at');
       if (!error) return data;
       console.error(error);
     }

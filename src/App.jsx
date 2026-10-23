@@ -261,6 +261,30 @@ export default function App() {
   }, [configVersion]);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  // Scoped refresh for PricingTable — skips customers, orders, and order_items
+  // so a single price edit doesn't re-download the entire database.
+  const refreshPricingData = async () => {
+    setSyncing(true);
+    try {
+      const [prods, sups, prs, bnds, cats] = await Promise.all([
+        db.getProducts(),
+        db.getSuppliers(),
+        db.getSupplierPrices(),
+        db.getBrands(),
+        db.getCategories()
+      ]);
+      setProducts(prods || []);
+      setSuppliers(sups || []);
+      setPrices(prs || []);
+      setBrands(bnds || []);
+      setCategories(cats || []);
+    } catch (e) {
+      console.error('Error refreshing pricing data:', e);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleConfigChange = () => {
     // Increment config version to force data reload with new db client
     setConfigVersion(prev => prev + 1);
@@ -302,7 +326,7 @@ export default function App() {
             prices={prices}
             brands={brands}
             categories={categories}
-            onRefresh={loadData}
+            onRefresh={refreshPricingData}
             showToast={showToast}
           />
         );
