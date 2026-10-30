@@ -620,7 +620,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    if (!newProductNameKh || !newProductNameEn || !newProductBasePrice) return;
+    if (!newProductNameKh || !newProductNameEn) return;
     
     setIsSavingProduct(true);
     try {
@@ -638,7 +638,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
         name_kh: newProductNameKh,
         name_en: newProductNameEn,
         barcode: newProductBarcode,
-        base_price: Number(newProductBasePrice),
+        base_price: 0,
         brand_id: newProductBrandId || null,
         category_id: newProductCategoryId || null,
         selling_price: newProductSellingPrice ? Number(newProductSellingPrice) : null,
@@ -649,7 +649,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
       setNewProductNameKh('');
       setNewProductNameEn('');
       setNewProductBarcode('');
-      setNewProductBasePrice('');
+
       setNewProductBrandId('');
       setNewProductCategoryId('');
       setNewProductSellingPrice('');
@@ -1297,19 +1297,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reference Base Price ($) *</label>
-                <Input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="E.g. 13.50"
-                  value={newProductBasePrice}
-                  onChange={(e) => setNewProductBasePrice(e.target.value)}
-                  className="h-9 text-xs"
-                />
-              </div>
+
 
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Custom Selling Price ($) (Optional)</label>
