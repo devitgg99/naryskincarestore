@@ -945,7 +945,7 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                   {suppliers.map(supplier => {
                     if (selectedSupplierFilter !== 'all' && selectedSupplierFilter !== supplier.id) return null;
                     return (
-                      <TableHead key={supplier.id} className="p-4 text-center min-w-[140px] border-l border-border relative group text-xs font-bold uppercase">
+                      <TableHead key={supplier.id} className="p-4 text-center min-w-[180px] border-l border-border relative group text-xs font-bold uppercase">
                         <span className="inline-block">{supplier.name}</span>
                         <Button
                           variant="ghost"
@@ -1071,7 +1071,20 @@ export default function PricingTable({ products, suppliers, prices, brands = [],
                                   </div>
                                   {priceObj.updated_at && (
                                     <div className="text-[10px] text-muted-foreground font-medium group-hover/cell:text-foreground transition-colors">
-                                      Updated: {new Date(priceObj.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                      Updated: {(() => {
+                                        const diff = Date.now() - new Date(priceObj.updated_at).getTime();
+                                        const mins = Math.floor(diff / 60000);
+                                        const hrs = Math.floor(diff / 3600000);
+                                        const days = Math.floor(diff / 86400000);
+                                        const weeks = Math.floor(days / 7);
+                                        const months = Math.floor(days / 30);
+                                        if (mins < 1) return 'just now';
+                                        if (mins < 60) return `${mins} min${mins > 1 ? 's' : ''} ago`;
+                                        if (hrs < 24) return `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+                                        if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+                                        if (weeks < 5) return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+                                        return `${months} month${months > 1 ? 's' : ''} ago`;
+                                      })()}
                                     </div>
                                   )}
                                 </div>
