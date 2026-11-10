@@ -1923,56 +1923,58 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       return (
                         <div
                           key={p.id}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            addProductToInvoice(p.id, 1);
-                            setQuickSearchQuery('');
-                            setIsQuickDropdownOpen(false);
-                            quickInputRef.current?.focus();
-                          }}
-                          onTouchEnd={(e) => {
-                            e.preventDefault();
-                            addProductToInvoice(p.id, 1);
-                            setQuickSearchQuery('');
-                            setIsQuickDropdownOpen(false);
-                            quickInputRef.current?.focus();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            addProductToInvoice(p.id, 1);
-                            setQuickSearchQuery('');
-                            setIsQuickDropdownOpen(false);
-                            quickInputRef.current?.focus();
-                          }}
-                          className="p-3 hover:bg-primary-500/10 active:bg-primary-500/20 cursor-pointer text-left transition-colors flex justify-between items-center gap-4 min-h-[44px]"
+                          className="p-3 hover:bg-dark-850/50 transition-colors flex justify-between items-center gap-3 min-h-[48px]"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700 flex items-center justify-center">
                               {p.image_url ? (
                                 <img src={p.image_url} alt={p.name_en} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-dark-600 text-xs">📦</div>
                               )}
                             </div>
-                            <div>
-                              <div className="font-semibold text-white text-xs sm:text-sm">{p.name_kh}</div>
-                              <div className="text-[10px] text-dark-400 mt-0.5">{p.name_en}</div>
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="font-semibold text-white text-xs sm:text-sm leading-snug break-words">{p.name_kh}</div>
+                              <div className="text-[10px] text-dark-400 leading-tight break-words">{p.name_en}</div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2.5 shrink-0">
                             <div className="text-right text-[10px] text-dark-400">
                               <span className="block font-medium text-white">${cheapestPrice.toFixed(2)}</span>
                               <span>{p.barcode ? `Barcode: ${p.barcode}` : 'Stock: ' + totalStock}</span>
                             </div>
-                            {existingQty > 0 ? (
-                              <span className="text-[10px] bg-primary-500/20 text-primary-400 font-semibold px-2 py-0.5 rounded border border-primary-500/30">
-                                {existingQty} added
-                              </span>
-                            ) : (
-                              <span className="text-[10px] bg-dark-950 text-dark-400 font-medium px-2 py-0.5 rounded border border-dark-800 hover:text-white">
-                                Add +
-                              </span>
-                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                addProductToInvoice(p.id, 1);
+                                setQuickSearchQuery('');
+                                setIsQuickDropdownOpen(false);
+                                quickInputRef.current?.focus();
+                              }}
+                              onTouchEnd={(e) => {
+                                e.preventDefault();
+                                addProductToInvoice(p.id, 1);
+                                setQuickSearchQuery('');
+                                setIsQuickDropdownOpen(false);
+                                quickInputRef.current?.focus();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                addProductToInvoice(p.id, 1);
+                                setQuickSearchQuery('');
+                                setIsQuickDropdownOpen(false);
+                                quickInputRef.current?.focus();
+                              }}
+                              className={`h-7 px-2.5 text-[11px] font-bold rounded-md shadow-xs active:scale-95 transition-all ${
+                                existingQty > 0
+                                  ? 'bg-primary-500/20 text-primary-400 border border-primary-500/40 hover:bg-primary-500/30'
+                                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                              }`}
+                            >
+                              {existingQty > 0 ? `+1 (${existingQty})` : '+ Add'}
+                            </Button>
                           </div>
                         </div>
                       );
@@ -2040,22 +2042,92 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       key={item.id}
                       className="p-3.5 sm:p-4 rounded-xl border border-border bg-card/40 space-y-3 transition-colors hover:border-primary/30"
                     >
-                      {/* Top Row: Thumbnail + Product Selector / Custom Name + Item Mode + Delete */}
-                      <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
-                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-border flex items-center justify-center overflow-hidden bg-muted flex-shrink-0 shadow-xs">
-                          {item.isCustom ? (
-                            <span className="text-[10px] text-violet-500 font-bold bg-violet-500/10 w-full h-full flex items-center justify-center">Custom</span>
-                          ) : (
-                            prod && prod.image_url ? (
-                              <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
+                      {/* Mobile Header Bar: Thumbnail, Item #, Mode Toggle & Actions */}
+                      <div className="flex items-center justify-between gap-2 sm:hidden pb-1 border-b border-border/40">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-lg border border-border flex items-center justify-center overflow-hidden bg-muted shrink-0">
+                            {item.isCustom ? (
+                              <span className="text-[9px] text-violet-500 font-bold">Custom</span>
+                            ) : prod && prod.image_url ? (
+                              <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-lg" />
                             ) : (
-                              <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                            )
+                              <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                          <span className="text-xs font-bold text-foreground">Item #{idx + 1}</span>
+                          {prod && (
+                            <span className="text-[10px] bg-primary/10 text-primary font-semibold px-2 py-0.5 rounded truncate max-w-[120px]">
+                              {prod.brand || prod.category || 'Catalog'}
+                            </span>
                           )}
                         </div>
 
-                        {/* Search / Select Product Input */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            variant={item.isCustom ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
+                            className={`h-8 px-2 text-[10px] font-bold ${
+                              item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
+                            }`}
+                            title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
+                          >
+                            {item.isCustom ? "Custom" : "Catalog"}
+                          </Button>
+
+                          <div className="flex items-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => moveLineItem(idx, -1)}
+                              disabled={idx === 0}
+                              className="h-8 w-7 text-muted-foreground hover:text-foreground"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => moveLineItem(idx, 1)}
+                              disabled={idx === lineItems.length - 1}
+                              className="h-8 w-7 text-muted-foreground hover:text-foreground"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeLineItem(idx)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Main Product Selector & Desktop Controls Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        {/* Desktop Thumbnail */}
+                        <div className="hidden sm:flex w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-border items-center justify-center overflow-hidden bg-muted shrink-0 shadow-xs">
+                          {item.isCustom ? (
+                            <span className="text-[10px] text-violet-500 font-bold bg-violet-500/10 w-full h-full flex items-center justify-center">Custom</span>
+                          ) : prod && prod.image_url ? (
+                            <img src={prod.image_url} alt="Product" className="w-full h-full object-cover rounded-xl" />
+                          ) : (
+                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                          )}
+                        </div>
+
+                        {/* Search / Select Product Input Container */}
                         <div className="flex-1 relative min-w-0">
                           {item.isCustom ? (
                             <Input
@@ -2092,78 +2164,117 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             />
                           ) : (
                             <>
-                              <Input
-                                type="text"
-                                placeholder="Search & select product..."
-                                value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
-                                onFocus={() => {
-                                  setLineItems(prevItems => {
-                                    return prevItems.map((li, i) => {
-                                      if (i === idx) {
-                                        const currentProd = products.find(p => p.id === li.product_id);
-                                        return {
-                                          ...li,
-                                          isDropdownOpen: true,
-                                          searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : (li.searchQuery || '')
-                                        };
-                                      }
-                                      return { ...li, isDropdownOpen: false };
-                                    });
-                                  });
-                                }}
-                                onBlur={() => {
-                                  setTimeout(() => {
+                              <div className="relative">
+                                <Input
+                                  type="text"
+                                  placeholder="Search product by name or barcode..."
+                                  value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
+                                  title={prod ? `${prod.name_kh} (${prod.name_en})` : (item.searchQuery || '')}
+                                  onFocus={() => {
                                     setLineItems(prevItems => {
                                       return prevItems.map((li, i) => {
                                         if (i === idx) {
                                           const currentProd = products.find(p => p.id === li.product_id);
                                           return {
                                             ...li,
-                                            isDropdownOpen: false,
-                                            searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : ''
+                                            isDropdownOpen: true,
+                                            searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : (li.searchQuery || '')
+                                          };
+                                        }
+                                        return { ...li, isDropdownOpen: false };
+                                      });
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    setTimeout(() => {
+                                      setLineItems(prevItems => {
+                                        return prevItems.map((li, i) => {
+                                          if (i === idx) {
+                                            const currentProd = products.find(p => p.id === li.product_id);
+                                            return {
+                                              ...li,
+                                              isDropdownOpen: false,
+                                              searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : ''
+                                            };
+                                          }
+                                          return li;
+                                        });
+                                      });
+                                    }, 200);
+                                  }}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setLineItems(prevItems => {
+                                      return prevItems.map((li, i) => {
+                                        if (i === idx) {
+                                          return {
+                                            ...li,
+                                            searchQuery: val,
+                                            isDropdownOpen: true
                                           };
                                         }
                                         return li;
                                       });
                                     });
-                                  }, 200);
-                                }}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setLineItems(prevItems => {
-                                    return prevItems.map((li, i) => {
-                                      if (i === idx) {
-                                        return {
-                                          ...li,
-                                          searchQuery: val,
-                                          isDropdownOpen: true
-                                        };
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const matches = getFilteredProducts(item.searchQuery || '');
+                                      if (matches.length > 0) {
+                                        handleSelectProduct(idx, matches[0]);
                                       }
-                                      return li;
-                                    });
-                                  });
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const matches = getFilteredProducts(item.searchQuery || '');
-                                    if (matches.length > 0) {
-                                      handleSelectProduct(idx, matches[0]);
+                                    } else if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      setLineItems(prevItems => prevItems.map((li, i) => i === idx ? { ...li, isDropdownOpen: false } : li));
                                     }
-                                  } else if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    setLineItems(prevItems => prevItems.map((li, i) => i === idx ? { ...li, isDropdownOpen: false } : li));
-                                  }
-                                }}
-                                className="w-full text-xs sm:text-sm h-10"
-                              />
+                                  }}
+                                  className="w-full text-xs sm:text-sm h-10 pr-8"
+                                />
+                                {item.searchQuery && (
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      setLineItems(prevItems => prevItems.map((li, i) => i === idx ? { ...li, searchQuery: '', isDropdownOpen: true } : li));
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                                    title="Clear search"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Selected Product Details Banner (Always shows full Khmer & English names with no cut-off) */}
+                              {prod && (
+                                <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/70 flex flex-wrap items-center justify-between gap-1.5 text-xs animate-in fade-in-50 duration-150">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-semibold text-foreground text-xs leading-snug break-words">
+                                      {prod.name_kh}
+                                      {prod.name_en && (
+                                        <span className="text-muted-foreground font-normal ml-1.5 break-words">
+                                          ({prod.name_en})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                                      {prod.barcode && <span>Barcode: <span className="font-mono">{prod.barcode}</span></span>}
+                                      {prod.brand && <span>Brand: <span className="font-medium text-foreground">{prod.brand}</span></span>}
+                                      {prod.category && <span>Category: <span className="font-medium text-foreground">{prod.category}</span></span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Search Dropdown with Full Scroll Freedom (Clicking '+ Add' selects the item) */}
                               {item.isDropdownOpen && (
                                 <div
                                   onMouseDown={(e) => {
-                                    // Prevent input blur so clicking/scrolling the dropdown doesn't cancel selection
+                                    // Prevent input blur so scrolling or clicking in dropdown doesn't lose focus
                                     e.preventDefault();
                                   }}
-                                  className="absolute left-0 right-0 mt-1 max-h-64 overflow-y-auto z-50 rounded-xl bg-popover/95 backdrop-blur-md border border-border shadow-2xl divide-y divide-border/60 scrollbar-thin animate-in fade-in-50 zoom-in-95 duration-100"
+                                  className="absolute left-0 right-0 sm:left-0 sm:right-auto w-full sm:w-[500px] md:w-[560px] max-w-[95vw] mt-1 max-h-72 overflow-y-auto z-50 rounded-xl bg-popover/98 backdrop-blur-md border border-border shadow-2xl divide-y divide-border/60 scrollbar-thin animate-in fade-in-50 zoom-in-95 duration-100 touch-pan-y overscroll-contain"
                                 >
                                   {getFilteredProducts(item.searchQuery || '').map(p => {
                                     const sps = productSupplierPrices[p.id] || [];
@@ -2175,42 +2286,61 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                     return (
                                       <div
                                         key={p.id}
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          handleSelectProduct(idx, p);
-                                        }}
-                                        onTouchEnd={(e) => {
-                                          e.preventDefault();
-                                          handleSelectProduct(idx, p);
-                                        }}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          handleSelectProduct(idx, p);
-                                        }}
-                                        className="p-3 hover:bg-primary/10 active:bg-primary/20 cursor-pointer text-left transition-colors flex items-center justify-between gap-3 min-h-[48px]"
+                                        className="p-3 hover:bg-muted/40 transition-colors flex items-center justify-between gap-3 min-h-[56px]"
                                       >
+                                        {/* Product Info (Wraps naturally with no truncate so full name is visible) */}
                                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border/60 flex items-center justify-center">
+                                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border/60 flex items-center justify-center">
                                             {p.image_url ? (
                                               <img src={p.image_url} alt={p.name_en || p.name_kh} className="w-full h-full object-cover" />
                                             ) : (
                                               <ImageIcon className="w-4 h-4 text-muted-foreground" />
                                             )}
                                           </div>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="font-semibold text-foreground text-xs sm:text-sm truncate">{p.name_kh}</div>
-                                            <div className="text-[10px] text-muted-foreground truncate">{p.name_en}</div>
+                                          <div className="min-w-0 flex-1 space-y-0.5">
+                                            <div className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">
+                                              {p.name_kh}
+                                            </div>
+                                            {p.name_en && (
+                                              <div className="text-[11px] text-muted-foreground leading-tight break-words">
+                                                {p.name_en}
+                                              </div>
+                                            )}
+                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                                              {p.barcode && <span className="font-mono">#{p.barcode}</span>}
+                                              {p.brand && <span className="bg-muted px-1.5 py-0.2 rounded">{p.brand}</span>}
+                                            </div>
                                           </div>
                                         </div>
 
+                                        {/* Price, Stock and Dedicated Add Button */}
                                         <div className="flex items-center gap-2.5 shrink-0">
                                           <div className="text-right text-[10px] text-muted-foreground">
                                             <span className="block font-bold text-foreground text-xs sm:text-sm">${cheapestPrice.toFixed(2)}</span>
-                                            <span>Stock: {totalStock}</span>
+                                            <span className={totalStock <= 2 ? "text-destructive font-semibold" : ""}>
+                                              Stock: {totalStock}
+                                            </span>
                                           </div>
-                                          <span className="text-[11px] font-bold bg-primary text-primary-foreground px-2.5 py-1 rounded-md shadow-xs flex items-center gap-0.5 hover:bg-primary/90 transition-colors">
+
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              handleSelectProduct(idx, p);
+                                            }}
+                                            onTouchEnd={(e) => {
+                                              e.preventDefault();
+                                              handleSelectProduct(idx, p);
+                                            }}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              handleSelectProduct(idx, p);
+                                            }}
+                                            className="h-8 px-3 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 rounded-lg shadow-sm active:scale-95 transition-transform"
+                                          >
                                             + Add
-                                          </span>
+                                          </Button>
                                         </div>
                                       </div>
                                     );
@@ -2224,62 +2354,63 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           )}
                         </div>
 
-                        {/* Mode toggle button */}
-                        <Button
-                          type="button"
-                          variant={item.isCustom ? "secondary" : "outline"}
-                          size="sm"
-                          onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
-                          className={`h-10 px-2.5 text-[11px] font-bold shrink-0 ${item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
+                        {/* Desktop Controls (Mode toggle, Reorder, Remove) */}
+                        <div className="hidden sm:flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            variant={item.isCustom ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => updateLineItem(idx, 'isCustom', !item.isCustom)}
+                            className={`h-10 px-2.5 text-[11px] font-bold shrink-0 ${
+                              item.isCustom ? 'border-violet-500/30 text-violet-500 hover:bg-violet-500/20' : ''
                             }`}
-                          title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
-                        >
-                          {item.isCustom ? "Custom" : "Catalog"}
-                        </Button>
-
-                        {/* Reorder */}
-                        <div className="flex flex-col gap-0.5 shrink-0">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => moveLineItem(idx, -1)}
-                            disabled={idx === 0}
-                            className="h-5 w-8 text-muted-foreground hover:text-foreground"
-                            title="Move up"
+                            title={item.isCustom ? "Switch to Catalog item select" : "Switch to freeform manual input"}
                           >
-                            <ChevronUp className="w-3.5 h-3.5" />
+                            {item.isCustom ? "Custom" : "Catalog"}
                           </Button>
+
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => moveLineItem(idx, -1)}
+                              disabled={idx === 0}
+                              className="h-5 w-8 text-muted-foreground hover:text-foreground"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => moveLineItem(idx, 1)}
+                              disabled={idx === lineItems.length - 1}
+                              className="h-5 w-8 text-muted-foreground hover:text-foreground"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => moveLineItem(idx, 1)}
-                            disabled={idx === lineItems.length - 1}
-                            className="h-5 w-8 text-muted-foreground hover:text-foreground"
-                            title="Move down"
+                            onClick={() => removeLineItem(idx)}
+                            className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            title="Remove row"
                           >
-                            <ChevronDown className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-
-                        {/* Remove button */}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLineItem(idx)}
-                          className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-                          title="Remove row"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
 
                       {/* Controls Grid: Supplier, Unit Price, Decimal Quantity & Subtotal */}
                       <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 items-end pt-1">
-                        {/* Supplier Selector (Mobile full width / Desktop 4 cols) */}
-                        <div className="col-span-2 sm:col-span-4 space-y-1.5">
+                        {/* Supplier Selector (Mobile full width / Desktop 5 cols) */}
+                        <div className="col-span-2 sm:col-span-5 space-y-1.5">
                           <div className="flex items-center justify-between">
                             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                               Supplier &amp; Cost Price
@@ -2423,7 +2554,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         </div>
 
                         {/* Unit Price field */}
-                        <div className="col-span-1 sm:col-span-3">
+                        <div className="col-span-1 sm:col-span-2">
                           <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
                             Unit Price ($)
                           </label>
