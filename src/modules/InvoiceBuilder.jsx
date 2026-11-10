@@ -23,7 +23,10 @@ import {
   PauseCircle,
   ChevronUp,
   ChevronDown,
-  FileDown
+  FileDown,
+  Clock,
+  Edit2,
+  Check
 } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
 import { BrowserMultiFormatReader } from '@zxing/browser';
@@ -45,6 +48,7 @@ import ThermalReceiptDialog from '../components/ThermalReceiptDialog';
 import {
   roundMoney,
   parseQuantity,
+  formatStockInTime,
   TEMPLATE_IDS,
   TEMPLATE_OPTIONS,
   KHMER_FONTS,
@@ -262,6 +266,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [batchQuantities, setBatchQuantities] = useState({}); // { product_id: quantity }
+
+  // Supplier & Stock In Mobile Picker and Quick Edit States
+  const [supplierPickerModal, setSupplierPickerModal] = useState(null); // { itemIndex, product, currentSupplierId }
+  const [stockEditModal, setStockEditModal] = useState(null); // { itemIndex, product, supplier, priceObj }
+  const [editStockPrice, setEditStockPrice] = useState('');
+  const [editStockQty, setEditStockQty] = useState('');
+  const [editStockUnit, setEditStockUnit] = useState('pcs');
+  const [isSavingStock, setIsSavingStock] = useState(false);
 
   const applyDraftToForm = (draft) => {
     setDraftName(draft.name || 'Order #1');
@@ -779,6 +791,91 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     const qty = parseQuantity(item.quantity);
     item.subtotal = roundMoney(Number(item.unit_price || 0) * qty);
     setLineItems(updated);
+  };
+
+  const openSupplierPicker = (itemIndex) => {
+    const item = lineItems[itemIndex];
+    if (!item || !item.product_id) return;
+    const prod = products.find(p => p.id === item.product_id);
+    if (!prod) return;
+    setSupplierPickerModal({
+      itemIndex,
+      product: prod,
+      currentSupplierId: item.supplier_id
+    });
+  };
+
+  const openStockEditModal = (itemIndex, product, supplier, priceObj) => {
+    if (!product || !supplier) return;
+    setStockEditModal({
+      itemIndex,
+      product,
+      supplier,
+      priceObj: priceObj || {
+        product_id: product.id,
+        supplier_id: supplier.id,
+        price: product.base_price || 0,
+        stock_qty: 0,
+        stock_unit: 'pcs'
+      }
+    });
+    setEditStockPrice(priceObj && priceObj.price > 0 ? priceObj.price.toString() : (product.base_price ? product.base_price.toString() : '0'));
+    setEditStockQty(priceObj ? priceObj.stock_qty.toString() : '0');
+    setEditStockUnit(priceObj && priceObj.stock_unit ? priceObj.stock_unit : 'pcs');
+  };
+
+  const handleSaveStockEdit = async (e) => {
+    e.preventDefault();
+    if (!stockEditModal || !stockEditModal.product || !stockEditModal.supplier) return;
+
+    setIsSavingStock(true);
+    try {
+      const priceVal = editStockPrice ? Number(editStockPrice) : 0;
+      const stockVal = Number(editStockQty) || 0;
+
+      const payload = {
+        id: stockEditModal.priceObj?.id,
+        product_id: stockEditModal.product.id,
+        supplier_id: stockEditModal.supplier.id,
+        price: priceVal,
+        stock_qty: stockVal,
+        stock_unit: editStockUnit || 'pcs'
+      };
+
+      await db.updateSupplierPrice(payload);
+      showToast(`Stock & price updated for ${stockEditModal.supplier.name}!`, "success");
+
+      // Update active line item if triggered from one
+      if (stockEditModal.itemIndex !== null && stockEditModal.itemIndex !== undefined) {
+        const updated = [...lineItems];
+        const targetItem = updated[stockEditModal.itemIndex];
+        if (targetItem && targetItem.product_id === stockEditModal.product.id) {
+          targetItem.supplier_id = stockEditModal.supplier.id;
+          targetItem.supplier_price = priceVal;
+          targetItem.maxStock = stockVal;
+          targetItem.stockUnit = editStockUnit || 'pcs';
+
+          const customSellingPrice = stockEditModal.product.selling_price && Number(stockEditModal.product.selling_price) > 0 
+            ? Number(stockEditModal.product.selling_price) 
+            : null;
+          if (customSellingPrice === null) {
+            targetItem.unit_price = roundMoney(priceVal + 0.20);
+          }
+          targetItem.subtotal = roundMoney(Number(targetItem.unit_price || 0) * parseQuantity(targetItem.quantity));
+          setLineItems(updated);
+        }
+      }
+
+      if (onRefresh) {
+        await onRefresh();
+      }
+
+      setStockEditModal(null);
+    } catch (err) {
+      showToast("Error updating stock: " + err.message, "error");
+    } finally {
+      setIsSavingStock(false);
+    }
   };
 
   const addLineItem = () => {
@@ -1851,6 +1948,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   const numericQty = parseQuantity(item.quantity);
                   const isStockWarning = item.product_id && item.supplier_id && (numericQty > item.maxStock);
                   const prod = products.find(p => p.id === item.product_id);
+                  const selectedSp = item.supplier_id ? sps.find(sp => sp.supplier_id === item.supplier_id) : (sps.length > 0 ? sps[0] : null);
+                  const selectedSup = selectedSp ? suppliers.find(s => s.id === selectedSp.supplier_id) : null;
+                  const isSelectedCheapest = selectedSp && cheapestSp && selectedSp.supplier_id === cheapestSp.supplier_id;
+                  const selectedStockTime = selectedSp ? formatStockInTime(selectedSp.updated_at) : null;
 
                   return (
                     <div
@@ -1998,37 +2099,146 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       {/* Controls Grid: Supplier, Unit Price, Decimal Quantity & Subtotal */}
                       <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 items-end pt-1">
                         {/* Supplier Selector (Mobile full width / Desktop 4 cols) */}
-                        <div className="col-span-2 sm:col-span-4">
-                          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                            Supplier & Cost Price
-                          </label>
+                        <div className="col-span-2 sm:col-span-4 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                              Supplier &amp; Cost Price
+                            </label>
+                            {selectedStockTime && !item.isCustom && (
+                              <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1 sm:hidden">
+                                <Clock className="w-3 h-3 text-primary" />
+                                In: {selectedStockTime.relativeShort || selectedStockTime.relative}
+                              </span>
+                            )}
+                          </div>
+
                           {item.isCustom ? (
                             <div className="w-full border border-dashed border-border rounded-lg bg-muted/30 text-muted-foreground text-xs italic flex items-center justify-center h-10">
                               No Supplier (Ad-hoc)
                             </div>
                           ) : (
-                            <select
-                              required
-                              disabled={!item.product_id}
-                              value={item.supplier_id}
-                              onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
-                              className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-xs disabled:opacity-40 h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
-                            >
-                              {sps.length === 0 ? (
-                                <option value="">No suppliers</option>
-                              ) : (
-                                sps.map(sp => {
-                                  const sup = suppliers.find(s => s.id === sp.supplier_id);
-                                  const name = sup ? sup.name : 'Unknown';
-                                  const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
-                                  return (
-                                    <option key={sp.supplier_id} value={sp.supplier_id}>
-                                      {name}: ${sp.price.toFixed(2)} (Qty: {sp.stock_qty}){cheapestLabel}
-                                    </option>
-                                  );
-                                })
+                            <>
+                              {/* Mobile View: High-comfort thumb-friendly trigger card */}
+                              <div className="sm:hidden">
+                                <button
+                                  type="button"
+                                  disabled={!item.product_id}
+                                  onClick={() => openSupplierPicker(idx)}
+                                  className={`w-full min-h-[46px] p-2.5 rounded-xl border transition-all text-left flex items-center justify-between gap-2.5 active:scale-[0.99] ${
+                                    !item.product_id
+                                      ? 'opacity-40 border-input bg-background cursor-not-allowed'
+                                      : isSelectedCheapest
+                                      ? 'border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10'
+                                      : 'border-input bg-card hover:bg-muted/40'
+                                  }`}
+                                >
+                                  {selectedSup ? (
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-xs text-foreground truncate">{selectedSup.name}</span>
+                                        {isSelectedCheapest && (
+                                          <Badge className="text-[9px] font-extrabold uppercase bg-emerald-600 text-white px-1.5 py-0 leading-tight shrink-0">
+                                            Cheapest ★
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1 text-[11px] flex-wrap">
+                                        <span className={`font-bold font-mono ${isSelectedCheapest ? 'text-emerald-500' : 'text-foreground'}`}>
+                                          ${Number(selectedSp.price || 0).toFixed(2)}
+                                        </span>
+                                        <span className={`text-[10px] ${selectedSp.stock_qty <= 2 ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+                                          (Qty: {selectedSp.stock_qty}{selectedSp.stock_unit && selectedSp.stock_unit !== 'pcs' ? ` ${selectedSp.stock_unit}` : ''})
+                                        </span>
+                                        {selectedStockTime && (
+                                          <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-0.5 truncate">
+                                            • In: {selectedStockTime.relativeShort || selectedStockTime.relative}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">
+                                      {sps.length === 0 ? 'No suppliers available' : 'Tap to select supplier...'}
+                                    </span>
+                                  )}
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-1 rounded-md">
+                                      {sps.length > 1 ? `${sps.length} offers` : 'Change'}
+                                    </span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </div>
+                                </button>
+                              </div>
+
+                              {/* Desktop View: Select with rich option text & quick edit button */}
+                              <div className="hidden sm:flex items-center gap-1.5">
+                                <select
+                                  required
+                                  disabled={!item.product_id}
+                                  value={item.supplier_id}
+                                  onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
+                                  className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-xs disabled:opacity-40 h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
+                                >
+                                  {sps.length === 0 ? (
+                                    <option value="">No suppliers</option>
+                                  ) : (
+                                    sps.map(sp => {
+                                      const sup = suppliers.find(s => s.id === sp.supplier_id);
+                                      const name = sup ? sup.name : 'Unknown';
+                                      const cheapestLabel = cheapestSp && cheapestSp.supplier_id === sp.supplier_id ? ' ★' : '';
+                                      const timeInfo = formatStockInTime(sp.updated_at);
+                                      const timeLabel = timeInfo ? ` • In: ${timeInfo.relative}` : '';
+                                      const unitLabel = sp.stock_unit && sp.stock_unit !== 'pcs' ? ` ${sp.stock_unit}` : '';
+                                      return (
+                                        <option key={sp.supplier_id} value={sp.supplier_id}>
+                                          {name}: ${Number(sp.price || 0).toFixed(2)} (Qty: {sp.stock_qty}{unitLabel}){timeLabel}{cheapestLabel}
+                                        </option>
+                                      );
+                                    })
+                                  )}
+                                </select>
+
+                                {selectedSp && prod && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => openStockEditModal(idx, prod, selectedSup, selectedSp)}
+                                    className="h-10 w-10 shrink-0 text-muted-foreground hover:text-primary hover:border-primary/50"
+                                    title="Quick update stock & cost price"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+
+                              {/* Stock In History & Quick Update Sub-Bar (Responsive for both) */}
+                              {selectedSp && prod && (
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/50 text-[10px]">
+                                  <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                                    <Clock className="w-3 h-3 text-primary shrink-0" />
+                                    <span className="font-medium">Stock In:</span>
+                                    {selectedStockTime ? (
+                                      <span className="font-semibold text-foreground truncate" title={selectedStockTime.full}>
+                                        {selectedStockTime.relative} <span className="text-muted-foreground font-normal">({selectedStockTime.formattedDate})</span>
+                                      </span>
+                                    ) : (
+                                      <span className="italic text-muted-foreground">Not recorded</span>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => openStockEditModal(idx, prod, selectedSup, selectedSp)}
+                                    className="text-primary hover:text-primary/80 font-bold flex items-center gap-1 shrink-0 ml-auto transition-colors"
+                                  >
+                                    <Edit2 className="w-2.5 h-2.5" />
+                                    <span>Update Stock</span>
+                                  </button>
+                                </div>
                               )}
-                            </select>
+                            </>
                           )}
                         </div>
 
@@ -2977,6 +3187,349 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           </div>
         </div>
       )}
+
+      {/* Mobile-Friendly Supplier Selector Sheet / Dialog */}
+      <Dialog open={!!supplierPickerModal} onOpenChange={(open) => !open && setSupplierPickerModal(null)}>
+        <DialogContent className="max-w-md w-full max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden sm:rounded-2xl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-card/60">
+            <DialogTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              <span>Select Supplier &amp; Stock</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+              {supplierPickerModal?.product?.name_kh} {supplierPickerModal?.product?.name_en ? `(${supplierPickerModal.product.name_en})` : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
+            {(() => {
+              if (!supplierPickerModal?.product) return null;
+              const productSps = productSupplierPrices[supplierPickerModal.product.id] || [];
+              const cheapest = [...productSps].sort((a, b) => a.price - b.price)[0];
+
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                    <span>Available Offers ({productSps.length})</span>
+                    <span className="text-[10px] text-muted-foreground/80 lowercase">tap card to select</span>
+                  </div>
+
+                  {productSps.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground space-y-3 bg-muted/20 rounded-xl border border-dashed border-border">
+                      <p className="text-xs italic">No supplier offers found for this product.</p>
+                      {suppliers.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const targetIdx = supplierPickerModal.itemIndex;
+                            const targetProd = supplierPickerModal.product;
+                            const firstSup = suppliers[0];
+                            setSupplierPickerModal(null);
+                            openStockEditModal(targetIdx, targetProd, firstSup, null);
+                          }}
+                          className="text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Add Offer from {suppliers[0].name}
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    productSps.map(sp => {
+                      const sup = suppliers.find(s => s.id === sp.supplier_id);
+                      const isCheapest = cheapest && cheapest.supplier_id === sp.supplier_id;
+                      const isSelected = supplierPickerModal.currentSupplierId === sp.supplier_id;
+                      const timeInfo = formatStockInTime(sp.updated_at);
+
+                      return (
+                        <div
+                          key={sp.supplier_id}
+                          className={`p-3.5 rounded-xl border transition-all ${
+                            isSelected
+                              ? 'border-primary bg-primary/5 ring-2 ring-primary/30 shadow-xs'
+                              : isCheapest
+                              ? 'border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60'
+                              : 'border-border bg-card hover:border-primary/40'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div 
+                              className="flex-1 cursor-pointer min-w-0"
+                              onClick={() => {
+                                updateLineItem(supplierPickerModal.itemIndex, 'supplier_id', sp.supplier_id);
+                                setSupplierPickerModal(null);
+                              }}
+                            >
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-sm text-foreground">{sup ? sup.name : 'Unknown Supplier'}</span>
+                                {isCheapest && (
+                                  <Badge className="text-[9px] font-extrabold uppercase bg-emerald-600 text-white px-1.5 py-0 leading-tight">
+                                    Cheapest ★
+                                  </Badge>
+                                )}
+                                {isSelected && (
+                                  <Badge variant="outline" className="text-[9px] font-bold uppercase border-primary text-primary px-1.5 py-0 leading-tight">
+                                    Active In Invoice
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-3 mt-1.5">
+                                <span className={`text-base font-extrabold font-mono ${isCheapest ? 'text-emerald-500' : 'text-foreground'}`}>
+                                  ${Number(sp.price || 0).toFixed(2)}
+                                </span>
+                                <span className={`text-xs font-semibold ${sp.stock_qty <= 2 ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>
+                                  Stock: {sp.stock_qty} {sp.stock_unit || 'pcs'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-2">
+                                <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                                <span>Stock In:</span>
+                                {timeInfo ? (
+                                  <strong className="text-foreground font-semibold">
+                                    {timeInfo.relative} <span className="text-muted-foreground font-normal">({timeInfo.formattedDate})</span>
+                                  </strong>
+                                ) : (
+                                  <span className="italic">Not recorded</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2 shrink-0 items-end">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isSelected ? "default" : "outline"}
+                                onClick={() => {
+                                  updateLineItem(supplierPickerModal.itemIndex, 'supplier_id', sp.supplier_id);
+                                  setSupplierPickerModal(null);
+                                }}
+                                className="h-8 text-xs font-semibold px-3"
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 mr-1" /> Selected
+                                  </>
+                                ) : (
+                                  'Select'
+                                )}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const targetIdx = supplierPickerModal.itemIndex;
+                                  const targetProd = supplierPickerModal.product;
+                                  setSupplierPickerModal(null);
+                                  openStockEditModal(targetIdx, targetProd, sup, sp);
+                                }}
+                                className="h-7 text-[11px] text-muted-foreground hover:text-primary px-2"
+                              >
+                                <Edit2 className="w-3 h-3 mr-1" /> Update Stock
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+
+                  {/* Add Offer from other available suppliers */}
+                  {suppliers.filter(s => !productSps.some(sp => sp.supplier_id === s.id)).length > 0 && (
+                    <div className="pt-3 border-t border-border mt-3">
+                      <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                        Add Other Suppliers
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suppliers
+                          .filter(s => !productSps.some(sp => sp.supplier_id === s.id))
+                          .map(sup => (
+                            <Button
+                              key={sup.id}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const targetIdx = supplierPickerModal.itemIndex;
+                                const targetProd = supplierPickerModal.product;
+                                setSupplierPickerModal(null);
+                                openStockEditModal(targetIdx, targetProd, sup, null);
+                              }}
+                              className="h-8 text-xs border-dashed text-foreground hover:text-primary"
+                            >
+                              <Plus className="w-3 h-3 mr-1 text-primary" /> {sup.name}
+                            </Button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="p-3 border-t border-border bg-card/60 flex items-center justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSupplierPickerModal(null)}
+              className="text-xs"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Stock-In / Update Stock & Price Dialog */}
+      <Dialog open={!!stockEditModal} onOpenChange={(open) => !open && setStockEditModal(null)}>
+        <DialogContent className="max-w-md w-full sm:rounded-2xl">
+          {stockEditModal && (
+            <form onSubmit={handleSaveStockEdit} className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="text-base sm:text-lg flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <span>Update Stock &amp; Cost Price</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  For <strong className="text-foreground">{stockEditModal.product?.name_kh}</strong> from supplier <strong className="text-foreground">{stockEditModal.supplier?.name}</strong>
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Previous Stock-In Info Banner */}
+              {stockEditModal.priceObj?.updated_at && (
+                <div className="p-2.5 rounded-xl bg-muted/50 border border-border flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span>Last Stock In:</span>
+                  </div>
+                  <strong className="text-foreground font-semibold">
+                    {formatStockInTime(stockEditModal.priceObj.updated_at)?.relative} ({formatStockInTime(stockEditModal.priceObj.updated_at)?.formattedDate})
+                  </strong>
+                </div>
+              )}
+
+              {/* Cost Price */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Supplier Cost Price ($)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-semibold">$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    placeholder="0.00"
+                    value={editStockPrice}
+                    onChange={(e) => setEditStockPrice(e.target.value)}
+                    className="pl-7 h-10 text-sm font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Stock Quantity + Quick Increment Buttons for Mobile Convenience */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Stock Quantity
+                  </label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Current: <strong>{stockEditModal.priceObj?.stock_qty ?? 0}</strong> {editStockUnit}
+                  </span>
+                </div>
+
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  placeholder="E.g. 10, 25"
+                  value={editStockQty}
+                  onChange={(e) => setEditStockQty(e.target.value)}
+                  className="h-10 text-sm font-bold"
+                />
+
+                {/* Quick Add Pills for Fast Mobile Restocking */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase">Quick Add:</span>
+                  {[1, 5, 10, 25, 50].map((addAmount) => (
+                    <button
+                      key={addAmount}
+                      type="button"
+                      onClick={() => {
+                        const current = Number(editStockQty) || 0;
+                        setEditStockQty((current + addAmount).toString());
+                      }}
+                      className="px-2 py-1 rounded-md text-[11px] font-bold bg-muted hover:bg-primary/10 hover:text-primary border border-border active:scale-95 transition-all"
+                    >
+                      +{addAmount}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setEditStockQty('0')}
+                    className="px-2 py-1 rounded-md text-[11px] font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-border active:scale-95 transition-all ml-auto"
+                  >
+                    Set 0
+                  </button>
+                </div>
+              </div>
+
+              {/* Stock Unit */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Stock Unit
+                </label>
+                <select
+                  value={editStockUnit}
+                  onChange={(e) => setEditStockUnit(e.target.value)}
+                  className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm h-10 focus:ring-2 focus:ring-ring focus:outline-hidden"
+                >
+                  <option value="pcs">Pieces (pcs)</option>
+                  <option value="pack">Pack</option>
+                  <option value="box">Box</option>
+                  <option value="bottle">Bottle</option>
+                  <option value="set">Set</option>
+                  <option value="tube">Tube</option>
+                  <option value="jar">Jar</option>
+                  <option value="kg">Kilogram (kg)</option>
+                  <option value="g">Gram (g)</option>
+                  <option value="pair">Pair</option>
+                </select>
+              </div>
+
+              <div className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded-xl p-2.5 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary shrink-0" />
+                <span>Saving will record <strong>now</strong> as the new stock-in time and update the invoice line item.</span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStockEditModal(null)}
+                  disabled={isSavingStock}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSavingStock}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+                >
+                  {isSavingStock ? 'Saving...' : 'Save & Stock In'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

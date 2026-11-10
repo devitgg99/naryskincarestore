@@ -30,6 +30,61 @@ export const formatInvoiceDate = (dateInput) => {
 };
 
 /**
+ * Formats stock-in / last price update date with relative elapsed time (e.g. '2 days ago', 'just now')
+ * matching PricingTable.jsx, alongside concise date and time strings.
+ */
+export const formatStockInTime = (dateInput) => {
+  if (!dateInput) return null;
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  const time = d.getTime();
+  if (isNaN(time)) return null;
+
+  const diff = Math.max(0, Date.now() - time);
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+
+  let relative = 'just now';
+  if (mins < 1) relative = 'just now';
+  else if (mins < 60) relative = `${mins} min${mins > 1 ? 's' : ''} ago`;
+  else if (hrs < 24) relative = `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+  else if (days < 7) relative = `${days} day${days > 1 ? 's' : ''} ago`;
+  else if (weeks < 5) relative = `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+  else relative = `${months} month${months > 1 ? 's' : ''} ago`;
+
+  let relativeShort = 'just now';
+  if (mins < 1) relativeShort = 'just now';
+  else if (mins < 60) relativeShort = `${mins}m ago`;
+  else if (hrs < 24) relativeShort = `${hrs}h ago`;
+  else if (days < 7) relativeShort = `${days}d ago`;
+  else if (weeks < 5) relativeShort = `${weeks}w ago`;
+  else relativeShort = `${months}mo ago`;
+
+  const monthsArr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = d.getDate();
+  const month = monthsArr[d.getMonth()];
+  const year = d.getFullYear();
+  const currentYear = new Date().getFullYear();
+  const formattedDate = year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
+
+  const hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const formattedTime = `${hour12}:${minutes} ${ampm}`;
+
+  return {
+    relative,
+    relativeShort,
+    formattedDate,
+    formattedTime,
+    full: `${formattedDate} ${formattedTime}`
+  };
+};
+
+/**
  * Builds a high-legibility receipt for 58 mm Bluetooth thermal printers.
  * Product names get their own line, while prices and totals use compact,
  * copy-safe text rows for printer apps that only accept pasted text.
