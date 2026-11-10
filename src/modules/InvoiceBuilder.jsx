@@ -282,11 +282,14 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setDeliveryFee(draft.delivery_fee !== undefined && draft.delivery_fee !== null ? String(draft.delivery_fee) : '1.50');
     setDiscountType(draft.discount_type || 'fixed');
     setDiscountValue(draft.discount_value !== undefined && draft.discount_value !== null ? String(draft.discount_value) : '0');
-    setLineItems(
-      Array.isArray(draft.line_items) && draft.line_items.length > 0
-        ? draft.line_items
-        : [createEmptyLineItem()]
-    );
+    let loadedItems = Array.isArray(draft.line_items) && draft.line_items.length > 0
+      ? draft.line_items
+      : [createEmptyLineItem()];
+    const lastItem = loadedItems[loadedItems.length - 1];
+    if (lastItem && (lastItem.product_id || (lastItem.isCustom && lastItem.custom_name))) {
+      loadedItems = [...loadedItems, createEmptyLineItem()];
+    }
+    setLineItems(loadedItems);
   };
 
   // 1. Initial load of drafts from Supabase (or LocalStorage fallback)
@@ -744,7 +747,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   // Calculate row details
   const updateLineItem = (index, field, value) => {
     const updated = [...lineItems];
-    const item = updated[index];
+    const item = { ...updated[index] };
+    if (!item) return;
     item[field] = value;
 
     if (field === 'product_id') {
@@ -773,6 +777,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         item.maxStock = 0;
         item.stockUnit = 'pcs';
       }
+
+      if (value) {
+        // Automatically add a new empty row at the bottom if none exists
+        const last = updated[updated.length - 1];
+        const isLastEmpty = last && !last.product_id && !(last.isCustom && last.custom_name);
+        if (!isLastEmpty) {
+          updated.push(createEmptyLineItem());
+        }
+      }
     } else if (field === 'supplier_id') {
       const sps = productSupplierPrices[item.product_id] || [];
       const match = sps.find(sp => sp.supplier_id === value);
@@ -790,7 +803,55 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
     const qty = parseQuantity(item.quantity);
     item.subtotal = roundMoney(Number(item.unit_price || 0) * qty);
+    updated[index] = item;
     setLineItems(updated);
+  };
+
+  const handleSelectProduct = (index, product) => {
+    setLineItems(prevItems => {
+      const updated = [...prevItems];
+      const item = { ...updated[index] };
+      const sps = productSupplierPrices[product.id] || [];
+      const customSellingPrice = product.selling_price && Number(product.selling_price) > 0 ? Number(product.selling_price) : null;
+
+      item.product_id = product.id;
+      item.searchQuery = `${product.name_kh} (${product.name_en})`;
+      item.isDropdownOpen = false;
+      item.isCustom = false;
+
+      if (sps.length > 0) {
+        const sortedSpsCheapest = [...sps].sort((a, b) => a.price - b.price);
+        const cheapest = sortedSpsCheapest[0];
+        const sortedSpsHighest = [...sps].sort((a, b) => b.price - a.price);
+        const highest = sortedSpsHighest[0];
+
+        item.supplier_id = cheapest.supplier_id;
+        item.supplier_price = cheapest.price;
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : roundMoney(highest.price + 0.20);
+        item.maxStock = cheapest.stock_qty;
+        item.stockUnit = cheapest.stock_unit;
+      } else {
+        item.supplier_id = '';
+        item.supplier_price = product.base_price || 0;
+        item.unit_price = customSellingPrice !== null ? customSellingPrice : roundMoney((product.base_price || 0) + 0.20);
+        item.maxStock = 0;
+        item.stockUnit = 'pcs';
+      }
+
+      const qty = parseQuantity(item.quantity) || 1;
+      item.quantity = qty;
+      item.subtotal = roundMoney(Number(item.unit_price || 0) * qty);
+      updated[index] = item;
+
+      // Automatically add a new empty row at the bottom so the user never needs to click "+ Add Item"
+      const last = updated[updated.length - 1];
+      const isLastEmpty = last && !last.product_id && !(last.isCustom && last.custom_name);
+      if (!isLastEmpty) {
+        updated.push(createEmptyLineItem());
+      }
+
+      return updated;
+    });
   };
 
   const openSupplierPicker = (itemIndex) => {
@@ -898,21 +959,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const removeLineItem = (index) => {
     const updated = lineItems.filter((_, idx) => idx !== index);
-    setLineItems(updated.length > 0 ? updated : [{
-      id: Date.now().toString(),
-      product_id: '',
-      supplier_id: '',
-      supplier_price: 0,
-      unit_price: 0,
-      quantity: 1,
-      subtotal: 0,
-      maxStock: 0,
-      stockUnit: 'pcs',
-      searchQuery: '',
-      isDropdownOpen: false,
-      isCustom: false,
-      custom_name: ''
-    }]);
+    if (updated.length === 0) {
+      setLineItems([createEmptyLineItem()]);
+    } else {
+      const last = updated[updated.length - 1];
+      const isLastEmpty = last && !last.product_id && !(last.isCustom && last.custom_name);
+      if (!isLastEmpty) {
+        setLineItems([...updated, createEmptyLineItem()]);
+      } else {
+        setLineItems(updated);
+      }
+    }
   };
 
   const moveLineItem = (index, direction) => {
@@ -929,7 +986,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
   const loadSampleKhmerInvoice = () => {
     const samples = createSampleCustomLineItems(generateDraftId);
-    setLineItems(samples);
+    setLineItems([...samples, createEmptyLineItem()]);
     setInvoiceCustomerName((prev) => prev || 'Yean Devit');
     setInvoicePhone((prev) => prev || '0884577039');
     setInvoiceNumber((prev) => prev || '02901');
@@ -950,6 +1007,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         item.quantity = roundMoney(currentQty + parseQuantity(qtyToAdd));
         item.subtotal = roundMoney(Number(item.unit_price) * parseQuantity(item.quantity));
         updated[existingIdx] = item;
+
+        // Auto ensure an empty item exists at the end
+        const last = updated[updated.length - 1];
+        const isLastEmpty = last && !last.product_id && !(last.isCustom && last.custom_name);
+        if (!isLastEmpty) {
+          updated.push(createEmptyLineItem());
+        }
         return updated;
       } else {
         const sps = productSupplierPrices[productId] || [];
@@ -979,20 +1043,20 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           maxStock,
           stockUnit,
           searchQuery: prod ? `${prod.name_kh} (${prod.name_en})` : '',
-          isDropdownOpen: false
+          isDropdownOpen: false,
+          isCustom: false,
+          custom_name: ''
         };
 
-        if (prevItems.length === 1 && !prevItems[0].product_id && !prevItems[0].isCustom) {
-          return [newItem];
-        }
-
-        return [...prevItems, newItem];
+        const nonBlank = prevItems.filter(item => item.product_id || (item.isCustom && item.custom_name));
+        return [...nonBlank, newItem, createEmptyLineItem()];
       }
     });
   };
 
   // Calculations with money precision rounding
   const subtotal = roundMoney(lineItems.reduce((sum, item) => {
+    if (!item.product_id && !(item.isCustom && item.custom_name)) return sum;
     return sum + roundMoney(Number(item.unit_price || 0) * parseQuantity(item.quantity));
   }, 0));
 
@@ -1978,17 +2042,40 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           {item.isCustom ? (
                             <Input
                               type="text"
-                              required
                               placeholder="Custom item name..."
                               value={item.custom_name || ''}
                               onChange={(e) => updateLineItem(idx, 'custom_name', e.target.value)}
+                              onBlur={() => {
+                                if (item.custom_name?.trim() && idx === lineItems.length - 1) {
+                                  setLineItems(prev => {
+                                    const last = prev[prev.length - 1];
+                                    if (last && (last.product_id || (last.isCustom && last.custom_name?.trim()))) {
+                                      return [...prev, createEmptyLineItem()];
+                                    }
+                                    return prev;
+                                  });
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (item.custom_name?.trim() && idx === lineItems.length - 1) {
+                                    setLineItems(prev => {
+                                      const last = prev[prev.length - 1];
+                                      if (last && (last.product_id || (last.isCustom && last.custom_name?.trim()))) {
+                                        return [...prev, createEmptyLineItem()];
+                                      }
+                                      return prev;
+                                    });
+                                  }
+                                }
+                              }}
                               className="w-full border-violet-500/30 focus-visible:border-violet-500/60 text-xs sm:text-sm font-medium h-10"
                             />
                           ) : (
                             <>
                               <Input
                                 type="text"
-                                required
                                 placeholder="Search & select product..."
                                 value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
                                 onFocus={() => {
@@ -2023,11 +2110,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                     <div
                                       key={p.id}
                                       onClick={() => {
-                                        updateLineItem(idx, 'product_id', p.id);
-                                        const updated = [...lineItems];
-                                        updated[idx].searchQuery = `${p.name_kh} (${p.name_en})`;
-                                        updated[idx].isDropdownOpen = false;
-                                        setLineItems(updated);
+                                        handleSelectProduct(idx, p);
                                       }}
                                       className="p-3 hover:bg-primary/10 cursor-pointer text-left transition-colors min-h-[44px]"
                                     >
@@ -2174,7 +2257,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                               {/* Desktop View: Select with rich option text & quick edit button */}
                               <div className="hidden sm:flex items-center gap-1.5">
                                 <select
-                                  required
+                                  required={Boolean(item.product_id)}
                                   disabled={!item.product_id}
                                   value={item.supplier_id}
                                   onChange={(e) => updateLineItem(idx, 'supplier_id', e.target.value)}
@@ -2253,7 +2336,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                               type="number"
                               step="0.01"
                               min="0"
-                              required
+                              required={Boolean(item.product_id || (item.isCustom && item.custom_name))}
                               value={item.unit_price}
                               onChange={(e) => updateLineItem(idx, 'unit_price', e.target.value)}
                               className="w-full pl-6 pr-2 h-10 text-left text-foreground text-xs font-semibold"
@@ -2271,7 +2354,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             step="any"
                             min="0"
                             inputMode="decimal"
-                            required
+                            required={Boolean(item.product_id || (item.isCustom && item.custom_name))}
                             placeholder="1"
                             value={item.quantity}
                             onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
@@ -3067,19 +3150,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                       });
 
                       if (updated.length === 0) {
-                        updated.push({
-                          id: Date.now().toString(),
-                          product_id: '',
-                          supplier_id: '',
-                          supplier_price: 0,
-                          unit_price: 0,
-                          quantity: 1,
-                          subtotal: 0,
-                          maxStock: 0,
-                          stockUnit: 'pcs',
-                          searchQuery: '',
-                          isDropdownOpen: false
-                        });
+                        updated.push(createEmptyLineItem());
+                      } else {
+                        const last = updated[updated.length - 1];
+                        const isLastEmpty = last && !last.product_id && !(last.isCustom && last.custom_name);
+                        if (!isLastEmpty) {
+                          updated.push(createEmptyLineItem());
+                        }
                       }
 
                       return updated;
