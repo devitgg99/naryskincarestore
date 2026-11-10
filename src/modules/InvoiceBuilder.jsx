@@ -810,7 +810,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const handleSelectProduct = (index, product) => {
     setLineItems(prevItems => {
       const updated = [...prevItems];
-      const item = { ...updated[index] };
+      const item = updated[index] ? { ...updated[index] } : createEmptyLineItem();
       const sps = productSupplierPrices[product.id] || [];
       const customSellingPrice = product.selling_price && Number(product.selling_price) > 0 ? Number(product.selling_price) : null;
 
@@ -818,6 +818,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       item.searchQuery = `${product.name_kh} (${product.name_en})`;
       item.isDropdownOpen = false;
       item.isCustom = false;
+      item.custom_name = '';
 
       if (sps.length > 0) {
         const sortedSpsCheapest = [...sps].sort((a, b) => a.price - b.price);
@@ -1905,7 +1906,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 </div>
 
                 {isQuickDropdownOpen && quickSearchQuery && (
-                  <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin animate-in slide-in-from-top-2 duration-150">
+                  <div
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-dark-900 border border-dark-800 shadow-2xl divide-y divide-dark-850 scrollbar-thin animate-in slide-in-from-top-2 duration-150"
+                  >
                     {getFilteredProducts(quickSearchQuery).map(p => {
                       const sps = productSupplierPrices[p.id] || [];
                       const cheapestPrice = sps.length > 0
@@ -1926,7 +1930,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             setIsQuickDropdownOpen(false);
                             quickInputRef.current?.focus();
                           }}
-                          className="p-3 hover:bg-primary-500/10 cursor-pointer text-left transition-colors flex justify-between items-center gap-4 min-h-[44px]"
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            addProductToInvoice(p.id, 1);
+                            setQuickSearchQuery('');
+                            setIsQuickDropdownOpen(false);
+                            quickInputRef.current?.focus();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addProductToInvoice(p.id, 1);
+                            setQuickSearchQuery('');
+                            setIsQuickDropdownOpen(false);
+                            quickInputRef.current?.focus();
+                          }}
+                          className="p-3 hover:bg-primary-500/10 active:bg-primary-500/20 cursor-pointer text-left transition-colors flex justify-between items-center gap-4 min-h-[44px]"
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-dark-800 border border-dark-700">
@@ -2079,47 +2097,126 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                                 placeholder="Search & select product..."
                                 value={item.searchQuery !== undefined ? item.searchQuery : (prod ? `${prod.name_kh} (${prod.name_en})` : '')}
                                 onFocus={() => {
-                                  const updated = [...lineItems];
-                                  updated[idx].isDropdownOpen = true;
-                                  const currentProd = products.find(p => p.id === item.product_id);
-                                  updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
-                                  setLineItems(updated);
+                                  setLineItems(prevItems => {
+                                    return prevItems.map((li, i) => {
+                                      if (i === idx) {
+                                        const currentProd = products.find(p => p.id === li.product_id);
+                                        return {
+                                          ...li,
+                                          isDropdownOpen: true,
+                                          searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : (li.searchQuery || '')
+                                        };
+                                      }
+                                      return { ...li, isDropdownOpen: false };
+                                    });
+                                  });
                                 }}
                                 onBlur={() => {
                                   setTimeout(() => {
-                                    const updated = [...lineItems];
-                                    if (updated[idx]) {
-                                      updated[idx].isDropdownOpen = false;
-                                      const currentProd = products.find(p => p.id === updated[idx].product_id);
-                                      updated[idx].searchQuery = currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : '';
-                                      setLineItems(updated);
-                                    }
-                                  }, 250);
+                                    setLineItems(prevItems => {
+                                      return prevItems.map((li, i) => {
+                                        if (i === idx) {
+                                          const currentProd = products.find(p => p.id === li.product_id);
+                                          return {
+                                            ...li,
+                                            isDropdownOpen: false,
+                                            searchQuery: currentProd ? `${currentProd.name_kh} (${currentProd.name_en})` : ''
+                                          };
+                                        }
+                                        return li;
+                                      });
+                                    });
+                                  }, 200);
                                 }}
                                 onChange={(e) => {
-                                  const updated = [...lineItems];
-                                  updated[idx].searchQuery = e.target.value;
-                                  updated[idx].isDropdownOpen = true;
-                                  setLineItems(updated);
+                                  const val = e.target.value;
+                                  setLineItems(prevItems => {
+                                    return prevItems.map((li, i) => {
+                                      if (i === idx) {
+                                        return {
+                                          ...li,
+                                          searchQuery: val,
+                                          isDropdownOpen: true
+                                        };
+                                      }
+                                      return li;
+                                    });
+                                  });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const matches = getFilteredProducts(item.searchQuery || '');
+                                    if (matches.length > 0) {
+                                      handleSelectProduct(idx, matches[0]);
+                                    }
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setLineItems(prevItems => prevItems.map((li, i) => i === idx ? { ...li, isDropdownOpen: false } : li));
+                                  }
                                 }}
                                 className="w-full text-xs sm:text-sm h-10"
                               />
                               {item.isDropdownOpen && (
-                                <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto z-50 rounded-xl bg-popover border border-border shadow-2xl divide-y divide-border scrollbar-thin">
-                                  {getFilteredProducts(item.searchQuery || '').map(p => (
-                                    <div
-                                      key={p.id}
-                                      onClick={() => {
-                                        handleSelectProduct(idx, p);
-                                      }}
-                                      className="p-3 hover:bg-primary/10 cursor-pointer text-left transition-colors min-h-[44px]"
-                                    >
-                                      <div className="font-semibold text-foreground text-xs sm:text-sm">{p.name_kh}</div>
-                                      <div className="text-[10px] text-muted-foreground mt-0.5">{p.name_en}</div>
-                                    </div>
-                                  ))}
+                                <div
+                                  onMouseDown={(e) => {
+                                    // Prevent input blur so clicking/scrolling the dropdown doesn't cancel selection
+                                    e.preventDefault();
+                                  }}
+                                  className="absolute left-0 right-0 mt-1 max-h-64 overflow-y-auto z-50 rounded-xl bg-popover/95 backdrop-blur-md border border-border shadow-2xl divide-y divide-border/60 scrollbar-thin animate-in fade-in-50 zoom-in-95 duration-100"
+                                >
+                                  {getFilteredProducts(item.searchQuery || '').map(p => {
+                                    const sps = productSupplierPrices[p.id] || [];
+                                    const cheapestPrice = sps.length > 0
+                                      ? Math.min(...sps.map(sp => sp.price))
+                                      : (p.base_price || 0);
+                                    const totalStock = sps.reduce((sum, sp) => sum + (sp.stock_qty || 0), 0);
+
+                                    return (
+                                      <div
+                                        key={p.id}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          handleSelectProduct(idx, p);
+                                        }}
+                                        onTouchEnd={(e) => {
+                                          e.preventDefault();
+                                          handleSelectProduct(idx, p);
+                                        }}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          handleSelectProduct(idx, p);
+                                        }}
+                                        className="p-3 hover:bg-primary/10 active:bg-primary/20 cursor-pointer text-left transition-colors flex items-center justify-between gap-3 min-h-[48px]"
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-muted border border-border/60 flex items-center justify-center">
+                                            {p.image_url ? (
+                                              <img src={p.image_url} alt={p.name_en || p.name_kh} className="w-full h-full object-cover" />
+                                            ) : (
+                                              <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                                            )}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="font-semibold text-foreground text-xs sm:text-sm truncate">{p.name_kh}</div>
+                                            <div className="text-[10px] text-muted-foreground truncate">{p.name_en}</div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2.5 shrink-0">
+                                          <div className="text-right text-[10px] text-muted-foreground">
+                                            <span className="block font-bold text-foreground text-xs sm:text-sm">${cheapestPrice.toFixed(2)}</span>
+                                            <span>Stock: {totalStock}</span>
+                                          </div>
+                                          <span className="text-[11px] font-bold bg-primary text-primary-foreground px-2.5 py-1 rounded-md shadow-xs flex items-center gap-0.5 hover:bg-primary/90 transition-colors">
+                                            + Add
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                   {getFilteredProducts(item.searchQuery || '').length === 0 && (
-                                    <div className="p-3 text-muted-foreground text-xs italic text-center">No products found</div>
+                                    <div className="p-4 text-muted-foreground text-xs italic text-center">No products found</div>
                                   )}
                                 </div>
                               )}
