@@ -52,6 +52,7 @@ export default function KhmerInvoiceTemplate({
   const displayPhone = phone || receiptData.customer?.phone || '';
   const displayNumber =
     invoiceNumber ||
+    receiptData.order?.invoice_number ||
     (isDraft ? 'DRAFT' : (receiptData.order?.id || '').slice(-5).toUpperCase());
   const displayDate = invoiceDate
     ? formatInvoiceDate(invoiceDate)

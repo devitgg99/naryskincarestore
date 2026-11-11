@@ -389,6 +389,12 @@ export const db = {
 
   // Orders & Order Items
   getOrders: async () => {
+    const orderNumberMap = getLocal('wsp_order_invoice_numbers', {});
+    const enrichOrderInvoiceNumber = (order) => ({
+      ...order,
+      invoice_number: order.invoice_number || orderNumberMap[String(order.id)] || null
+    });
+
     const client = getClient();
     if (client) {
       // Eagerly load order_items joined with orders
@@ -397,12 +403,12 @@ export const db = {
         .select('*, order_items(*)')
         .order('ordered_at', { ascending: false });
       if (!error && Array.isArray(data)) {
-        return data;
+        return data.map(enrichOrderInvoiceNumber);
       }
       // Fallback query without join if relation has an issue
       const fallback = await client.from('orders').select('*').order('ordered_at', { ascending: false });
       if (!fallback.error && Array.isArray(fallback.data)) {
-        return fallback.data;
+        return fallback.data.map(enrichOrderInvoiceNumber);
       }
       console.error("Supabase getOrders error:", error || fallback.error);
     }
@@ -411,7 +417,7 @@ export const db = {
     return localOrders.map(order => {
       const targetId = String(order.id).trim().toLowerCase();
       const items = localItems.filter(oi => String(oi.order_id || oi.orderId || '').trim().toLowerCase() === targetId);
-      return { ...order, order_items: items };
+      return { ...enrichOrderInvoiceNumber(order), order_items: items };
     });
   },
 
@@ -450,16 +456,36 @@ export const db = {
     const client = getClient();
     if (client) {
       // Create order
-      const { data: orderData, error: orderErr } = await client.from('orders').insert({
+      const orderInsertPayload = {
         customer_id: orderObj.customer_id,
         delivery_fee: orderObj.delivery_fee,
         total_amount: orderObj.total_amount,
         status: orderObj.status || 'pending',
         ordered_at: new Date().toISOString()
-      }).select();
-      
+      };
+      if (orderObj.invoice_number) {
+        orderInsertPayload.invoice_number = String(orderObj.invoice_number);
+      }
+
+      let { data: orderData, error: orderErr } = await client.from('orders').insert(orderInsertPayload).select();
+
+      // Fallback: if Supabase schema does not have invoice_number column yet, retry without it
+      if (orderErr && orderErr.message && orderErr.message.includes('invoice_number')) {
+        const fallbackOrderPayload = { ...orderInsertPayload };
+        delete fallbackOrderPayload.invoice_number;
+        const retryOrderRes = await client.from('orders').insert(fallbackOrderPayload).select();
+        orderData = retryOrderRes.data;
+        orderErr = retryOrderRes.error;
+      }
+
       if (orderErr) throw orderErr;
       const newOrder = orderData[0];
+      const resolvedInvoiceNumber = newOrder.invoice_number || orderObj.invoice_number || null;
+      if (resolvedInvoiceNumber) {
+        const orderNumberMap = getLocal('wsp_order_invoice_numbers', {});
+        orderNumberMap[String(newOrder.id)] = resolvedInvoiceNumber;
+        setLocal('wsp_order_invoice_numbers', orderNumberMap);
+      }
 
       // Create order items
       const itemsToInsert = items.map(item => {
@@ -518,7 +544,7 @@ export const db = {
           }
         }
       }
-      return { ...newOrder, order_items: itemsToInsert };
+      return { ...newOrder, invoice_number: resolvedInvoiceNumber, order_items: itemsToInsert };
     }
 
     // LocalStorage fallback
@@ -529,6 +555,7 @@ export const db = {
     const orderId = 'o_' + Date.now().toString();
     const newOrder = {
       id: orderId,
+      invoice_number: orderObj.invoice_number || null,
       customer_id: orderObj.customer_id,
       delivery_fee: Number(orderObj.delivery_fee),
       total_amount: Number(orderObj.total_amount),
@@ -786,9 +813,14 @@ export const db = {
           .order('updated_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
+          const cachedLocalDrafts = getLocal('wsp_invoice_drafts', []);
+          const localDraftById = new Map(
+            Array.isArray(cachedLocalDrafts) ? cachedLocalDrafts.map(ld => [String(ld.id), ld]) : []
+          );
           const formatted = data.map(d => ({
             id: String(d.id),
             name: d.name || 'Draft Order',
+            invoice_number: d.invoice_number || localDraftById.get(String(d.id))?.invoice_number || '',
             customer_id: d.customer_id ? String(d.customer_id) : '',
             has_delivery: d.has_delivery !== false,
             delivery_fee: d.delivery_fee !== null && d.delivery_fee !== undefined ? String(d.delivery_fee) : '1.50',
@@ -860,6 +892,7 @@ export const db = {
       updated_at: now,
       created_at: draft.created_at || now,
       name: draft.name || 'Draft Order',
+      invoice_number: draft.invoice_number ? String(draft.invoice_number) : '',
       customer_id: draft.customer_id || '',
       has_delivery: draft.has_delivery !== false,
       delivery_fee: draft.delivery_fee !== undefined && draft.delivery_fee !== null ? String(draft.delivery_fee) : '1.50',
@@ -888,6 +921,7 @@ export const db = {
         const supabaseRecord = {
           id: draftPayload.id,
           name: draftPayload.name,
+          invoice_number: draftPayload.invoice_number || null,
           customer_id: isValidUUID(draftPayload.customer_id) ? draftPayload.customer_id : null,
           has_delivery: draftPayload.has_delivery,
           delivery_fee: Number(draftPayload.delivery_fee || 0),
@@ -898,9 +932,17 @@ export const db = {
           updated_at: draftPayload.updated_at
         };
 
-        const { error } = await client
+        let { error } = await client
           .from('invoice_drafts')
           .upsert(supabaseRecord);
+
+        // Fallback if invoice_drafts.invoice_number column has not been added in Supabase yet
+        if (error && error.message && error.message.includes('invoice_number')) {
+          const fallbackRecord = { ...supabaseRecord };
+          delete fallbackRecord.invoice_number;
+          const retryRes = await client.from('invoice_drafts').upsert(fallbackRecord);
+          error = retryRes.error;
+        }
 
         if (error) {
           console.warn("Could not upsert draft to Supabase (using local):", error.message);

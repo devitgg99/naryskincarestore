@@ -58,6 +58,7 @@ import {
   createSampleCustomLineItems,
   downloadPdfFromJpeg,
   createThermalReceiptText,
+  generateInvoiceId,
 } from './invoice/invoiceUtils';
 
 const createEmptyLineItem = () => ({
@@ -76,11 +77,12 @@ const createEmptyLineItem = () => ({
   custom_name: ''
 });
 
-const createEmptyDraft = (name = 'Order #1') => {
+const createEmptyDraft = (name = 'Order #1', existingInvoiceIds = []) => {
   const now = new Date().toISOString();
   return {
     id: generateDraftId(),
     name,
+    invoice_number: generateInvoiceId(existingInvoiceIds),
     customer_id: '',
     has_delivery: true,
     delivery_fee: '1.50',
@@ -92,7 +94,43 @@ const createEmptyDraft = (name = 'Order #1') => {
   };
 };
 
-export default function InvoiceBuilder({ customers, products, suppliers, prices, brands = [], categories = [], onRefresh, showToast }) {
+const normalizeDraftsInvoiceNumbers = (draftList = [], existingOrders = []) => {
+  const knownIds = [
+    ...draftList.map(d => d.invoice_number),
+    ...(Array.isArray(existingOrders) ? existingOrders.map(o => o.invoice_number) : [])
+  ].filter(Boolean);
+
+  return draftList.map((d) => {
+    if (String(d.invoice_number || '').trim()) return d;
+    const assignedId = generateInvoiceId(knownIds);
+    knownIds.push(assignedId);
+    return { ...d, invoice_number: assignedId };
+  });
+};
+
+const createDraftPayload = ({
+  id,
+  name,
+  invoiceNumber,
+  customerId,
+  hasDelivery,
+  deliveryFee,
+  discountType,
+  discountValue,
+  lineItems
+}) => ({
+  id,
+  name,
+  invoice_number: invoiceNumber,
+  customer_id: customerId,
+  has_delivery: hasDelivery,
+  delivery_fee: deliveryFee,
+  discount_type: discountType,
+  discount_value: discountValue,
+  line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
+});
+
+export default function InvoiceBuilder({ customers, products, suppliers, prices, orders = [], brands = [], categories = [], onRefresh, showToast }) {
   // Multi-draft & cross-device state
   const [drafts, setDrafts] = useState([]);
   const [activeDraftId, setActiveDraftId] = useState('');
@@ -123,7 +161,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [receiptTemplate, setReceiptTemplate] = useState(() => {
     return localStorage.getItem('wsp_receipt_template') || DEFAULT_INVOICE_SETTINGS.template;
   });
-  const [invoiceNumber, setInvoiceNumber] = useState(() => localStorage.getItem('wsp_invoice_number') || '02901');
+  const [invoiceNumber, setInvoiceNumber] = useState(() => localStorage.getItem('wsp_invoice_number') || '');
   const [invoiceDate, setInvoiceDate] = useState(() => {
     const saved = localStorage.getItem('wsp_invoice_date');
     if (saved) return saved;
@@ -275,9 +313,36 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   const [editStockUnit, setEditStockUnit] = useState('pcs');
   const [isSavingStock, setIsSavingStock] = useState(false);
 
-  const applyDraftToForm = (draft) => {
+  const collectKnownInvoiceIds = (extraIds = []) => [
+    ...drafts.map(d => d.invoice_number),
+    ...(Array.isArray(orders) ? orders.map(o => o.invoice_number) : []),
+    invoiceNumber,
+    ...extraIds
+  ].filter(Boolean);
+
+  const buildCurrentDraftPayload = () => createDraftPayload({
+    id: activeDraftId,
+    name: draftName,
+    invoiceNumber,
+    customerId: selectedCustomerId,
+    hasDelivery,
+    deliveryFee,
+    discountType,
+    discountValue,
+    lineItems
+  });
+
+  const applyDraftToForm = (draft, extraExistingIds = []) => {
+    const resolvedInvoiceNumber =
+      String(draft.invoice_number || '').trim() ||
+      generateInvoiceId(collectKnownInvoiceIds(extraExistingIds));
+
     setDraftName(draft.name || 'Order #1');
+    setInvoiceNumber(resolvedInvoiceNumber);
     setSelectedCustomerId(draft.customer_id || '');
+    const draftCustomer = customers.find(c => String(c.id) === String(draft.customer_id));
+    setInvoiceCustomerName(draftCustomer?.name || '');
+    setInvoicePhone(draftCustomer?.phone || '');
     setHasDelivery(draft.has_delivery !== false);
     setDeliveryFee(draft.delivery_fee !== undefined && draft.delivery_fee !== null ? String(draft.delivery_fee) : '1.50');
     setDiscountType(draft.discount_type || 'fixed');
@@ -290,6 +355,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       loadedItems = [...loadedItems, createEmptyLineItem()];
     }
     setLineItems(loadedItems);
+    return resolvedInvoiceNumber;
   };
 
   // 1. Initial load of drafts from Supabase (or LocalStorage fallback)
@@ -300,11 +366,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const fetched = await db.getDrafts();
         if (!isMounted) return;
         if (Array.isArray(fetched) && fetched.length > 0) {
-          setDrafts(fetched);
+          const normalized = normalizeDraftsInvoiceNumbers(fetched, orders);
+          setDrafts(normalized);
           const savedActiveId = localStorage.getItem('wsp_active_draft_id');
-          const target = fetched.find(d => d.id === savedActiveId) || fetched[0];
+          const target = normalized.find(d => d.id === savedActiveId) || normalized[0];
           setActiveDraftId(target.id);
-          applyDraftToForm(target);
+          applyDraftToForm(target, normalized.map(d => d.invoice_number));
+          // Persist newly generated invoice IDs for any legacy drafts without one
+          const originalTarget = fetched.find(d => d.id === target.id);
+          if (originalTarget && !String(originalTarget.invoice_number || '').trim()) {
+            db.saveDraft(target).catch(() => {});
+          }
         }
       } catch (err) {
         console.error("Failed to load drafts:", err);
@@ -373,16 +445,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   useEffect(() => {
     if (isInitialLoadRef.current || !activeDraftId) return;
 
-    const currentPayload = {
+    const currentPayload = createDraftPayload({
       id: activeDraftId,
       name: draftName,
-      customer_id: selectedCustomerId,
-      has_delivery: hasDelivery,
-      delivery_fee: deliveryFee,
-      discount_type: discountType,
-      discount_value: discountValue,
-      line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
-    };
+      invoiceNumber,
+      customerId: selectedCustomerId,
+      hasDelivery,
+      deliveryFee,
+      discountType,
+      discountValue,
+      lineItems
+    });
 
     // Update in-memory draft immediately so tab labels/totals update smoothly
     setDrafts(prev => {
@@ -414,24 +487,25 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [activeDraftId, draftName, selectedCustomerId, hasDelivery, deliveryFee, discountType, discountValue, lineItems]);
+  }, [activeDraftId, draftName, invoiceNumber, selectedCustomerId, hasDelivery, deliveryFee, discountType, discountValue, lineItems]);
+
+  const handleRegenerateInvoiceId = () => {
+    const nextId = generateInvoiceId(collectKnownInvoiceIds());
+    setInvoiceNumber(nextId);
+    showToast(`Generated new Invoice ID: ${nextId}`, "success");
+  };
 
   // Draft Management Handlers
   const handleSwitchDraft = async (targetDraftId) => {
     if (targetDraftId === activeDraftId) return;
 
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
     // Save current active draft immediately before switching
     if (activeDraftId) {
-      const currentPayload = {
-        id: activeDraftId,
-        name: draftName,
-        customer_id: selectedCustomerId,
-        has_delivery: hasDelivery,
-        delivery_fee: deliveryFee,
-        discount_type: discountType,
-        discount_value: discountValue,
-        line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
-      };
+      const currentPayload = buildCurrentDraftPayload();
       try {
         await db.saveDraft(currentPayload);
       } catch (err) {
@@ -449,18 +523,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   };
 
   const handleNewDraft = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
     // Save current active draft first
     if (activeDraftId) {
-      const currentPayload = {
-        id: activeDraftId,
-        name: draftName,
-        customer_id: selectedCustomerId,
-        has_delivery: hasDelivery,
-        delivery_fee: deliveryFee,
-        discount_type: discountType,
-        discount_value: discountValue,
-        line_items: lineItems.map(item => ({ ...item, isDropdownOpen: false }))
-      };
+      const currentPayload = buildCurrentDraftPayload();
       try {
         await db.saveDraft(currentPayload);
       } catch (err) {
@@ -468,7 +537,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       }
     }
 
-    const newDraft = createEmptyDraft(`Order #${drafts.length + 1}`);
+    const knownIds = collectKnownInvoiceIds();
+    const newDraft = createEmptyDraft(`Order #${drafts.length + 1}`, knownIds);
 
     try {
       setIsSyncingDraft(true);
@@ -476,8 +546,8 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
       setDrafts(prev => [newDraft, ...prev]);
       setActiveDraftId(newDraft.id);
       localStorage.setItem('wsp_active_draft_id', newDraft.id);
-      applyDraftToForm(newDraft);
-      showToast(`Started new draft "${newDraft.name}"`, "success");
+      applyDraftToForm(newDraft, knownIds);
+      showToast(`Started new invoice ${newDraft.invoice_number}`, "success");
     } catch (err) {
       showToast("Error creating draft: " + err.message, "error");
     } finally {
@@ -507,12 +577,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           applyDraftToForm(nextDraft);
         }
       } else {
-        const freshDraft = createEmptyDraft('Order #1');
+        const knownIds = collectKnownInvoiceIds();
+        const freshDraft = createEmptyDraft('Order #1', knownIds);
         await db.saveDraft(freshDraft);
         setDrafts([freshDraft]);
         setActiveDraftId(freshDraft.id);
         localStorage.setItem('wsp_active_draft_id', freshDraft.id);
-        applyDraftToForm(freshDraft);
+        applyDraftToForm(freshDraft, knownIds);
       }
       showToast("Draft removed", "info");
     } catch (err) {
@@ -525,11 +596,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     try {
       const updated = await db.getDrafts();
       if (Array.isArray(updated) && updated.length > 0) {
-        setDrafts(updated);
-        const current = updated.find(d => d.id === activeDraftId) || updated[0];
+        const normalized = normalizeDraftsInvoiceNumbers(updated, orders);
+        setDrafts(normalized);
+        const current = normalized.find(d => d.id === activeDraftId) || normalized[0];
         if (current && current.id !== activeDraftId) {
           setActiveDraftId(current.id);
-          applyDraftToForm(current);
+          applyDraftToForm(current, normalized.map(d => d.invoice_number));
         }
         showToast("Drafts synchronized!", "success");
       }
@@ -990,7 +1062,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
     setLineItems([...samples, createEmptyLineItem()]);
     setInvoiceCustomerName((prev) => prev || 'Yean Devit');
     setInvoicePhone((prev) => prev || '0884577039');
-    setInvoiceNumber((prev) => prev || '02901');
+    setInvoiceNumber((prev) => prev || generateInvoiceId(collectKnownInvoiceIds()));
     if (!invoiceDate) setInvoiceDate(new Date().toISOString().slice(0, 10));
     setReceiptTemplate(TEMPLATE_IDS.KHMER);
     showToast('Loaded sample Khmer invoice items. Edit freely.', 'success');
@@ -1091,7 +1163,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
     setIsSaving(true);
     try {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      const finalInvoiceNumber = String(invoiceNumber || '').trim() || generateInvoiceId(collectKnownInvoiceIds());
       const orderObj = {
+        invoice_number: finalInvoiceNumber,
         customer_id: selectedCustomerId,
         delivery_fee: effectiveDeliveryFee,
         discount: calculatedDiscount,
@@ -1119,7 +1197,12 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
 
       // Show print modal
       setSavedOrder({
-        order: { ...result, discount: calculatedDiscount, delivery_fee: effectiveDeliveryFee },
+        order: {
+          ...result,
+          invoice_number: result.invoice_number || finalInvoiceNumber,
+          discount: calculatedDiscount,
+          delivery_fee: effectiveDeliveryFee
+        },
         items: sanitizedItems,
         customer: customers.find(c => c.id === selectedCustomerId)
       });
@@ -1139,16 +1222,17 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const next = remainingDrafts[0];
         setActiveDraftId(next.id);
         localStorage.setItem('wsp_active_draft_id', next.id);
-        applyDraftToForm(next);
+        applyDraftToForm(next, [finalInvoiceNumber]);
       } else {
-        const freshDraft = createEmptyDraft('Order #1');
+        const knownIds = collectKnownInvoiceIds([finalInvoiceNumber]);
+        const freshDraft = createEmptyDraft('Order #1', knownIds);
         await db.saveDraft(freshDraft);
         setDrafts([freshDraft]);
         setActiveDraftId(freshDraft.id);
         localStorage.setItem('wsp_active_draft_id', freshDraft.id);
-        applyDraftToForm(freshDraft);
+        applyDraftToForm(freshDraft, knownIds);
       }
-      showToast("Invoice saved successfully!", "success");
+      showToast(`Invoice ${finalInvoiceNumber} saved successfully!`, "success");
     } catch (err) {
       showToast("Error creating order: " + err.message, "error");
     } finally {
@@ -1225,11 +1309,13 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
   };
 
   const buildExportFilename = (ext) => {
-    const customer = customers.find(c => c.id === selectedCustomerId);
-    const nameSource = invoiceCustomerName || customer?.name || 'Customer';
+    const receiptData = savedOrder || previewOrder;
+    const customer = receiptData?.customer || customers.find(c => c.id === selectedCustomerId);
+    const nameSource = (!savedOrder ? invoiceCustomerName : '') || customer?.name || 'Customer';
     const safeName = nameSource.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF\u1780-\u17FF]/g, '_');
-    const timestamp = new Date().toISOString().slice(0, 10);
-    return `Invoice_${safeName}_${timestamp}.${ext}`;
+    const idSource = String(receiptData?.order?.invoice_number || (!savedOrder ? invoiceNumber : '') || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const suffix = idSource || new Date().toISOString().slice(0, 10);
+    return `Invoice_${suffix}_${safeName}.${ext}`;
   };
 
   // Wait for Google Fonts to be ready so Khmer glyphs render in captures
@@ -1482,10 +1568,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                 size="sm"
                 onClick={handleNewDraft}
                 className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
-                title="Hold current order and start a new blank draft"
+                title="Hold current invoice and start a new invoice with a new Invoice ID"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ New Order / Draft</span>
+                <span>New Invoice</span>
               </Button>
             </div>
           </div>
@@ -1498,6 +1584,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
               const itemCount = (d.line_items || []).filter(i => (i.product_id || (i.isCustom && i.custom_name)) && parseQuantity(i.quantity) > 0).length;
               const draftSubtotal = (d.line_items || []).reduce((sum, i) => sum + roundMoney(Number(i.unit_price || 0) * parseQuantity(i.quantity)), 0);
               const displayLabel = d.name || (cust ? cust.name : `Order #${index + 1}`);
+              const draftInvNo = isActive ? invoiceNumber : d.invoice_number;
 
               return (
                 <div
@@ -1509,11 +1596,16 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   onClick={() => {
                     if (!isActive) handleSwitchDraft(d.id);
                   }}
-                  title={`Switch to ${displayLabel} (${itemCount} items • $${draftSubtotal.toFixed(2)})`}
+                  title={`Switch to ${displayLabel}${draftInvNo ? ` (${draftInvNo})` : ''} (${itemCount} items • $${draftSubtotal.toFixed(2)})`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
                     <span className="font-semibold max-w-[130px] truncate">{displayLabel}</span>
+                    {draftInvNo && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background/70 border border-border/70 text-muted-foreground">
+                        {draftInvNo}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -1570,7 +1662,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                     size="sm"
                     onClick={handleNewDraft}
                     className="h-7 text-xs px-2.5 gap-1 text-muted-foreground hover:text-foreground"
-                    title="Park current order and start another"
+                    title="Park current invoice and start a new invoice with a fresh ID"
                   >
                     <PauseCircle className="w-3 h-3 text-amber-400" />
                     <span className="hidden sm:inline">Hold & New</span>
@@ -1607,6 +1699,30 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Invoice ID</label>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="text"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      placeholder="INV-261111-001"
+                      className="h-9 text-xs font-mono font-semibold"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleRegenerateInvoiceId}
+                      className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+                      title="Generate a new Invoice ID"
+                      aria-label="Generate a new Invoice ID"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
                 {receiptTemplate === TEMPLATE_IDS.KHMER && (
                   <>
                     <div>
@@ -1626,16 +1742,6 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         value={invoicePhone}
                         onChange={(e) => setInvoicePhone(e.target.value)}
                         placeholder="លេខទូរស័ព្ទ"
-                        className="h-9 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Invoice Number</label>
-                      <Input
-                        type="text"
-                        value={invoiceNumber}
-                        onChange={(e) => setInvoiceNumber(e.target.value)}
-                        placeholder="វិក្កយបត្រលេខ"
                         className="h-9 text-xs"
                       />
                     </div>
@@ -2753,6 +2859,22 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const receiptData = savedOrder || previewOrder;
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        const modalInvoiceNumber = savedOrder
+          ? (receiptData.order?.invoice_number || '')
+          : invoiceNumber;
+        const updateModalInvoiceNumber = (nextVal) => {
+          if (savedOrder) {
+            setSavedOrder((prev) => prev ? { ...prev, order: { ...prev.order, invoice_number: nextVal } } : prev);
+          } else {
+            setInvoiceNumber(nextVal);
+          }
+        };
+        const modalCustomerName = savedOrder
+          ? (receiptData.customer?.name || '')
+          : (invoiceCustomerName || receiptData.customer?.name);
+        const modalCustomerPhone = savedOrder
+          ? (receiptData.customer?.phone || '')
+          : (invoicePhone || receiptData.customer?.phone);
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 backdrop-blur-xs p-3 sm:p-6 flex items-center justify-center no-print">
             <div className={`bg-card border border-border w-full rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200 ${receiptTemplate === TEMPLATE_IDS.KHMER ? 'max-w-6xl' : 'max-w-4xl'}`}>
@@ -2848,6 +2970,30 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                         {receiptTemplate === TEMPLATE_IDS.OLD ? (
                           <>
                             <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Invoice ID / Number</label>
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  type="text"
+                                  value={modalInvoiceNumber}
+                                  onChange={(e) => updateModalInvoiceNumber(e.target.value)}
+                                  placeholder="INV-261111-001"
+                                  className="h-8 text-xs font-mono"
+                                />
+                                {!savedOrder && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenerateInvoiceId}
+                                    className="h-8 px-2 shrink-0"
+                                    title="Generate new Invoice ID"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            <div>
                               <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop/Vendor Name</label>
                               <Input type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} className="h-8 text-xs" />
                             </div>
@@ -2881,7 +3027,21 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             </div>
                             <div>
                               <label className="block font-semibold text-muted-foreground uppercase mb-1">Invoice Number</label>
-                              <Input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-8 text-xs" />
+                              <div className="flex items-center gap-1.5">
+                                <Input type="text" value={modalInvoiceNumber} onChange={(e) => updateModalInvoiceNumber(e.target.value)} className="h-8 text-xs font-mono" />
+                                {!savedOrder && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenerateInvoiceId}
+                                    className="h-8 px-2 shrink-0"
+                                    title="Generate new Invoice ID"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                             <div>
                               <label className="block font-semibold text-muted-foreground uppercase mb-1">Date</label>
@@ -3007,10 +3167,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                           <KhmerInvoiceTemplate
                             receiptData={receiptData}
                             products={products}
-                            invoiceNumber={invoiceNumber}
+                            invoiceNumber={modalInvoiceNumber}
                             invoiceDate={invoiceDate}
-                            customerName={invoiceCustomerName || receiptData.customer?.name}
-                            phone={invoicePhone || receiptData.customer?.phone}
+                            customerName={modalCustomerName}
+                            phone={modalCustomerPhone}
                             isDraft={isDraft}
                             settings={invoiceSettings}
                           />
@@ -3022,6 +3182,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                             shopAddress={shopAddress}
                             shopPhone={shopPhone}
                             customFooter={customFooter}
+                            invoiceNumber={modalInvoiceNumber}
                             isDraft={isDraft}
                             currencySymbol={currencySymbol}
                           />
@@ -3043,16 +3204,25 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const receiptData = savedOrder || previewOrder;
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        const printInvoiceNumber = savedOrder
+          ? (receiptData.order?.invoice_number || '')
+          : invoiceNumber;
+        const printCustomerName = savedOrder
+          ? (receiptData.customer?.name || '')
+          : (invoiceCustomerName || receiptData.customer?.name);
+        const printCustomerPhone = savedOrder
+          ? (receiptData.customer?.phone || '')
+          : (invoicePhone || receiptData.customer?.phone);
         return (
           <div className={`hidden print-only bg-white text-black leading-normal ${receiptTemplate === TEMPLATE_IDS.KHMER ? 'print-a4 p-0' : 'p-4 font-sans'}`}>
             {receiptTemplate === TEMPLATE_IDS.KHMER ? (
               <KhmerInvoiceTemplate
                 receiptData={receiptData}
                 products={products}
-                invoiceNumber={invoiceNumber}
+                invoiceNumber={printInvoiceNumber}
                 invoiceDate={invoiceDate}
-                customerName={invoiceCustomerName || receiptData.customer?.name}
-                phone={invoicePhone || receiptData.customer?.phone}
+                customerName={printCustomerName}
+                phone={printCustomerPhone}
                 isDraft={isDraft}
                 showDraftBanner={false}
                 settings={{ ...invoiceSettings, invoiceWidth: PAGE_SIZES[invoicePageSize]?.widthPx || 794 }}
@@ -3066,6 +3236,7 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
                   shopAddress={shopAddress}
                   shopPhone={shopPhone}
                   customFooter={customFooter}
+                  invoiceNumber={printInvoiceNumber}
                   isDraft={isDraft}
                   showDraftBanner={false}
                   currencySymbol={currencySymbol}
@@ -3080,6 +3251,15 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
         const receiptData = savedOrder || previewOrder;
         if (!receiptData) return null;
         const isDraft = receiptData.order.id.startsWith('DRAFT_PREVIEW');
+        const thermalInvoiceNumber = savedOrder
+          ? (receiptData.order?.invoice_number || '')
+          : invoiceNumber;
+        const thermalCustomerName = savedOrder
+          ? (receiptData.customer?.name || '')
+          : invoiceCustomerName;
+        const thermalCustomerPhone = savedOrder
+          ? (receiptData.customer?.phone || '')
+          : invoicePhone;
         const receiptText = createThermalReceiptText({
           receiptData,
           getItemName: (item) => {
@@ -3090,10 +3270,10 @@ export default function InvoiceBuilder({ customers, products, suppliers, prices,
           shopAddress,
           shopPhone,
           footer: customFooter,
-          invoiceNumber: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceNumber : '',
+          invoiceNumber: thermalInvoiceNumber,
           invoiceDate: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceDate : '',
-          customerName: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceCustomerName : '',
-          customerPhone: receiptTemplate === TEMPLATE_IDS.KHMER ? invoicePhone : '',
+          customerName: receiptTemplate === TEMPLATE_IDS.KHMER ? thermalCustomerName : '',
+          customerPhone: receiptTemplate === TEMPLATE_IDS.KHMER ? thermalCustomerPhone : '',
           currencySymbol,
           isDraft,
         });

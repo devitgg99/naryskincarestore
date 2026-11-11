@@ -348,6 +348,7 @@ export default function App() {
             products={products}
             suppliers={suppliers}
             prices={prices}
+            orders={orders}
             brands={brands}
             categories={categories}
             onRefresh={loadData}

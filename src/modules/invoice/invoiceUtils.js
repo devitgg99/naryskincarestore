@@ -20,6 +20,68 @@ export const formatCurrency = (amount, symbol = '$') => {
   })}`;
 };
 
+/**
+ * Generates a unique, human-readable sequential daily Invoice ID (e.g. INV-261111-001).
+ * Tracks a daily sequence counter in localStorage while guaranteeing no collision
+ * against any active draft or saved order IDs passed in `existingIds`.
+ */
+export const generateInvoiceId = (existingIds = [], dateInput = new Date()) => {
+  const d = dateInput instanceof Date && !isNaN(dateInput.getTime()) ? dateInput : new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const dateKey = `${yy}${mm}${dd}`;
+  const prefix = `INV-${dateKey}-`;
+
+  const existingSet = new Set();
+  let maxFromExisting = 0;
+
+  (Array.isArray(existingIds) ? existingIds : []).forEach((rawId) => {
+    const clean = String(rawId || '').trim().toUpperCase();
+    if (!clean) return;
+    existingSet.add(clean);
+    if (clean.startsWith(prefix)) {
+      const seqPart = Number.parseInt(clean.slice(prefix.length), 10);
+      if (Number.isFinite(seqPart) && seqPart > maxFromExisting) {
+        maxFromExisting = seqPart;
+      }
+    }
+  });
+
+  const storageKey = `wsp_invoice_seq_${dateKey}`;
+  let storedSeq = 0;
+  try {
+    storedSeq = Number.parseInt(localStorage.getItem(storageKey) || '0', 10) || 0;
+  } catch {
+    // Ignore storage read errors in restricted environments
+  }
+
+  let nextSeq = Math.max(storedSeq, maxFromExisting) + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  while (existingSet.has(candidate)) {
+    nextSeq += 1;
+    candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  }
+
+  try {
+    localStorage.setItem(storageKey, String(nextSeq));
+  } catch {
+    // Ignore storage write errors in restricted environments
+  }
+
+  return candidate;
+};
+
+/**
+ * Resolves the display Invoice ID / Number for a saved order or draft.
+ */
+export const resolveOrderInvoiceNumber = (order, overrideNumber = '') => {
+  const explicit = String(overrideNumber || order?.invoice_number || '').trim();
+  if (explicit) return explicit;
+  if (order?.id) return `#${String(order.id).slice(-6).toUpperCase()}`;
+  return '';
+};
+
 export const formatInvoiceDate = (dateInput) => {
   if (!dateInput) return '';
   const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
@@ -107,7 +169,7 @@ export const createThermalReceiptText = ({
   const items = receiptData.items || [];
   const line = '-'.repeat(32);
   const strongLine = '='.repeat(32);
-  const orderNumber = invoiceNumber || (isDraft
+  const orderNumber = invoiceNumber || order.invoice_number || (isDraft
     ? 'DRAFT'
     : `#${String(order.id || '').slice(-6).toUpperCase()}`);
   const date = invoiceDate || formatInvoiceDate(order.ordered_at);

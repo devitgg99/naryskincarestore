@@ -19,6 +19,7 @@ import {
   downloadPdfFromJpeg,
   formatCurrency,
   createThermalReceiptText,
+  resolveOrderInvoiceNumber,
 } from './invoice/invoiceUtils';
 import {
   Table,
@@ -189,7 +190,9 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
   const filteredOrders = orders.filter(order => {
     const cust = customers.find(c => String(c.id).trim().toLowerCase() === String(order.customer_id).trim().toLowerCase());
     const customerName = cust ? cust.name.toLowerCase() : (order.customer?.name?.toLowerCase() || '');
-    const matchesSearch = customerName.includes(searchTerm.toLowerCase());
+    const orderInvoiceNo = resolveOrderInvoiceNumber(order).toLowerCase();
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = customerName.includes(q) || orderInvoiceNo.includes(q);
 
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
@@ -252,7 +255,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
       }, 0);
 
       return [
-        `#${String(order.id).slice(-6).toUpperCase()}`,
+        resolveOrderInvoiceNumber(order),
         custName,
         orderDate,
         `"${itemsSummary.replace(/"/g, '""')}"`,
@@ -291,7 +294,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
 
     setInvoiceCustomerName(customer?.name || '');
     setInvoicePhone(customer?.phone || '');
-    setInvoiceNumber(`#${String(order.id).slice(-6).toUpperCase()}`);
+    setInvoiceNumber(resolveOrderInvoiceNumber(order));
     setInvoiceDate(order.ordered_at ? new Date(order.ordered_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
 
     setActiveOrderPreview({ 
@@ -402,7 +405,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
           await navigator.share({
             files: [file],
             title: filename,
-            text: `Wholesale Invoice #${String(activeOrderPreview.order.id).slice(-6).toUpperCase()}`
+            text: `Wholesale Invoice ${invoiceNumber || resolveOrderInvoiceNumber(activeOrderPreview.order)}`
           });
           showToast("Invoice image shared / saved to photos!", "success");
         } catch (shareErr) {
@@ -555,7 +558,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                     <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
                       {/* ID */}
                       <TableCell className="p-4 font-mono font-bold text-xs text-primary">
-                        #{order.id.slice(-6).toUpperCase()}
+                        {resolveOrderInvoiceNumber(order)}
                       </TableCell>
                       
                       {/* Customer */}
@@ -751,6 +754,10 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                         {receiptTemplate === TEMPLATE_IDS.OLD ? (
                           <>
                             <div>
+                              <label className="block font-semibold text-muted-foreground uppercase mb-1">Invoice ID / Number</label>
+                              <Input type="text" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="h-8 text-xs font-mono" />
+                            </div>
+                            <div>
                               <label className="block font-semibold text-muted-foreground uppercase mb-1">Shop/Vendor Name</label>
                               <Input type="text" value={shopName} onChange={(e) => setShopName(e.target.value)} className="h-8 text-xs" />
                             </div>
@@ -938,6 +945,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                             shopAddress={shopAddress}
                             shopPhone={shopPhone}
                             customFooter={customFooter}
+                            invoiceNumber={invoiceNumber}
                             isDraft={false}
                             currencySymbol={currencySymbol}
                           />
@@ -984,6 +992,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
                   shopAddress={shopAddress}
                   shopPhone={shopPhone}
                   customFooter={customFooter}
+                  invoiceNumber={invoiceNumber}
                   isDraft={false}
                   showDraftBanner={false}
                   currencySymbol={currencySymbol}
@@ -1007,7 +1016,7 @@ export default function SalesLog({ orders, customers, orderItems, products, pric
           shopAddress,
           shopPhone,
           footer: customFooter,
-          invoiceNumber: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceNumber : '',
+          invoiceNumber,
           invoiceDate: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceDate : '',
           customerName: receiptTemplate === TEMPLATE_IDS.KHMER ? invoiceCustomerName : '',
           customerPhone: receiptTemplate === TEMPLATE_IDS.KHMER ? invoicePhone : '',

@@ -11,11 +11,19 @@ export default function OldReceiptTemplate({
   shopAddress,
   shopPhone,
   customFooter,
+  invoiceNumber = '',
   isDraft = false,
   currencySymbol = '$',
   showDraftBanner = true
 }) {
   if (!receiptData) return null;
+
+  const explicitInvoiceNo = String(invoiceNumber || receiptData.order?.invoice_number || '').trim();
+  const displayInvoiceNo = explicitInvoiceNo
+    ? (explicitInvoiceNo.startsWith('#') || explicitInvoiceNo.toUpperCase().startsWith('INV')
+      ? explicitInvoiceNo
+      : `#${explicitInvoiceNo}`)
+    : `#${isDraft ? 'DRAFT_PREVIEW' : String(receiptData.order?.id || '').slice(-6).toUpperCase()}`;
 
   const items = receiptData.items || [];
   const itemsSubtotal = items.reduce(
@@ -39,9 +47,9 @@ export default function OldReceiptTemplate({
           {shopPhone ? ` • Tel: ${shopPhone}` : ''}
         </p>
 
-        <div className="text-left text-xs grid grid-cols-2 gap-y-1 pt-3 font-mono text-gray-800">
-          <div>
-            <strong>Invoice No:</strong> #{isDraft ? 'DRAFT_PREVIEW' : receiptData.order.id.slice(-6).toUpperCase()}
+        <div className="text-left text-xs grid grid-cols-[1.4fr_1fr] gap-x-2 gap-y-1 pt-3 font-mono text-gray-800">
+          <div className="truncate">
+            <strong>Invoice No:</strong> {displayInvoiceNo}
           </div>
           <div>
             <strong>Date:</strong> {new Date(receiptData.order.ordered_at).toLocaleDateString()}

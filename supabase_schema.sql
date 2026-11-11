@@ -140,6 +140,7 @@ alter table brands disable row level security;
 alter table categories disable row level security;
 
 -- Migration/Upgrade updates
+alter table orders add column if not exists invoice_number text;
 alter table order_items add column if not exists custom_name text;
 alter table order_items alter column quantity type numeric(10, 2);
 alter table supplier_prices alter column stock_qty type numeric(10, 2);
@@ -148,6 +149,7 @@ alter table supplier_prices alter column stock_qty type numeric(10, 2);
 create table if not exists invoice_drafts (
   id text primary key default gen_random_uuid()::text,
   name text,
+  invoice_number text,
   customer_id uuid references customers(id) on delete set null,
   has_delivery boolean not null default true,
   delivery_fee numeric(10, 2) not null default 1.50,
@@ -159,6 +161,7 @@ create table if not exists invoice_drafts (
 );
 
 create index if not exists idx_invoice_drafts_updated_at on invoice_drafts(updated_at desc);
+alter table invoice_drafts add column if not exists invoice_number text;
 alter table invoice_drafts disable row level security;
 
 -- Table 10: user_profiles (Multi-role access control: admin vs user)
