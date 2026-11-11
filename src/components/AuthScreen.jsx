@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
@@ -28,16 +28,7 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
   const [successMsg, setSuccessMsg] = useState('');
 
   // Telegram Mini App User Detection
-  const [telegramUser, setTelegramUser] = useState(null);
-
-  useEffect(() => {
-    if (isTelegramMiniApp()) {
-      const tgUser = getTelegramUser();
-      if (tgUser) {
-        setTelegramUser(tgUser);
-      }
-    }
-  }, []);
+  const [telegramUser] = useState(() => (isTelegramMiniApp() ? getTelegramUser() : null));
 
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('');

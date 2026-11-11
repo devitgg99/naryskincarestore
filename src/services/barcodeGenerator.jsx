@@ -85,35 +85,34 @@ export function BarcodeSvg({ value, height = 50, barWidth = 2, className = '' })
     );
   }
 
-  let totalWidth = 0;
-  bars.forEach(b => { totalWidth += b.width * barWidth; });
-
+  const rects = [];
   let currentX = 0;
+  bars.forEach((b, idx) => {
+    const w = b.width * barWidth;
+    if (b.isBar) {
+      rects.push({ key: idx, x: currentX, width: w });
+    }
+    currentX += w;
+  });
 
   return (
     <div className={`flex flex-col items-center select-none text-black ${className}`}>
-      <svg 
-        width={totalWidth} 
-        height={height} 
-        viewBox={`0 0 ${totalWidth} ${height}`} 
+      <svg
+        width={currentX}
+        height={height}
+        viewBox={`0 0 ${currentX} ${height}`}
         className="block max-w-full"
       >
-        {bars.map((b, idx) => {
-          const w = b.width * barWidth;
-          const x = currentX;
-          currentX += w;
-          if (!b.isBar) return null;
-          return (
-            <rect 
-              key={idx} 
-              x={x} 
-              y={0} 
-              width={w} 
-              height={height} 
-              fill="#000000" 
-            />
-          );
-        })}
+        {rects.map((rect) => (
+          <rect
+            key={rect.key}
+            x={rect.x}
+            y={0}
+            width={rect.width}
+            height={height}
+            fill="#000000"
+          />
+        ))}
       </svg>
       {value && (
         <span className="font-mono text-[11px] tracking-widest font-bold mt-1 text-black">

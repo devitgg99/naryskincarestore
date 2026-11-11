@@ -108,21 +108,27 @@ export const formatStockInTime = (dateInput) => {
   const weeks = Math.floor(days / 7);
   const months = Math.floor(days / 30);
 
-  let relative = 'just now';
-  if (mins < 1) relative = 'just now';
-  else if (mins < 60) relative = `${mins} min${mins > 1 ? 's' : ''} ago`;
-  else if (hrs < 24) relative = `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
-  else if (days < 7) relative = `${days} day${days > 1 ? 's' : ''} ago`;
-  else if (weeks < 5) relative = `${weeks} week${weeks > 1 ? 's' : ''} ago`;
-  else relative = `${months} month${months > 1 ? 's' : ''} ago`;
-
-  let relativeShort = 'just now';
-  if (mins < 1) relativeShort = 'just now';
-  else if (mins < 60) relativeShort = `${mins}m ago`;
-  else if (hrs < 24) relativeShort = `${hrs}h ago`;
-  else if (days < 7) relativeShort = `${days}d ago`;
-  else if (weeks < 5) relativeShort = `${weeks}w ago`;
-  else relativeShort = `${months}mo ago`;
+  let relative;
+  let relativeShort;
+  if (mins < 1) {
+    relative = 'just now';
+    relativeShort = 'just now';
+  } else if (mins < 60) {
+    relative = `${mins} min${mins > 1 ? 's' : ''} ago`;
+    relativeShort = `${mins}m ago`;
+  } else if (hrs < 24) {
+    relative = `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+    relativeShort = `${hrs}h ago`;
+  } else if (days < 7) {
+    relative = `${days} day${days > 1 ? 's' : ''} ago`;
+    relativeShort = `${days}d ago`;
+  } else if (weeks < 5) {
+    relative = `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+    relativeShort = `${weeks}w ago`;
+  } else {
+    relative = `${months} month${months > 1 ? 's' : ''} ago`;
+    relativeShort = `${months}mo ago`;
+  }
 
   const monthsArr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const day = d.getDate();

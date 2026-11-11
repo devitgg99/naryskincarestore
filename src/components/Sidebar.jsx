@@ -6,7 +6,6 @@ import {
   Package, 
   Database,
   RefreshCw,
-  Info,
   Sun,
   Moon,
   X,
